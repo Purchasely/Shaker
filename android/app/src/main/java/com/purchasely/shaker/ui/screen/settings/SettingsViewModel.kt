@@ -72,6 +72,10 @@ class SettingsViewModel(
         _restoreMessage.value = null
     }
 
+    fun onPurchaseCompleted() {
+        premiumManager.refreshPremiumStatus()
+    }
+
     fun setThemeMode(mode: String) {
         _themeMode.value = mode
         prefs.edit().putString(KEY_THEME, mode).apply()

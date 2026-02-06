@@ -3,7 +3,7 @@
     {
       "id": "mojito",
       "name": "Mojito",
-      "image": "mojito.webp",
+      "image": "mojito.jpg",
       "description": "A refreshing Cuban classic with lime and mint that's perfect for warm weather.",
       "category": "classic",
       "spirit": "rum",
@@ -26,7 +26,7 @@
     {
       "id": "old-fashioned",
       "name": "Old Fashioned",
-      "image": "old-fashioned.webp",
+      "image": "old-fashioned.jpg",
       "description": "The quintessential whiskey cocktail, simple yet sophisticated.",
       "category": "classic",
       "spirit": "whiskey",
@@ -50,7 +50,7 @@
     {
       "id": "margarita",
       "name": "Margarita",
-      "image": "margarita.webp",
+      "image": "margarita.jpg",
       "description": "Mexico's most famous cocktail, a perfect balance of sweet, sour and salty.",
       "category": "classic",
       "spirit": "tequila",
@@ -72,7 +72,7 @@
     {
       "id": "negroni",
       "name": "Negroni",
-      "image": "negroni.webp",
+      "image": "negroni.jpg",
       "description": "A beautifully bitter Italian aperitif with perfect balance.",
       "category": "classic",
       "spirit": "gin",
@@ -94,7 +94,7 @@
     {
       "id": "daiquiri",
       "name": "Daiquiri",
-      "image": "daiquiri.webp",
+      "image": "daiquiri.jpg",
       "description": "A perfectly balanced rum sour that showcases simplicity at its finest.",
       "category": "classic",
       "spirit": "rum",
@@ -115,7 +115,7 @@
     {
       "id": "espresso-martini",
       "name": "Espresso Martini",
-      "image": "espresso-martini.webp",
+      "image": "espresso-martini.jpg",
       "description": "A modern classic that perfectly combines coffee and vodka.",
       "category": "contemporary",
       "spirit": "vodka",
@@ -138,7 +138,7 @@
     {
       "id": "pina-colada",
       "name": "Pina Colada",
-      "image": "pina-colada.webp",
+      "image": "pina-colada.jpg",
       "description": "A creamy tropical escape that transports you to the Caribbean.",
       "category": "tropical",
       "spirit": "rum",
@@ -160,7 +160,7 @@
     {
       "id": "manhattan",
       "name": "Manhattan",
-      "image": "manhattan.webp",
+      "image": "manhattan.jpg",
       "description": "A sophisticated whiskey cocktail that's stood the test of time since the 1870s.",
       "category": "classic",
       "spirit": "whiskey",
@@ -182,7 +182,7 @@
     {
       "id": "whiskey-sour",
       "name": "Whiskey Sour",
-      "image": "whiskey-sour.webp",
+      "image": "whiskey-sour.jpg",
       "description": "A perfectly balanced blend of bourbon, citrus and sweetness with a silky texture.",
       "category": "classic",
       "spirit": "whiskey",
@@ -206,7 +206,7 @@
     {
       "id": "cosmopolitan",
       "name": "Cosmopolitan",
-      "image": "cosmopolitan.webp",
+      "image": "cosmopolitan.jpg",
       "description": "An iconic pink cocktail that defined an era of stylish drinking.",
       "category": "contemporary",
       "spirit": "vodka",
@@ -228,7 +228,7 @@
     {
       "id": "mai-tai",
       "name": "Mai Tai",
-      "image": "mai-tai.webp",
+      "image": "mai-tai.jpg",
       "description": "The king of tiki cocktails, a complex blend of rums and tropical flavors.",
       "category": "tiki",
       "spirit": "rum",
@@ -251,7 +251,7 @@
     {
       "id": "gin-tonic",
       "name": "Gin & Tonic",
-      "image": "gin-tonic.webp",
+      "image": "gin-tonic.jpg",
       "description": "The ultimate refresher -- simple, elegant, endlessly customizable.",
       "category": "classic",
       "spirit": "gin",
@@ -273,7 +273,7 @@
     {
       "id": "moscow-mule",
       "name": "Moscow Mule",
-      "image": "moscow-mule.webp",
+      "image": "moscow-mule.jpg",
       "description": "A zesty vodka cocktail with ginger beer kick, traditionally served in a copper mug.",
       "category": "classic",
       "spirit": "vodka",
@@ -295,7 +295,7 @@
     {
       "id": "aperol-spritz",
       "name": "Aperol Spritz",
-      "image": "aperol-spritz.webp",
+      "image": "aperol-spritz.jpg",
       "description": "Italy's beloved aperitivo, bright orange and effervescent.",
       "category": "contemporary",
       "spirit": "other",
@@ -318,7 +318,7 @@
     {
       "id": "paloma",
       "name": "Paloma",
-      "image": "paloma.webp",
+      "image": "paloma.jpg",
       "description": "Mexico's most popular tequila cocktail, grapefruit-forward and deeply refreshing.",
       "category": "contemporary",
       "spirit": "tequila",
@@ -342,7 +342,7 @@
     {
       "id": "tom-collins",
       "name": "Tom Collins",
-      "image": "tom-collins.webp",
+      "image": "tom-collins.jpg",
       "description": "A tall, refreshing gin fizz that's been quenching thirsts since the 1870s.",
       "category": "classic",
       "spirit": "gin",
@@ -365,7 +365,7 @@
     {
       "id": "dark-n-stormy",
       "name": "Dark 'n' Stormy",
-      "image": "dark-n-stormy.webp",
+      "image": "dark-n-stormy.jpg",
       "description": "A bold Bermudian classic pairing dark rum with spicy ginger beer.",
       "category": "classic",
       "spirit": "rum",
@@ -387,7 +387,7 @@
     {
       "id": "caipirinha",
       "name": "Caipirinha",
-      "image": "caipirinha.webp",
+      "image": "caipirinha.jpg",
       "description": "Brazil's national cocktail, a punchy mix of cachaca, lime and sugar.",
       "category": "classic",
       "spirit": "other",
@@ -409,7 +409,7 @@
     {
       "id": "zombie",
       "name": "Zombie",
-      "image": "zombie.webp",
+      "image": "zombie.jpg",
       "description": "A dangerously strong tiki classic with multiple rums and tropical juices.",
       "category": "tiki",
       "spirit": "rum",
@@ -436,7 +436,7 @@
     {
       "id": "french-75",
       "name": "French 75",
-      "image": "french-75.webp",
+      "image": "french-75.jpg",
       "description": "An elegant champagne cocktail with gin, named after a powerful French cannon.",
       "category": "classic",
       "spirit": "gin",
@@ -459,7 +459,7 @@
     {
       "id": "boulevardier",
       "name": "Boulevardier",
-      "image": "boulevardier.webp",
+      "image": "boulevardier.jpg",
       "description": "A rich, warming twist on the Negroni made with bourbon instead of gin.",
       "category": "classic",
       "spirit": "whiskey",
@@ -480,7 +480,7 @@
     {
       "id": "penicillin",
       "name": "Penicillin",
-      "image": "penicillin.webp",
+      "image": "penicillin.jpg",
       "description": "A modern classic blending smoky scotch with honey, ginger and lemon.",
       "category": "contemporary",
       "spirit": "whiskey",
@@ -503,7 +503,7 @@
     {
       "id": "bramble",
       "name": "Bramble",
-      "image": "bramble.webp",
+      "image": "bramble.jpg",
       "description": "A berry-forward gin cocktail created in London, bursting with blackberry flavor.",
       "category": "contemporary",
       "spirit": "gin",
@@ -526,7 +526,7 @@
     {
       "id": "tequila-sunrise",
       "name": "Tequila Sunrise",
-      "image": "tequila-sunrise.webp",
+      "image": "tequila-sunrise.jpg",
       "description": "A visually stunning layered cocktail that mimics a desert sunrise.",
       "category": "classic",
       "spirit": "tequila",
@@ -548,7 +548,7 @@
     {
       "id": "b52",
       "name": "B-52",
-      "image": "b52.webp",
+      "image": "b52.jpg",
       "description": "A layered shot of coffee, Irish cream and orange liqueur, often served flaming.",
       "category": "shots",
       "spirit": "other",

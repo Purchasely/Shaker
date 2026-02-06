@@ -1,5 +1,7 @@
 package com.purchasely.shaker.ui.screen.settings
 
+import android.app.Activity
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,6 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import io.purchasely.ext.PLYPresentationType
+import io.purchasely.ext.PLYProductViewResult
+import io.purchasely.ext.Purchasely
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -146,6 +151,31 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Restore Purchases")
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = {
+                val activity = context as? Activity ?: return@OutlinedButton
+                Purchasely.fetchPresentation("onboarding") { presentation, error ->
+                    if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
+                        presentation.display(activity) { result, plan ->
+                            when (result) {
+                                PLYProductViewResult.PURCHASED,
+                                PLYProductViewResult.RESTORED -> {
+                                    Log.d("Settings", "[Shaker] Purchased/Restored from onboarding: ${plan?.name}")
+                                    viewModel.onPurchaseCompleted()
+                                }
+                                else -> {}
+                            }
+                        }
+                    } else {
+                        Log.d("Settings", "[Shaker] Onboarding presentation not available: ${error?.message}")
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Show Onboarding")
         }
 
         Spacer(modifier = Modifier.height(24.dp))

@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="400" height="600" viewBox="0 0 400 600">
-  <rect width="400" height="600" fill="#D4A574"/>
-  <circle cx="200" cy="250" r="100" fill="#8B6914" opacity="0.3"/>
-  <text x="200" y="500" text-anchor="middle" font-family="system-ui" font-size="24" fill="#8B6914">Pina Colada</text>
-  <text x="200" y="540" text-anchor="middle" font-family="system-ui" font-size="16" fill="#8B6914" opacity="0.7">Rum</text>
-</svg>

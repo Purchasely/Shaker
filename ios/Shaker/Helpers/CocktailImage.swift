@@ -15,38 +15,24 @@ struct CocktailImage: View {
         }
     }
 
-    private var foregroundColor: Color {
-        switch cocktail.spirit.lowercased() {
-        case "rum": return Color(red: 0.55, green: 0.41, blue: 0.08)
-        case "whiskey": return Color(red: 0.55, green: 0.36, blue: 0.05)
-        case "gin": return Color(red: 0.27, green: 0.51, blue: 0.70)
-        case "tequila": return Color(red: 0.13, green: 0.55, blue: 0.13)
-        case "vodka": return Color(red: 0.50, green: 0.50, blue: 0.50)
-        default: return Color(red: 0.70, green: 0.35, blue: 0.45)
-        }
-    }
-
     var body: some View {
         ZStack {
             backgroundColor
 
-            Circle()
-                .fill(foregroundColor.opacity(0.3))
-                .padding(40)
-
-            VStack(spacing: 4) {
-                Spacer()
-                Text(cocktail.name)
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(foregroundColor)
-
-                Text(cocktail.spirit.capitalized)
-                    .font(.system(size: 12))
-                    .foregroundStyle(foregroundColor.opacity(0.7))
-
-                Spacer()
-                    .frame(height: 20)
+            if let uiImage = loadBundleImage() {
+                Image(uiImage: uiImage)
+                    .resizable()
+                    .aspectRatio(contentMode: .fill)
             }
         }
+        .clipped()
+    }
+
+    private func loadBundleImage() -> UIImage? {
+        let imageName = cocktail.image.replacingOccurrences(of: ".jpg", with: "")
+        if let path = Bundle.main.path(forResource: imageName, ofType: "jpg") {
+            return UIImage(contentsOfFile: path)
+        }
+        return nil
     }
 }
