@@ -4,6 +4,8 @@ struct DetailScreen: View {
 
     let cocktailId: String
     @StateObject private var viewModel: DetailViewModel
+    @EnvironmentObject private var premiumManager: PremiumManager
+    @State private var hostViewController: UIViewController?
 
     init(cocktailId: String) {
         self.cocktailId = cocktailId
@@ -50,10 +52,9 @@ struct DetailScreen: View {
                                         Text(ingredient.name)
                                             .font(.body)
                                         Spacer()
-                                        // TODO: Gate amounts behind premium in Phase 2
-                                        Text(ingredient.amount)
+                                        Text(premiumManager.isPremium ? ingredient.amount : "---")
                                             .font(.body)
-                                            .foregroundStyle(.secondary)
+                                            .foregroundStyle(premiumManager.isPremium ? .secondary : .quaternary)
                                     }
                                     .padding(.vertical, 2)
                                 }
@@ -65,11 +66,42 @@ struct DetailScreen: View {
                                     .font(.title2)
                                     .fontWeight(.semibold)
 
-                                // TODO: Add blur overlay + CTA for free users in Phase 2
-                                ForEach(Array(cocktail.instructions.enumerated()), id: \.offset) { index, instruction in
-                                    Text("\(index + 1). \(instruction)")
-                                        .font(.body)
-                                        .padding(.vertical, 2)
+                                if premiumManager.isPremium {
+                                    ForEach(Array(cocktail.instructions.enumerated()), id: \.offset) { index, instruction in
+                                        Text("\(index + 1). \(instruction)")
+                                            .font(.body)
+                                            .padding(.vertical, 2)
+                                    }
+                                } else {
+                                    // Blurred instructions with unlock CTA
+                                    ZStack {
+                                        VStack(alignment: .leading, spacing: 4) {
+                                            ForEach(Array(cocktail.instructions.enumerated()), id: \.offset) { index, instruction in
+                                                Text("\(index + 1). \(instruction)")
+                                                    .font(.body)
+                                                    .padding(.vertical, 2)
+                                            }
+                                        }
+                                        .blur(radius: 8)
+
+                                        // Gradient overlay + CTA
+                                        LinearGradient(
+                                            colors: [.clear, Color(.systemBackground).opacity(0.9), Color(.systemBackground)],
+                                            startPoint: .top,
+                                            endPoint: .bottom
+                                        )
+
+                                        Button {
+                                            viewModel.showPaywall(for: cocktail.id, from: hostViewController)
+                                        } label: {
+                                            Label("Unlock Full Recipe", systemImage: "lock.fill")
+                                                .fontWeight(.semibold)
+                                                .padding(.horizontal, 24)
+                                                .padding(.vertical, 12)
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(.orange)
+                                    }
                                 }
                             }
                         }
@@ -80,6 +112,12 @@ struct DetailScreen: View {
                 .navigationBarTitleDisplayMode(.inline)
             }
         }
+        .background(
+            ViewControllerResolver { vc in
+                hostViewController = vc
+            }
+            .frame(width: 0, height: 0)
+        )
     }
 }
 

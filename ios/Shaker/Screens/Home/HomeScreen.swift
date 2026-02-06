@@ -23,6 +23,15 @@ struct HomeScreen: View {
         }
         .navigationTitle("Shaker")
         .searchable(text: $viewModel.searchQuery, prompt: "Search cocktails...")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    // Will trigger Purchasely "filters" paywall in Phase 3
+                } label: {
+                    Image(systemName: "slider.horizontal.3")
+                }
+            }
+        }
         .navigationDestination(for: String.self) { cocktailId in
             DetailScreen(cocktailId: cocktailId)
         }

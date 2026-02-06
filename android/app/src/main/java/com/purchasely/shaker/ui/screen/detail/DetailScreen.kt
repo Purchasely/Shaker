@@ -1,5 +1,6 @@
 package com.purchasely.shaker.ui.screen.detail
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,8 +15,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -26,15 +29,21 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import io.purchasely.ext.PLYPresentationProperties
+import io.purchasely.ext.PLYProductViewResult
+import io.purchasely.ext.Purchasely
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -46,6 +55,9 @@ fun DetailScreen(
     viewModel: DetailViewModel = koinViewModel { parametersOf(cocktailId) }
 ) {
     val cocktail by viewModel.cocktail.collectAsState()
+    val isPremium by viewModel.isPremium.collectAsState()
+    val context = LocalContext.current
+    var showPaywall by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -124,11 +136,14 @@ fun DetailScreen(
                                 text = ingredient.name,
                                 style = MaterialTheme.typography.bodyMedium
                             )
-                            // TODO: Gate amounts behind premium in Phase 2
                             Text(
-                                text = ingredient.amount,
+                                text = if (isPremium) ingredient.amount else "---",
                                 style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (isPremium) {
+                                    MaterialTheme.colorScheme.onSurfaceVariant
+                                } else {
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                                }
                             )
                         }
                     }
@@ -141,15 +156,84 @@ fun DetailScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
 
-                    // TODO: Add blur overlay + CTA for free users in Phase 2
-                    Box {
-                        Column {
-                            c.instructions.forEachIndexed { index, instruction ->
-                                Text(
-                                    text = "${index + 1}. $instruction",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    modifier = Modifier.padding(vertical = 4.dp)
-                                )
+                    if (isPremium) {
+                        c.instructions.forEachIndexed { index, instruction ->
+                            Text(
+                                text = "${index + 1}. $instruction",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(vertical = 4.dp)
+                            )
+                        }
+                    } else {
+                        // Blurred instructions with unlock CTA
+                        Box {
+                            Column(
+                                modifier = Modifier.blur(8.dp)
+                            ) {
+                                c.instructions.forEachIndexed { index, instruction ->
+                                    Text(
+                                        text = "${index + 1}. $instruction",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        modifier = Modifier.padding(vertical = 4.dp)
+                                    )
+                                }
+                            }
+
+                            // Gradient overlay + CTA
+                            Box(
+                                modifier = Modifier
+                                    .matchParentSize()
+                                    .background(
+                                        Brush.verticalGradient(
+                                            colors = listOf(
+                                                Color.Transparent,
+                                                MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                                MaterialTheme.colorScheme.surface
+                                            )
+                                        )
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Button(
+                                    onClick = {
+                                        val view = Purchasely.presentationView(
+                                            context = context,
+                                            properties = PLYPresentationProperties(
+                                                placementId = "recipe_detail",
+                                                contentId = c.id,
+                                                onClose = {
+                                                    viewModel.onPaywallDismissed()
+                                                }
+                                            )
+                                        ) { result, plan ->
+                                            when (result) {
+                                                PLYProductViewResult.PURCHASED -> {
+                                                    Log.d("DetailScreen", "[Shaker] Purchased: ${plan?.name}")
+                                                    viewModel.onPaywallDismissed()
+                                                }
+                                                PLYProductViewResult.RESTORED -> {
+                                                    Log.d("DetailScreen", "[Shaker] Restored: ${plan?.name}")
+                                                    viewModel.onPaywallDismissed()
+                                                }
+                                                PLYProductViewResult.CANCELLED -> {
+                                                    Log.d("DetailScreen", "[Shaker] Cancelled")
+                                                }
+                                                else -> {}
+                                            }
+                                        }
+                                        // The SDK displays the paywall automatically
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary
+                                    )
+                                ) {
+                                    Icon(
+                                        Icons.Default.Lock,
+                                        contentDescription = null,
+                                        modifier = Modifier.padding(end = 8.dp)
+                                    )
+                                    Text("Unlock Full Recipe")
+                                }
                             }
                         }
                     }

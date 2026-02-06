@@ -28,6 +28,7 @@ class AppViewModel: ObservableObject {
                 self?.isSDKReady = success
                 if success {
                     print("[Shaker] Purchasely SDK configured successfully")
+                    PremiumManager.shared.refreshPremiumStatus()
                 } else {
                     self?.sdkError = error?.localizedDescription
                     print("[Shaker] Purchasely configuration error: \(error?.localizedDescription ?? "unknown")")

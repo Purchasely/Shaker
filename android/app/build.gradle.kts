@@ -26,7 +26,7 @@ android {
         buildConfigField(
             "String",
             "PURCHASELY_API_KEY",
-            "6cda6b92-d63c-4444-bd55-5a164c989bd4"
+            "\"6cda6b92-d63c-4444-bd55-5a164c989bd4\""
             //"\"${localProperties.getProperty("purchasely.apiKey", "")}\""
         )
     }

@@ -13,10 +13,12 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
@@ -37,6 +39,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun HomeScreen(
     onCocktailClick: (String) -> Unit,
+    onFilterClick: () -> Unit = {},
     viewModel: HomeViewModel = koinViewModel()
 ) {
     val cocktails by viewModel.cocktails.collectAsState()
@@ -52,7 +55,12 @@ fun HomeScreen(
                     expanded = false,
                     onExpandedChange = {},
                     placeholder = { Text("Search cocktails...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") }
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    trailingIcon = {
+                        IconButton(onClick = onFilterClick) {
+                            Icon(Icons.Default.Tune, contentDescription = "Filters")
+                        }
+                    }
                 )
             },
             expanded = false,
