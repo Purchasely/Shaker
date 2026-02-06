@@ -25,6 +25,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +51,11 @@ fun SettingsScreen(
     val isPremium by viewModel.isPremium.collectAsState()
     val restoreMessage by viewModel.restoreMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val analyticsConsent by viewModel.analyticsConsent.collectAsState()
+    val identifiedAnalyticsConsent by viewModel.identifiedAnalyticsConsent.collectAsState()
+    val personalizationConsent by viewModel.personalizationConsent.collectAsState()
+    val campaignsConsent by viewModel.campaignsConsent.collectAsState()
+    val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsState()
     val context = LocalContext.current
     var loginInput by remember { mutableStateOf("") }
 
@@ -182,6 +188,56 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Data Privacy section
+        Text(
+            text = "Data Privacy",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        ConsentToggleRow(
+            label = "Analytics",
+            description = "Anonymous audience measurement",
+            checked = analyticsConsent,
+            onCheckedChange = { viewModel.setAnalyticsConsent(it) }
+        )
+        ConsentToggleRow(
+            label = "Identified Analytics",
+            description = "User-identified analytics",
+            checked = identifiedAnalyticsConsent,
+            onCheckedChange = { viewModel.setIdentifiedAnalyticsConsent(it) }
+        )
+        ConsentToggleRow(
+            label = "Personalization",
+            description = "Personalized content & offers",
+            checked = personalizationConsent,
+            onCheckedChange = { viewModel.setPersonalizationConsent(it) }
+        )
+        ConsentToggleRow(
+            label = "Campaigns",
+            description = "Promotional campaigns",
+            checked = campaignsConsent,
+            onCheckedChange = { viewModel.setCampaignsConsent(it) }
+        )
+        ConsentToggleRow(
+            label = "Third-party Integrations",
+            description = "External analytics & integrations",
+            checked = thirdPartyConsent,
+            onCheckedChange = { viewModel.setThirdPartyConsent(it) }
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Technical processing required for app operation cannot be disabled.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(24.dp))
+
         // Appearance section
         Text(
             text = "Appearance",
@@ -234,5 +290,30 @@ fun SettingsScreen(
         )
 
         Spacer(modifier = Modifier.height(32.dp))
+    }
+}
+
+@Composable
+private fun ConsentToggleRow(
+    label: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = label, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
 }

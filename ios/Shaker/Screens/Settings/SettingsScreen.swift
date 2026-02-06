@@ -58,6 +58,73 @@ struct SettingsScreen: View {
                 }
             }
 
+            // Data Privacy section
+            Section {
+                Toggle(isOn: Binding(
+                    get: { viewModel.analyticsConsent },
+                    set: { viewModel.setAnalyticsConsent($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Analytics")
+                        Text("Anonymous audience measurement")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Toggle(isOn: Binding(
+                    get: { viewModel.identifiedAnalyticsConsent },
+                    set: { viewModel.setIdentifiedAnalyticsConsent($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Identified Analytics")
+                        Text("User-identified analytics")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Toggle(isOn: Binding(
+                    get: { viewModel.personalizationConsent },
+                    set: { viewModel.setPersonalizationConsent($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Personalization")
+                        Text("Personalized content & offers")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Toggle(isOn: Binding(
+                    get: { viewModel.campaignsConsent },
+                    set: { viewModel.setCampaignsConsent($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Campaigns")
+                        Text("Promotional campaigns")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Toggle(isOn: Binding(
+                    get: { viewModel.thirdPartyConsent },
+                    set: { viewModel.setThirdPartyConsent($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Third-party Integrations")
+                        Text("External analytics & integrations")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            } header: {
+                Text("Data Privacy")
+            } footer: {
+                Text("Technical processing required for app operation cannot be disabled.")
+            }
+
             // Appearance section
             Section("Appearance") {
                 Picker("Theme", selection: $viewModel.themeMode) {

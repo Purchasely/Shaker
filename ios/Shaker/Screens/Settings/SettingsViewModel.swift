@@ -7,12 +7,33 @@ class SettingsViewModel: ObservableObject {
     @Published var restoreMessage: String?
     @Published var themeMode: String
 
+    // Data privacy consent (default: true = consent given)
+    @Published var analyticsConsent: Bool
+    @Published var identifiedAnalyticsConsent: Bool
+    @Published var personalizationConsent: Bool
+    @Published var campaignsConsent: Bool
+    @Published var thirdPartyConsent: Bool
+
     private let userIdKey = "user_id"
     private let themeKey = "theme_mode"
+    private let consentAnalyticsKey = "consent_analytics"
+    private let consentIdentifiedAnalyticsKey = "consent_identified_analytics"
+    private let consentPersonalizationKey = "consent_personalization"
+    private let consentCampaignsKey = "consent_campaigns"
+    private let consentThirdPartyKey = "consent_third_party"
 
     init() {
         userId = UserDefaults.standard.string(forKey: userIdKey)
         themeMode = UserDefaults.standard.string(forKey: themeKey) ?? "system"
+
+        let defaults = UserDefaults.standard
+        analyticsConsent = defaults.object(forKey: consentAnalyticsKey) == nil ? true : defaults.bool(forKey: consentAnalyticsKey)
+        identifiedAnalyticsConsent = defaults.object(forKey: consentIdentifiedAnalyticsKey) == nil ? true : defaults.bool(forKey: consentIdentifiedAnalyticsKey)
+        personalizationConsent = defaults.object(forKey: consentPersonalizationKey) == nil ? true : defaults.bool(forKey: consentPersonalizationKey)
+        campaignsConsent = defaults.object(forKey: consentCampaignsKey) == nil ? true : defaults.bool(forKey: consentCampaignsKey)
+        thirdPartyConsent = defaults.object(forKey: consentThirdPartyKey) == nil ? true : defaults.bool(forKey: consentThirdPartyKey)
+
+        applyConsentPreferences()
     }
 
     func login(userId: String) {
@@ -66,5 +87,46 @@ class SettingsViewModel: ObservableObject {
         themeMode = mode
         UserDefaults.standard.set(mode, forKey: themeKey)
         Purchasely.setUserAttribute(withStringValue: mode, forKey: "app_theme")
+    }
+
+    func setAnalyticsConsent(_ enabled: Bool) {
+        analyticsConsent = enabled
+        UserDefaults.standard.set(enabled, forKey: consentAnalyticsKey)
+        applyConsentPreferences()
+    }
+
+    func setIdentifiedAnalyticsConsent(_ enabled: Bool) {
+        identifiedAnalyticsConsent = enabled
+        UserDefaults.standard.set(enabled, forKey: consentIdentifiedAnalyticsKey)
+        applyConsentPreferences()
+    }
+
+    func setPersonalizationConsent(_ enabled: Bool) {
+        personalizationConsent = enabled
+        UserDefaults.standard.set(enabled, forKey: consentPersonalizationKey)
+        applyConsentPreferences()
+    }
+
+    func setCampaignsConsent(_ enabled: Bool) {
+        campaignsConsent = enabled
+        UserDefaults.standard.set(enabled, forKey: consentCampaignsKey)
+        applyConsentPreferences()
+    }
+
+    func setThirdPartyConsent(_ enabled: Bool) {
+        thirdPartyConsent = enabled
+        UserDefaults.standard.set(enabled, forKey: consentThirdPartyKey)
+        applyConsentPreferences()
+    }
+
+    private func applyConsentPreferences() {
+        var revoked = Set<PLYDataProcessingPurpose>()
+        if !analyticsConsent { revoked.insert(.analytics) }
+        if !identifiedAnalyticsConsent { revoked.insert(.identifiedAnalytics) }
+        if !personalizationConsent { revoked.insert(.personalization) }
+        if !campaignsConsent { revoked.insert(.campaigns) }
+        if !thirdPartyConsent { revoked.insert(.thirdPartyIntegrations) }
+        Purchasely.revokeDataProcessingConsent(for: revoked)
+        print("[Shaker] Consent updated — revoked: \(revoked)")
     }
 }
