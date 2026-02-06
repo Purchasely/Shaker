@@ -105,19 +105,13 @@ struct SettingsScreen: View {
     }
 
     private func showOnboardingPaywall() {
-        guard let vc = hostViewController else { return }
+        guard let vc = hostViewController else {
+            print("[Shaker] No host view controller available")
+            return
+        }
 
-        Purchasely.fetchPresentation(
+        let paywallCtrl = Purchasely.presentationController(
             for: "onboarding",
-            fetchCompletion: { presentation, error in
-                guard let presentation = presentation, presentation.type != .deactivated else {
-                    print("[Shaker] Onboarding presentation not available: \(error?.localizedDescription ?? "deactivated")")
-                    return
-                }
-                DispatchQueue.main.async {
-                    presentation.display(from: vc)
-                }
-            },
             completion: { result, plan in
                 switch result {
                 case .purchased, .restored:
@@ -130,5 +124,9 @@ struct SettingsScreen: View {
                 }
             }
         )
+
+        if let paywallCtrl = paywallCtrl {
+            vc.present(paywallCtrl, animated: true)
+        }
     }
 }
