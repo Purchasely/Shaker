@@ -4,12 +4,24 @@ struct ContentView: View {
 
     @ObservedObject private var onboardingRepository = OnboardingRepository.shared
 
+    enum AppPhase {
+        case splash
+        case main
+    }
+
+    @State private var phase: AppPhase = .splash
+
     var body: some View {
-        if !onboardingRepository.isOnboardingCompleted {
-            OnboardingScreen {
-                onboardingRepository.isOnboardingCompleted = true
-            }
-        } else {
+        switch phase {
+        case .splash:
+            OnboardingScreen(
+                showOnboarding: !onboardingRepository.isOnboardingCompleted,
+                onComplete: {
+                    onboardingRepository.isOnboardingCompleted = true
+                    phase = .main
+                }
+            )
+        case .main:
             TabView {
                 NavigationStack {
                     HomeScreen()

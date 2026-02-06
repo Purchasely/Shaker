@@ -64,13 +64,17 @@ fun ShakerNavHost() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
     val onboardingRepository: OnboardingRepository = koinInject()
-    var showOnboarding by remember { mutableStateOf(!onboardingRepository.isOnboardingCompleted) }
+    var showSplash by remember { mutableStateOf(true) }
+    val isFirstLaunch = remember { !onboardingRepository.isOnboardingCompleted }
 
-    if (showOnboarding) {
-        OnboardingScreen(onComplete = {
-            onboardingRepository.isOnboardingCompleted = true
-            showOnboarding = false
-        })
+    if (showSplash) {
+        OnboardingScreen(
+            showOnboarding = isFirstLaunch,
+            onComplete = {
+                onboardingRepository.isOnboardingCompleted = true
+                showSplash = false
+            }
+        )
         return
     }
 
