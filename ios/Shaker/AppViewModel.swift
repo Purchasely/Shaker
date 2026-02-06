@@ -12,14 +12,8 @@ class AppViewModel: ObservableObject {
     }
 
     private func initPurchasely() {
-        let apiKey = Bundle.main.infoDictionary?["PURCHASELY_API_KEY"] as? String ?? ""
-        guard !apiKey.isEmpty, apiKey != "your_api_key_here" else {
-            print("[Shaker] Purchasely API key not set. Copy Config.xcconfig.example to Config.xcconfig and add your key.")
-            return
-        }
-
         Purchasely.start(
-            withAPIKey: apiKey,
+            withAPIKey: "6cda6b92-d63c-4444-bd55-5a164c989bd4",
             appUserId: nil,
             runningMode: .full,
             storekitSettings: .storeKit2,

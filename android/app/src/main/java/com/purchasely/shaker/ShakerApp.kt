@@ -31,14 +31,8 @@ class ShakerApp : Application() {
     }
 
     private fun initPurchasely() {
-        val apiKey = BuildConfig.PURCHASELY_API_KEY
-        if (apiKey.isBlank()) {
-            Log.w(TAG, "Purchasely API key not set. Copy local.properties.example to local.properties and add your key.")
-            return
-        }
-
         Purchasely.Builder(this)
-            .apiKey(apiKey)
+            .apiKey("6cda6b92-d63c-4444-bd55-5a164c989bd4")
             .logLevel(LogLevel.DEBUG)
             .readyToOpenDeeplink(true)
             .runningMode(PLYRunningMode.Full)
