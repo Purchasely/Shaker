@@ -14,16 +14,38 @@ struct HomeScreen: View {
     ]
 
     var body: some View {
-        ScrollView {
-            LazyVGrid(columns: columns, spacing: 12) {
-                ForEach(viewModel.cocktails) { cocktail in
-                    NavigationLink(value: cocktail.id) {
-                        CocktailCard(cocktail: cocktail)
+        Group {
+            if viewModel.cocktails.isEmpty {
+                VStack(spacing: 12) {
+                    Spacer()
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary.opacity(0.5))
+
+                    Text("No cocktails found")
+                        .font(.title3)
+                        .fontWeight(.medium)
+                        .foregroundStyle(.secondary)
+
+                    Text("Try a different search or filter.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary.opacity(0.7))
+                    Spacer()
+                }
+                .padding(32)
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: columns, spacing: 12) {
+                        ForEach(viewModel.cocktails) { cocktail in
+                            NavigationLink(value: cocktail.id) {
+                                CocktailCard(cocktail: cocktail)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
-                    .buttonStyle(.plain)
+                    .padding(16)
                 }
             }
-            .padding(16)
         }
         .navigationTitle("Shaker")
         .searchable(text: $viewModel.searchQuery, prompt: "Search cocktails...")
