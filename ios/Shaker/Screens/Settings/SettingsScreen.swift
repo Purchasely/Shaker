@@ -6,8 +6,6 @@ struct SettingsScreen: View {
     @StateObject private var viewModel = SettingsViewModel()
     @EnvironmentObject private var premiumManager: PremiumManager
     @State private var loginInput = ""
-    @State private var hostViewController: UIViewController?
-
     var body: some View {
         List {
             // Account section
@@ -87,12 +85,6 @@ struct SettingsScreen: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .background(
-            ViewControllerResolver { vc in
-                hostViewController = vc
-            }
-            .frame(width: 0, height: 0)
-        )
         .navigationTitle("Settings")
         .alert("Restore", isPresented: .init(
             get: { viewModel.restoreMessage != nil },
@@ -105,13 +97,23 @@ struct SettingsScreen: View {
     }
 
     private func showOnboardingPaywall() {
-        guard let vc = hostViewController else {
-            print("[Shaker] No host view controller available")
-            return
-        }
+        let vc = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .rootViewController
 
-        let paywallCtrl = Purchasely.presentationController(
+        Purchasely.fetchPresentation(
             for: "onboarding",
+            fetchCompletion: { presentation, error in
+                guard let presentation = presentation, presentation.type != .deactivated else {
+                    print("[Shaker] Onboarding presentation not available: \(error?.localizedDescription ?? "deactivated")")
+                    return
+                }
+                DispatchQueue.main.async {
+                    presentation.display(from: vc)
+                }
+            },
             completion: { result, plan in
                 switch result {
                 case .purchased, .restored:
@@ -124,9 +126,5 @@ struct SettingsScreen: View {
                 }
             }
         )
-
-        if let paywallCtrl = paywallCtrl {
-            vc.present(paywallCtrl, animated: true)
-        }
     }
 }

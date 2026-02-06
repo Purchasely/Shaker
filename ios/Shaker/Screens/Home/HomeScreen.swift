@@ -6,7 +6,6 @@ struct HomeScreen: View {
     @StateObject private var viewModel = HomeViewModel()
     @EnvironmentObject private var premiumManager: PremiumManager
     @State private var showFilterSheet = false
-    @State private var hostViewController: UIViewController?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -69,19 +68,26 @@ struct HomeScreen: View {
         .navigationDestination(for: String.self) { cocktailId in
             DetailScreen(cocktailId: cocktailId)
         }
-        .background(
-            ViewControllerResolver { vc in
-                hostViewController = vc
-            }
-            .frame(width: 0, height: 0)
-        )
     }
 
     private func showFiltersPaywall() {
-        guard let vc = hostViewController else { return }
+        let vc = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .rootViewController
 
-        let paywallCtrl = Purchasely.presentationController(
+        Purchasely.fetchPresentation(
             for: "filters",
+            fetchCompletion: { presentation, error in
+                guard let presentation = presentation, presentation.type != .deactivated else {
+                    print("[Shaker] Filters presentation not available: \(error?.localizedDescription ?? "deactivated")")
+                    return
+                }
+                DispatchQueue.main.async {
+                    presentation.display(from: vc)
+                }
+            },
             completion: { result, plan in
                 switch result {
                 case .purchased, .restored:
@@ -94,10 +100,6 @@ struct HomeScreen: View {
                 }
             }
         )
-
-        if let paywallCtrl = paywallCtrl {
-            vc.present(paywallCtrl, animated: true)
-        }
     }
 }
 

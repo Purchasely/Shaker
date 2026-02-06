@@ -6,8 +6,6 @@ struct DetailScreen: View {
     @StateObject private var viewModel: DetailViewModel
     @EnvironmentObject private var premiumManager: PremiumManager
     @ObservedObject private var favoritesRepository = FavoritesRepository.shared
-    @State private var hostViewController: UIViewController?
-
     init(cocktailId: String) {
         self.cocktailId = cocktailId
         _viewModel = StateObject(wrappedValue: DetailViewModel(cocktailId: cocktailId))
@@ -91,7 +89,7 @@ struct DetailScreen: View {
                                         )
 
                                         Button {
-                                            viewModel.showPaywall(for: cocktail.id, from: hostViewController)
+                                            viewModel.showPaywall(for: cocktail.id)
                                         } label: {
                                             Label("Unlock Full Recipe", systemImage: "lock.fill")
                                                 .fontWeight(.semibold)
@@ -115,7 +113,7 @@ struct DetailScreen: View {
                             if premiumManager.isPremium {
                                 favoritesRepository.toggleFavorite(cocktail.id)
                             } else {
-                                viewModel.showFavoritesPaywall(from: hostViewController)
+                                viewModel.showFavoritesPaywall()
                             }
                         } label: {
                             Image(systemName: favoritesRepository.isFavorite(cocktail.id) ? "heart.fill" : "heart")
@@ -125,12 +123,6 @@ struct DetailScreen: View {
                 }
             }
         }
-        .background(
-            ViewControllerResolver { vc in
-                hostViewController = vc
-            }
-            .frame(width: 0, height: 0)
-        )
     }
 }
 

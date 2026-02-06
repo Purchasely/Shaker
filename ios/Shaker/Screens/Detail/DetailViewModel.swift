@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Purchasely
 
 class DetailViewModel: ObservableObject {
@@ -19,12 +20,29 @@ class DetailViewModel: ObservableObject {
         }
     }
 
-    func showPaywall(for cocktailId: String, from viewController: UIViewController?) {
-        guard let vc = viewController else { return }
+    private var topViewController: UIViewController? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .rootViewController
+    }
 
-        let paywallCtrl = Purchasely.presentationController(
+    func showPaywall(for cocktailId: String) {
+        let vc = topViewController
+
+        Purchasely.fetchPresentation(
             for: "recipe_detail",
             contentId: cocktailId,
+            fetchCompletion: { presentation, error in
+                guard let presentation = presentation, presentation.type != .deactivated else {
+                    print("[Shaker] Recipe detail presentation not available: \(error?.localizedDescription ?? "deactivated")")
+                    return
+                }
+                DispatchQueue.main.async {
+                    presentation.display(from: vc)
+                }
+            },
             completion: { result, plan in
                 switch result {
                 case .purchased:
@@ -40,17 +58,22 @@ class DetailViewModel: ObservableObject {
                 }
             }
         )
-
-        if let paywallCtrl = paywallCtrl {
-            vc.present(paywallCtrl, animated: true)
-        }
     }
 
-    func showFavoritesPaywall(from viewController: UIViewController?) {
-        guard let vc = viewController else { return }
+    func showFavoritesPaywall() {
+        let vc = topViewController
 
-        let paywallCtrl = Purchasely.presentationController(
+        Purchasely.fetchPresentation(
             for: "favorites",
+            fetchCompletion: { presentation, error in
+                guard let presentation = presentation, presentation.type != .deactivated else {
+                    print("[Shaker] Favorites presentation not available: \(error?.localizedDescription ?? "deactivated")")
+                    return
+                }
+                DispatchQueue.main.async {
+                    presentation.display(from: vc)
+                }
+            },
             completion: { result, plan in
                 switch result {
                 case .purchased, .restored:
@@ -63,9 +86,5 @@ class DetailViewModel: ObservableObject {
                 }
             }
         )
-
-        if let paywallCtrl = paywallCtrl {
-            vc.present(paywallCtrl, animated: true)
-        }
     }
 }
