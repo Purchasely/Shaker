@@ -1,0 +1,40 @@
+# macOS
+.DS_Store
+*.swp
+*~
+
+# Android
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+android/*.iml
+android/app/*.iml
+android/captures/
+
+# Gradle
+.gradle/
+build/
+
+# iOS
+ios/Pods/
+ios/Shaker.xcworkspace/
+ios/Shaker.xcodeproj/
+ios/Config.xcconfig
+ios/Podfile.lock
+DerivedData/
+*.xcuserdata
+*.xcscmblueprint
+*.xccheckout
+
+# IDE
+.idea/
+.vscode/
+*.code-workspace
+
+# Secrets
+*.keystore
+*.jks
+*.p12
+*.mobileprovision

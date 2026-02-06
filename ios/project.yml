@@ -1,0 +1,39 @@
+name: Shaker
+options:
+  bundleIdPrefix: com.purchasely
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: 1
+
+targets:
+  Shaker:
+    type: application
+    platform: iOS
+    sources:
+      - path: Shaker
+        excludes:
+          - "**/.DS_Store"
+    resources:
+      - path: Shaker/Resources/cocktails.json
+      - path: Shaker/Assets.xcassets
+    settings:
+      base:
+        INFOPLIST_FILE: Shaker/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.purchasely.shaker
+        CODE_SIGN_STYLE: Automatic
+        PURCHASELY_API_KEY: $(PURCHASELY_API_KEY)
+      configs:
+        Debug:
+          SWIFT_OPTIMIZATION_LEVEL: -Onone
+        Release:
+          SWIFT_OPTIMIZATION_LEVEL: -O
+    scheme:
+      testTargets: []
+      gatherCoverageData: false

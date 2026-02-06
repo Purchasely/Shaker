@@ -1,0 +1,8 @@
+# Copy this file to local.properties and fill in your values
+# DO NOT commit local.properties to version control
+
+# Android SDK location
+sdk.dir=/path/to/Android/sdk
+
+# Purchasely API key (get from https://console.purchasely.io)
+purchasely.apiKey=YOUR_API_KEY_HERE

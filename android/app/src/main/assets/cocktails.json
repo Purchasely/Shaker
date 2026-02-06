@@ -1,0 +1,570 @@
+{
+  "cocktails": [
+    {
+      "id": "mojito",
+      "name": "Mojito",
+      "image": "mojito.webp",
+      "description": "A refreshing Cuban classic with lime and mint that's perfect for warm weather.",
+      "category": "classic",
+      "spirit": "rum",
+      "difficulty": "easy",
+      "tags": ["refreshing", "summer", "citrus", "minty"],
+      "ingredients": [
+        { "name": "White rum", "amount": "60ml" },
+        { "name": "Fresh lime juice", "amount": "30ml" },
+        { "name": "Sugar syrup", "amount": "20ml" },
+        { "name": "Soda water", "amount": "top" },
+        { "name": "Mint leaves", "amount": "8-10" }
+      ],
+      "instructions": [
+        "Muddle mint leaves gently with sugar syrup in a glass.",
+        "Add lime juice and rum.",
+        "Fill with crushed ice and top with soda water.",
+        "Garnish with a sprig of mint."
+      ]
+    },
+    {
+      "id": "old-fashioned",
+      "name": "Old Fashioned",
+      "image": "old-fashioned.webp",
+      "description": "The quintessential whiskey cocktail, simple yet sophisticated.",
+      "category": "classic",
+      "spirit": "whiskey",
+      "difficulty": "easy",
+      "tags": ["strong", "smoky", "timeless"],
+      "ingredients": [
+        { "name": "Bourbon or rye whiskey", "amount": "60ml" },
+        { "name": "Sugar cube", "amount": "1" },
+        { "name": "Angostura bitters", "amount": "2 dashes" },
+        { "name": "Orange peel", "amount": "1 strip" },
+        { "name": "Water", "amount": "splash" }
+      ],
+      "instructions": [
+        "Place sugar cube in a rocks glass and saturate with bitters.",
+        "Add a splash of water and muddle until dissolved.",
+        "Fill glass with large ice cubes and add whiskey.",
+        "Stir gently for 20-30 seconds.",
+        "Garnish with an orange peel, expressing the oils over the drink."
+      ]
+    },
+    {
+      "id": "margarita",
+      "name": "Margarita",
+      "image": "margarita.webp",
+      "description": "Mexico's most famous cocktail, a perfect balance of sweet, sour and salty.",
+      "category": "classic",
+      "spirit": "tequila",
+      "difficulty": "easy",
+      "tags": ["citrus", "salty", "refreshing"],
+      "ingredients": [
+        { "name": "Tequila blanco", "amount": "50ml" },
+        { "name": "Cointreau", "amount": "25ml" },
+        { "name": "Fresh lime juice", "amount": "25ml" },
+        { "name": "Salt", "amount": "for rim" }
+      ],
+      "instructions": [
+        "Rim a chilled glass with salt.",
+        "Combine tequila, Cointreau and lime juice in a shaker with ice.",
+        "Shake vigorously for 10-15 seconds.",
+        "Strain into the prepared glass over fresh ice."
+      ]
+    },
+    {
+      "id": "negroni",
+      "name": "Negroni",
+      "image": "negroni.webp",
+      "description": "A beautifully bitter Italian aperitif with perfect balance.",
+      "category": "classic",
+      "spirit": "gin",
+      "difficulty": "easy",
+      "tags": ["bitter", "herbal", "aperitif"],
+      "ingredients": [
+        { "name": "Gin", "amount": "30ml" },
+        { "name": "Sweet vermouth", "amount": "30ml" },
+        { "name": "Campari", "amount": "30ml" },
+        { "name": "Orange peel", "amount": "1 strip" }
+      ],
+      "instructions": [
+        "Add gin, vermouth and Campari to a mixing glass with ice.",
+        "Stir for 20-30 seconds until well chilled.",
+        "Strain into a rocks glass over a large ice cube.",
+        "Garnish with an orange peel."
+      ]
+    },
+    {
+      "id": "daiquiri",
+      "name": "Daiquiri",
+      "image": "daiquiri.webp",
+      "description": "A perfectly balanced rum sour that showcases simplicity at its finest.",
+      "category": "classic",
+      "spirit": "rum",
+      "difficulty": "easy",
+      "tags": ["citrus", "crisp", "elegant"],
+      "ingredients": [
+        { "name": "White rum", "amount": "60ml" },
+        { "name": "Fresh lime juice", "amount": "25ml" },
+        { "name": "Sugar syrup", "amount": "15ml" }
+      ],
+      "instructions": [
+        "Combine all ingredients in a cocktail shaker with ice.",
+        "Shake vigorously for 10-15 seconds.",
+        "Double strain into a chilled coupe glass.",
+        "Garnish with a lime wheel."
+      ]
+    },
+    {
+      "id": "espresso-martini",
+      "name": "Espresso Martini",
+      "image": "espresso-martini.webp",
+      "description": "A modern classic that perfectly combines coffee and vodka.",
+      "category": "contemporary",
+      "spirit": "vodka",
+      "difficulty": "medium",
+      "tags": ["coffee", "energizing", "after-dinner"],
+      "ingredients": [
+        { "name": "Vodka", "amount": "50ml" },
+        { "name": "Coffee liqueur", "amount": "25ml" },
+        { "name": "Fresh espresso", "amount": "25ml" },
+        { "name": "Sugar syrup", "amount": "10ml" }
+      ],
+      "instructions": [
+        "Brew a fresh shot of espresso and let it cool slightly.",
+        "Combine all ingredients in a shaker with ice.",
+        "Shake hard for 15 seconds to create a frothy top.",
+        "Double strain into a chilled martini glass.",
+        "Garnish with three coffee beans."
+      ]
+    },
+    {
+      "id": "pina-colada",
+      "name": "Pina Colada",
+      "image": "pina-colada.webp",
+      "description": "A creamy tropical escape that transports you to the Caribbean.",
+      "category": "tropical",
+      "spirit": "rum",
+      "difficulty": "easy",
+      "tags": ["creamy", "tropical", "sweet", "frozen"],
+      "ingredients": [
+        { "name": "White rum", "amount": "60ml" },
+        { "name": "Coconut cream", "amount": "40ml" },
+        { "name": "Pineapple juice", "amount": "90ml" },
+        { "name": "Crushed ice", "amount": "1 cup" }
+      ],
+      "instructions": [
+        "Add all ingredients to a blender.",
+        "Blend until smooth and creamy.",
+        "Pour into a hurricane glass.",
+        "Garnish with a pineapple wedge and cherry."
+      ]
+    },
+    {
+      "id": "manhattan",
+      "name": "Manhattan",
+      "image": "manhattan.webp",
+      "description": "A sophisticated whiskey cocktail that's stood the test of time since the 1870s.",
+      "category": "classic",
+      "spirit": "whiskey",
+      "difficulty": "easy",
+      "tags": ["strong", "sophisticated", "herbal"],
+      "ingredients": [
+        { "name": "Rye whiskey", "amount": "60ml" },
+        { "name": "Sweet vermouth", "amount": "30ml" },
+        { "name": "Angostura bitters", "amount": "2 dashes" },
+        { "name": "Maraschino cherry", "amount": "1" }
+      ],
+      "instructions": [
+        "Add whiskey, vermouth and bitters to a mixing glass with ice.",
+        "Stir for 30 seconds until well chilled.",
+        "Strain into a chilled coupe glass.",
+        "Garnish with a maraschino cherry."
+      ]
+    },
+    {
+      "id": "whiskey-sour",
+      "name": "Whiskey Sour",
+      "image": "whiskey-sour.webp",
+      "description": "A perfectly balanced blend of bourbon, citrus and sweetness with a silky texture.",
+      "category": "classic",
+      "spirit": "whiskey",
+      "difficulty": "medium",
+      "tags": ["citrus", "silky", "balanced"],
+      "ingredients": [
+        { "name": "Bourbon", "amount": "60ml" },
+        { "name": "Fresh lemon juice", "amount": "30ml" },
+        { "name": "Sugar syrup", "amount": "20ml" },
+        { "name": "Egg white", "amount": "1" },
+        { "name": "Angostura bitters", "amount": "2 dashes" }
+      ],
+      "instructions": [
+        "Add bourbon, lemon juice, syrup and egg white to a shaker.",
+        "Dry shake (without ice) vigorously for 15 seconds.",
+        "Add ice and shake again for another 15 seconds.",
+        "Double strain into a rocks glass over fresh ice.",
+        "Dash bitters on top of the foam for garnish."
+      ]
+    },
+    {
+      "id": "cosmopolitan",
+      "name": "Cosmopolitan",
+      "image": "cosmopolitan.webp",
+      "description": "An iconic pink cocktail that defined an era of stylish drinking.",
+      "category": "contemporary",
+      "spirit": "vodka",
+      "difficulty": "easy",
+      "tags": ["fruity", "elegant", "citrus"],
+      "ingredients": [
+        { "name": "Citron vodka", "amount": "40ml" },
+        { "name": "Cointreau", "amount": "20ml" },
+        { "name": "Cranberry juice", "amount": "30ml" },
+        { "name": "Fresh lime juice", "amount": "15ml" }
+      ],
+      "instructions": [
+        "Combine all ingredients in a shaker with ice.",
+        "Shake vigorously for 10-15 seconds.",
+        "Double strain into a chilled martini glass.",
+        "Garnish with an orange peel or lime wheel."
+      ]
+    },
+    {
+      "id": "mai-tai",
+      "name": "Mai Tai",
+      "image": "mai-tai.webp",
+      "description": "The king of tiki cocktails, a complex blend of rums and tropical flavors.",
+      "category": "tiki",
+      "spirit": "rum",
+      "difficulty": "medium",
+      "tags": ["tropical", "nutty", "complex"],
+      "ingredients": [
+        { "name": "Aged rum", "amount": "30ml" },
+        { "name": "White rum", "amount": "30ml" },
+        { "name": "Orange curacao", "amount": "15ml" },
+        { "name": "Orgeat syrup", "amount": "15ml" },
+        { "name": "Fresh lime juice", "amount": "25ml" }
+      ],
+      "instructions": [
+        "Combine all ingredients in a shaker with ice.",
+        "Shake vigorously for 15 seconds.",
+        "Strain into a rocks glass filled with crushed ice.",
+        "Garnish with a spent lime shell and mint sprig."
+      ]
+    },
+    {
+      "id": "gin-tonic",
+      "name": "Gin & Tonic",
+      "image": "gin-tonic.webp",
+      "description": "The ultimate refresher -- simple, elegant, endlessly customizable.",
+      "category": "classic",
+      "spirit": "gin",
+      "difficulty": "easy",
+      "tags": ["refreshing", "botanical", "fizzy"],
+      "ingredients": [
+        { "name": "Gin", "amount": "50ml" },
+        { "name": "Tonic water", "amount": "150ml" },
+        { "name": "Lime wedge", "amount": "1" }
+      ],
+      "instructions": [
+        "Fill a copa or highball glass with ice cubes.",
+        "Pour gin over the ice.",
+        "Top with tonic water, pouring slowly.",
+        "Gently stir once or twice.",
+        "Garnish with a lime wedge."
+      ]
+    },
+    {
+      "id": "moscow-mule",
+      "name": "Moscow Mule",
+      "image": "moscow-mule.webp",
+      "description": "A zesty vodka cocktail with ginger beer kick, traditionally served in a copper mug.",
+      "category": "classic",
+      "spirit": "vodka",
+      "difficulty": "easy",
+      "tags": ["spicy", "refreshing", "ginger"],
+      "ingredients": [
+        { "name": "Vodka", "amount": "50ml" },
+        { "name": "Fresh lime juice", "amount": "15ml" },
+        { "name": "Ginger beer", "amount": "120ml" },
+        { "name": "Lime wedge", "amount": "1" }
+      ],
+      "instructions": [
+        "Fill a copper mug or highball glass with ice.",
+        "Pour in vodka and lime juice.",
+        "Top with ginger beer.",
+        "Stir gently and garnish with a lime wedge."
+      ]
+    },
+    {
+      "id": "aperol-spritz",
+      "name": "Aperol Spritz",
+      "image": "aperol-spritz.webp",
+      "description": "Italy's beloved aperitivo, bright orange and effervescent.",
+      "category": "contemporary",
+      "spirit": "other",
+      "difficulty": "easy",
+      "tags": ["bubbly", "bitter-sweet", "aperitif", "light"],
+      "ingredients": [
+        { "name": "Aperol", "amount": "60ml" },
+        { "name": "Prosecco", "amount": "90ml" },
+        { "name": "Soda water", "amount": "30ml" },
+        { "name": "Orange slice", "amount": "1" }
+      ],
+      "instructions": [
+        "Fill a large wine glass with ice.",
+        "Pour Aperol over the ice.",
+        "Add Prosecco.",
+        "Top with a splash of soda water.",
+        "Garnish with an orange slice."
+      ]
+    },
+    {
+      "id": "paloma",
+      "name": "Paloma",
+      "image": "paloma.webp",
+      "description": "Mexico's most popular tequila cocktail, grapefruit-forward and deeply refreshing.",
+      "category": "contemporary",
+      "spirit": "tequila",
+      "difficulty": "easy",
+      "tags": ["citrus", "refreshing", "salty"],
+      "ingredients": [
+        { "name": "Tequila blanco", "amount": "50ml" },
+        { "name": "Fresh grapefruit juice", "amount": "60ml" },
+        { "name": "Fresh lime juice", "amount": "15ml" },
+        { "name": "Soda water", "amount": "60ml" },
+        { "name": "Pinch of salt", "amount": "1" }
+      ],
+      "instructions": [
+        "Rim a highball glass with salt if desired.",
+        "Fill with ice and add tequila.",
+        "Pour in grapefruit juice and lime juice.",
+        "Top with soda water and stir gently.",
+        "Garnish with a grapefruit wedge."
+      ]
+    },
+    {
+      "id": "tom-collins",
+      "name": "Tom Collins",
+      "image": "tom-collins.webp",
+      "description": "A tall, refreshing gin fizz that's been quenching thirsts since the 1870s.",
+      "category": "classic",
+      "spirit": "gin",
+      "difficulty": "easy",
+      "tags": ["refreshing", "fizzy", "citrus"],
+      "ingredients": [
+        { "name": "London dry gin", "amount": "50ml" },
+        { "name": "Fresh lemon juice", "amount": "30ml" },
+        { "name": "Sugar syrup", "amount": "15ml" },
+        { "name": "Soda water", "amount": "top" }
+      ],
+      "instructions": [
+        "Combine gin, lemon juice and syrup in a shaker with ice.",
+        "Shake for 10 seconds.",
+        "Strain into a tall glass filled with ice.",
+        "Top with soda water.",
+        "Garnish with a lemon slice and cherry."
+      ]
+    },
+    {
+      "id": "dark-n-stormy",
+      "name": "Dark 'n' Stormy",
+      "image": "dark-n-stormy.webp",
+      "description": "A bold Bermudian classic pairing dark rum with spicy ginger beer.",
+      "category": "classic",
+      "spirit": "rum",
+      "difficulty": "easy",
+      "tags": ["spicy", "bold", "ginger"],
+      "ingredients": [
+        { "name": "Dark rum", "amount": "60ml" },
+        { "name": "Ginger beer", "amount": "120ml" },
+        { "name": "Fresh lime juice", "amount": "15ml" }
+      ],
+      "instructions": [
+        "Fill a highball glass with ice.",
+        "Pour ginger beer over the ice.",
+        "Slowly float dark rum on top by pouring over the back of a spoon.",
+        "Squeeze lime juice on top.",
+        "Garnish with a lime wedge."
+      ]
+    },
+    {
+      "id": "caipirinha",
+      "name": "Caipirinha",
+      "image": "caipirinha.webp",
+      "description": "Brazil's national cocktail, a punchy mix of cachaca, lime and sugar.",
+      "category": "classic",
+      "spirit": "other",
+      "difficulty": "easy",
+      "tags": ["citrus", "strong", "rustic"],
+      "ingredients": [
+        { "name": "Cachaca", "amount": "60ml" },
+        { "name": "Lime", "amount": "1 whole" },
+        { "name": "White sugar", "amount": "2 tsp" }
+      ],
+      "instructions": [
+        "Cut lime into wedges and place in a rocks glass.",
+        "Add sugar and muddle firmly to release juices.",
+        "Fill with crushed ice.",
+        "Pour cachaca over the top.",
+        "Stir well and serve."
+      ]
+    },
+    {
+      "id": "zombie",
+      "name": "Zombie",
+      "image": "zombie.webp",
+      "description": "A dangerously strong tiki classic with multiple rums and tropical juices.",
+      "category": "tiki",
+      "spirit": "rum",
+      "difficulty": "hard",
+      "tags": ["strong", "tropical", "complex", "fruity"],
+      "ingredients": [
+        { "name": "White rum", "amount": "30ml" },
+        { "name": "Golden rum", "amount": "30ml" },
+        { "name": "Dark rum", "amount": "30ml" },
+        { "name": "Lime juice", "amount": "20ml" },
+        { "name": "Falernum", "amount": "15ml" },
+        { "name": "Grenadine", "amount": "10ml" },
+        { "name": "Pineapple juice", "amount": "60ml" },
+        { "name": "Angostura bitters", "amount": "1 dash" }
+      ],
+      "instructions": [
+        "Combine all ingredients except dark rum in a shaker with ice.",
+        "Shake vigorously for 15 seconds.",
+        "Strain into a tall glass filled with crushed ice.",
+        "Float dark rum on top.",
+        "Garnish with a mint sprig and fruit."
+      ]
+    },
+    {
+      "id": "french-75",
+      "name": "French 75",
+      "image": "french-75.webp",
+      "description": "An elegant champagne cocktail with gin, named after a powerful French cannon.",
+      "category": "classic",
+      "spirit": "gin",
+      "difficulty": "medium",
+      "tags": ["bubbly", "elegant", "celebratory"],
+      "ingredients": [
+        { "name": "Gin", "amount": "30ml" },
+        { "name": "Fresh lemon juice", "amount": "15ml" },
+        { "name": "Sugar syrup", "amount": "10ml" },
+        { "name": "Champagne", "amount": "60ml" }
+      ],
+      "instructions": [
+        "Combine gin, lemon juice and syrup in a shaker with ice.",
+        "Shake for 10 seconds.",
+        "Strain into a champagne flute.",
+        "Top with chilled champagne.",
+        "Garnish with a lemon twist."
+      ]
+    },
+    {
+      "id": "boulevardier",
+      "name": "Boulevardier",
+      "image": "boulevardier.webp",
+      "description": "A rich, warming twist on the Negroni made with bourbon instead of gin.",
+      "category": "classic",
+      "spirit": "whiskey",
+      "difficulty": "easy",
+      "tags": ["bitter", "warming", "sophisticated"],
+      "ingredients": [
+        { "name": "Bourbon", "amount": "45ml" },
+        { "name": "Sweet vermouth", "amount": "30ml" },
+        { "name": "Campari", "amount": "30ml" }
+      ],
+      "instructions": [
+        "Add all ingredients to a mixing glass with ice.",
+        "Stir for 20-30 seconds until well chilled.",
+        "Strain into a rocks glass over a large ice cube.",
+        "Garnish with an orange peel."
+      ]
+    },
+    {
+      "id": "penicillin",
+      "name": "Penicillin",
+      "image": "penicillin.webp",
+      "description": "A modern classic blending smoky scotch with honey, ginger and lemon.",
+      "category": "contemporary",
+      "spirit": "whiskey",
+      "difficulty": "medium",
+      "tags": ["smoky", "spicy", "warming", "citrus"],
+      "ingredients": [
+        { "name": "Blended scotch", "amount": "50ml" },
+        { "name": "Fresh lemon juice", "amount": "25ml" },
+        { "name": "Honey-ginger syrup", "amount": "20ml" },
+        { "name": "Islay scotch", "amount": "7ml" }
+      ],
+      "instructions": [
+        "Combine blended scotch, lemon juice and honey-ginger syrup in a shaker with ice.",
+        "Shake for 15 seconds.",
+        "Strain into a rocks glass over fresh ice.",
+        "Float Islay scotch on top.",
+        "Garnish with a piece of candied ginger."
+      ]
+    },
+    {
+      "id": "bramble",
+      "name": "Bramble",
+      "image": "bramble.webp",
+      "description": "A berry-forward gin cocktail created in London, bursting with blackberry flavor.",
+      "category": "contemporary",
+      "spirit": "gin",
+      "difficulty": "medium",
+      "tags": ["fruity", "berry", "refreshing"],
+      "ingredients": [
+        { "name": "Gin", "amount": "50ml" },
+        { "name": "Fresh lemon juice", "amount": "25ml" },
+        { "name": "Sugar syrup", "amount": "10ml" },
+        { "name": "Creme de mure", "amount": "15ml" }
+      ],
+      "instructions": [
+        "Combine gin, lemon juice and sugar syrup in a shaker with ice.",
+        "Shake for 10 seconds.",
+        "Strain into a rocks glass filled with crushed ice.",
+        "Drizzle creme de mure over the top, letting it bleed through the ice.",
+        "Garnish with fresh blackberries and a lemon slice."
+      ]
+    },
+    {
+      "id": "tequila-sunrise",
+      "name": "Tequila Sunrise",
+      "image": "tequila-sunrise.webp",
+      "description": "A visually stunning layered cocktail that mimics a desert sunrise.",
+      "category": "classic",
+      "spirit": "tequila",
+      "difficulty": "easy",
+      "tags": ["fruity", "sweet", "colorful"],
+      "ingredients": [
+        { "name": "Tequila blanco", "amount": "50ml" },
+        { "name": "Orange juice", "amount": "120ml" },
+        { "name": "Grenadine", "amount": "15ml" }
+      ],
+      "instructions": [
+        "Fill a tall glass with ice.",
+        "Pour tequila and orange juice over the ice.",
+        "Stir gently.",
+        "Slowly pour grenadine down the side of the glass, letting it sink.",
+        "Garnish with an orange slice and cherry."
+      ]
+    },
+    {
+      "id": "b52",
+      "name": "B-52",
+      "image": "b52.webp",
+      "description": "A layered shot of coffee, Irish cream and orange liqueur, often served flaming.",
+      "category": "shots",
+      "spirit": "other",
+      "difficulty": "hard",
+      "tags": ["layered", "coffee", "sweet", "after-dinner"],
+      "ingredients": [
+        { "name": "Coffee liqueur", "amount": "20ml" },
+        { "name": "Irish cream", "amount": "20ml" },
+        { "name": "Grand Marnier", "amount": "20ml" }
+      ],
+      "instructions": [
+        "Pour coffee liqueur into a shot glass.",
+        "Slowly layer Irish cream on top by pouring over the back of a spoon.",
+        "Slowly layer Grand Marnier on top of the Irish cream the same way.",
+        "Optionally, ignite the top layer briefly before drinking."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,4 @@
+// Copy this file to Config.xcconfig and set your Purchasely API key
+// DO NOT commit Config.xcconfig to version control
+
+PURCHASELY_API_KEY = your_api_key_here
