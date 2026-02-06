@@ -1,4 +1,5 @@
 import Foundation
+import UIKit
 import Purchasely
 
 class AppViewModel: ObservableObject {
@@ -39,11 +40,29 @@ class AppViewModel: ObservableObject {
         Purchasely.readyToOpenDeeplink(true)
 
         Purchasely.setEventDelegate(self)
+
+        Purchasely.setPaywallActionsInterceptor { action, parameters, info, proceed in
+            switch action {
+            case .login:
+                print("[Shaker] Paywall login action intercepted")
+                proceed(false)
+            case .navigate:
+                if let url = parameters?.url {
+                    print("[Shaker] Paywall navigate action: \(url)")
+                    DispatchQueue.main.async {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                proceed(false)
+            default:
+                proceed(true)
+            }
+        }
     }
 }
 
 extension AppViewModel: PLYEventDelegate {
-    func eventTriggered(_ event: PLYEvent, properties: [String: Any]) {
-        print("[Shaker] Event: \(event.name) | Properties: \(properties)")
+    func eventTriggered(_ event: PLYEvent, properties: [String: Any]?) {
+        print("[Shaker] Event: \(event.name) | Properties: \(properties ?? [:])")
     }
 }

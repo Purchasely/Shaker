@@ -5,6 +5,7 @@ import com.purchasely.shaker.data.CocktailRepository
 import com.purchasely.shaker.data.FavoritesRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.domain.model.Cocktail
+import io.purchasely.ext.Purchasely
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -26,6 +27,14 @@ class DetailViewModel(
 
     init {
         _cocktail.value = repository.getCocktail(cocktailId)
+        trackCocktailViewed()
+    }
+
+    private fun trackCocktailViewed() {
+        Purchasely.incrementUserAttribute("cocktails_viewed")
+        _cocktail.value?.spirit?.let { spirit ->
+            Purchasely.setUserAttribute("favorite_spirit", spirit)
+        }
     }
 
     fun isFavorite(): Boolean = favoritesRepository.isFavorite(cocktailId)

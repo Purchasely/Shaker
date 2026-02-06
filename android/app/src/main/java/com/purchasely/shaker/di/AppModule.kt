@@ -20,5 +20,5 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get()) }
-    viewModel { SettingsViewModel() }
+    viewModel { SettingsViewModel(androidContext(), get()) }
 }

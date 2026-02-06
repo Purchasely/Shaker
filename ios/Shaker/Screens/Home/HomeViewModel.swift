@@ -1,5 +1,6 @@
 import Foundation
 import Combine
+import Purchasely
 
 class HomeViewModel: ObservableObject {
 
@@ -31,6 +32,11 @@ class HomeViewModel: ObservableObject {
             $selectedCategories,
             $selectedDifficulty
         )
+        .handleEvents(receiveOutput: { query, _, _, _ in
+            if !query.isEmpty {
+                Purchasely.setUserAttribute(withBoolValue: true, forKey: "has_used_search")
+            }
+        })
         .map { query, spirits, categories, difficulty in
             allCocktails.filter { cocktail in
                 let matchesQuery = query.isEmpty || cocktail.name.localizedCaseInsensitiveContains(query)

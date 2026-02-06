@@ -1,12 +1,15 @@
 package com.purchasely.shaker
 
 import android.app.Application
+import android.content.Intent
+import android.net.Uri
 import android.util.Log
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.di.appModule
 import io.purchasely.ext.EventListener
 import io.purchasely.ext.LogLevel
 import io.purchasely.ext.PLYEvent
+import io.purchasely.ext.PLYPresentationAction
 import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.Purchasely
 import io.purchasely.google.GoogleStore
@@ -55,6 +58,27 @@ class ShakerApp : Application() {
         Purchasely.eventListener = object : EventListener {
             override fun onEvent(event: PLYEvent) {
                 Log.d(TAG, "[Shaker] Event: ${event.name} | Properties: ${event.properties}")
+            }
+        }
+
+        Purchasely.setPaywallActionsInterceptor { info, action, parameters, proceed ->
+            when (action) {
+                PLYPresentationAction.LOGIN -> {
+                    Log.d(TAG, "[Shaker] Paywall login action intercepted")
+                    // Close the paywall and let the user navigate to Settings to log in
+                    proceed(false)
+                }
+                PLYPresentationAction.NAVIGATE -> {
+                    val url = parameters?.url
+                    if (url != null) {
+                        Log.d(TAG, "[Shaker] Paywall navigate action: $url")
+                        val intent = Intent(Intent.ACTION_VIEW, url)
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        startActivity(intent)
+                    }
+                    proceed(false)
+                }
+                else -> proceed(true)
             }
         }
     }

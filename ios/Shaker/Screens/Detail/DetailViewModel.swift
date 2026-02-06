@@ -9,6 +9,14 @@ class DetailViewModel: ObservableObject {
 
     init(cocktailId: String) {
         cocktail = repository.cocktail(byId: cocktailId)
+        trackCocktailViewed()
+    }
+
+    private func trackCocktailViewed() {
+        Purchasely.incrementUserAttribute(withKey: "cocktails_viewed")
+        if let spirit = cocktail?.spirit {
+            Purchasely.setUserAttribute(withStringValue: spirit, forKey: "favorite_spirit")
+        }
     }
 
     func showPaywall(for cocktailId: String, from viewController: UIViewController?) {

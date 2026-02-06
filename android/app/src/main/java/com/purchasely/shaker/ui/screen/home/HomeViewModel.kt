@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import com.purchasely.shaker.data.CocktailRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.domain.model.Cocktail
+import io.purchasely.ext.Purchasely
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -46,6 +47,9 @@ class HomeViewModel(
 
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
+        if (query.isNotBlank()) {
+            Purchasely.setUserAttribute("has_used_search", true)
+        }
         applyFilters()
     }
 
