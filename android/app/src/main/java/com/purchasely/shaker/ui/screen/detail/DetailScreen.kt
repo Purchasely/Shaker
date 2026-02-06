@@ -15,7 +15,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -56,8 +58,9 @@ fun DetailScreen(
 ) {
     val cocktail by viewModel.cocktail.collectAsState()
     val isPremium by viewModel.isPremium.collectAsState()
+    val favoriteIds by viewModel.favoriteIds.collectAsState()
+    val isFavorite = favoriteIds.contains(cocktailId)
     val context = LocalContext.current
-    var showPaywall by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -66,6 +69,37 @@ fun DetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = {
+                        if (isPremium) {
+                            viewModel.toggleFavorite()
+                        } else {
+                            // Free user: show favorites paywall
+                            Purchasely.presentationView(
+                                context = context,
+                                properties = PLYPresentationProperties(
+                                    placementId = "favorites",
+                                    onClose = { viewModel.onPaywallDismissed() }
+                                )
+                            ) { result, plan ->
+                                when (result) {
+                                    PLYProductViewResult.PURCHASED,
+                                    PLYProductViewResult.RESTORED -> {
+                                        Log.d("DetailScreen", "[Shaker] Purchased/Restored from favorites: ${plan?.name}")
+                                        viewModel.onPaywallDismissed()
+                                    }
+                                    else -> {}
+                                }
+                            }
+                        }
+                    }) {
+                        Icon(
+                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                            tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
+                        )
                     }
                 }
             )

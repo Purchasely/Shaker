@@ -5,6 +5,7 @@ struct DetailScreen: View {
     let cocktailId: String
     @StateObject private var viewModel: DetailViewModel
     @EnvironmentObject private var premiumManager: PremiumManager
+    @ObservedObject private var favoritesRepository = FavoritesRepository.shared
     @State private var hostViewController: UIViewController?
 
     init(cocktailId: String) {
@@ -110,6 +111,20 @@ struct DetailScreen: View {
                 }
                 .navigationTitle(cocktail.name)
                 .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button {
+                            if premiumManager.isPremium {
+                                favoritesRepository.toggleFavorite(cocktail.id)
+                            } else {
+                                viewModel.showFavoritesPaywall(from: hostViewController)
+                            }
+                        } label: {
+                            Image(systemName: favoritesRepository.isFavorite(cocktail.id) ? "heart.fill" : "heart")
+                                .foregroundStyle(favoritesRepository.isFavorite(cocktail.id) ? .red : .primary)
+                        }
+                    }
+                }
             }
         }
         .background(

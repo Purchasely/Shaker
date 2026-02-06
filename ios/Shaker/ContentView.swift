@@ -2,29 +2,37 @@ import SwiftUI
 
 struct ContentView: View {
 
+    @ObservedObject private var onboardingRepository = OnboardingRepository.shared
+
     var body: some View {
-        TabView {
-            NavigationStack {
-                HomeScreen()
+        if !onboardingRepository.isOnboardingCompleted {
+            OnboardingScreen {
+                onboardingRepository.isOnboardingCompleted = true
             }
-            .tabItem {
-                Label("Home", systemImage: "house")
-            }
+        } else {
+            TabView {
+                NavigationStack {
+                    HomeScreen()
+                }
+                .tabItem {
+                    Label("Home", systemImage: "house")
+                }
 
-            NavigationStack {
-                FavoritesScreen()
-            }
-            .tabItem {
-                Label("Favorites", systemImage: "heart")
-            }
+                NavigationStack {
+                    FavoritesScreen()
+                }
+                .tabItem {
+                    Label("Favorites", systemImage: "heart")
+                }
 
-            NavigationStack {
-                SettingsScreen()
+                NavigationStack {
+                    SettingsScreen()
+                }
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
             }
-            .tabItem {
-                Label("Settings", systemImage: "gearshape")
-            }
+            .tint(.orange)
         }
-        .tint(.orange)
     }
 }

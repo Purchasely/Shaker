@@ -1,8 +1,12 @@
 import SwiftUI
+import Purchasely
 
 struct HomeScreen: View {
 
     @StateObject private var viewModel = HomeViewModel()
+    @EnvironmentObject private var premiumManager: PremiumManager
+    @State private var showFilterSheet = false
+    @State private var hostViewController: UIViewController?
 
     private let columns = [
         GridItem(.flexible(), spacing: 12),
@@ -26,14 +30,51 @@ struct HomeScreen: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button {
-                    // Will trigger Purchasely "filters" paywall in Phase 3
+                    if premiumManager.isPremium {
+                        showFilterSheet = true
+                    } else {
+                        showFiltersPaywall()
+                    }
                 } label: {
-                    Image(systemName: "slider.horizontal.3")
+                    Image(systemName: viewModel.hasActiveFilters ? "line.3.horizontal.decrease.circle.fill" : "slider.horizontal.3")
                 }
             }
         }
+        .sheet(isPresented: $showFilterSheet) {
+            FilterSheet(viewModel: viewModel)
+                .presentationDetents([.medium, .large])
+        }
         .navigationDestination(for: String.self) { cocktailId in
             DetailScreen(cocktailId: cocktailId)
+        }
+        .background(
+            ViewControllerResolver { vc in
+                hostViewController = vc
+            }
+            .frame(width: 0, height: 0)
+        )
+    }
+
+    private func showFiltersPaywall() {
+        guard let vc = hostViewController else { return }
+
+        let paywallCtrl = Purchasely.presentationController(
+            for: "filters",
+            completion: { result, plan in
+                switch result {
+                case .purchased, .restored:
+                    print("[Shaker] Purchased/Restored from filters: \(plan?.name ?? "unknown")")
+                    PremiumManager.shared.refreshPremiumStatus()
+                case .cancelled:
+                    print("[Shaker] Filters paywall cancelled")
+                @unknown default:
+                    break
+                }
+            }
+        )
+
+        if let paywallCtrl = paywallCtrl {
+            vc.present(paywallCtrl, animated: true)
         }
     }
 }

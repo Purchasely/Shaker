@@ -37,4 +37,27 @@ class DetailViewModel: ObservableObject {
             vc.present(paywallCtrl, animated: true)
         }
     }
+
+    func showFavoritesPaywall(from viewController: UIViewController?) {
+        guard let vc = viewController else { return }
+
+        let paywallCtrl = Purchasely.presentationController(
+            for: "favorites",
+            completion: { result, plan in
+                switch result {
+                case .purchased, .restored:
+                    print("[Shaker] Purchased/Restored from favorites: \(plan?.name ?? "unknown")")
+                    PremiumManager.shared.refreshPremiumStatus()
+                case .cancelled:
+                    print("[Shaker] Favourites paywall cancelled")
+                @unknown default:
+                    break
+                }
+            }
+        )
+
+        if let paywallCtrl = paywallCtrl {
+            vc.present(paywallCtrl, animated: true)
+        }
+    }
 }
