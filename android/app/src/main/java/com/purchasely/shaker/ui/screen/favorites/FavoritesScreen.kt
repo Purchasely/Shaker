@@ -1,5 +1,6 @@
 package com.purchasely.shaker.ui.screen.favorites
 
+import android.app.Activity
 import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -36,7 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.ui.components.CocktailImage
-import io.purchasely.ext.PLYPresentationProperties
+import io.purchasely.ext.PLYPresentationType
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
 import org.koin.androidx.compose.koinViewModel
@@ -81,20 +82,19 @@ fun FavoritesScreen(
                     Spacer(modifier = Modifier.height(24.dp))
                     Button(
                         onClick = {
-                            Purchasely.presentationView(
-                                context = context,
-                                properties = PLYPresentationProperties(
-                                    placementId = "favorites",
-                                    onClose = { viewModel.onPaywallDismissed() }
-                                )
-                            ) { result, plan ->
-                                when (result) {
-                                    PLYProductViewResult.PURCHASED,
-                                    PLYProductViewResult.RESTORED -> {
-                                        Log.d("FavoritesScreen", "[Shaker] Purchased/Restored: ${plan?.name}")
-                                        viewModel.onPaywallDismissed()
+                            val activity = context as? Activity ?: return@Button
+                            Purchasely.fetchPresentation("favorites") { presentation, error ->
+                                if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
+                                    presentation.display(activity) { result, plan ->
+                                        when (result) {
+                                            PLYProductViewResult.PURCHASED,
+                                            PLYProductViewResult.RESTORED -> {
+                                                Log.d("FavoritesScreen", "[Shaker] Purchased/Restored: ${plan?.name}")
+                                                viewModel.onPaywallDismissed()
+                                            }
+                                            else -> {}
+                                        }
                                     }
-                                    else -> {}
                                 }
                             }
                         },

@@ -1,5 +1,6 @@
 package com.purchasely.shaker.ui.screen.detail
 
+import android.app.Activity
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.ui.components.CocktailImage
 import io.purchasely.ext.PLYPresentationProperties
+import io.purchasely.ext.PLYPresentationType
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
 import org.koin.androidx.compose.koinViewModel
@@ -76,20 +78,19 @@ fun DetailScreen(
                             viewModel.toggleFavorite()
                         } else {
                             // Free user: show favorites paywall
-                            Purchasely.presentationView(
-                                context = context,
-                                properties = PLYPresentationProperties(
-                                    placementId = "favorites",
-                                    onClose = { viewModel.onPaywallDismissed() }
-                                )
-                            ) { result, plan ->
-                                when (result) {
-                                    PLYProductViewResult.PURCHASED,
-                                    PLYProductViewResult.RESTORED -> {
-                                        Log.d("DetailScreen", "[Shaker] Purchased/Restored from favorites: ${plan?.name}")
-                                        viewModel.onPaywallDismissed()
+                            val activity = context as? Activity ?: return@IconButton
+                            Purchasely.fetchPresentation("favorites") { presentation, error ->
+                                if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
+                                    presentation.display(activity) { result, plan ->
+                                        when (result) {
+                                            PLYProductViewResult.PURCHASED,
+                                            PLYProductViewResult.RESTORED -> {
+                                                Log.d("DetailScreen", "[Shaker] Purchased/Restored from favorites: ${plan?.name}")
+                                                viewModel.onPaywallDismissed()
+                                            }
+                                            else -> {}
+                                        }
                                     }
-                                    else -> {}
                                 }
                             }
                         }
@@ -227,32 +228,27 @@ fun DetailScreen(
                             ) {
                                 Button(
                                     onClick = {
-                                        val view = Purchasely.presentationView(
-                                            context = context,
-                                            properties = PLYPresentationProperties(
-                                                placementId = "recipe_detail",
-                                                contentId = c.id,
-                                                onClose = {
-                                                    viewModel.onPaywallDismissed()
+                                        val activity = context as? Activity ?: return@Button
+                                        Purchasely.fetchPresentation(properties = PLYPresentationProperties(placementId = "recipe_detail", contentId = c.id)) { presentation, error ->
+                                            if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
+                                                presentation.display(activity) { result, plan ->
+                                                    when (result) {
+                                                        PLYProductViewResult.PURCHASED -> {
+                                                            Log.d("DetailScreen", "[Shaker] Purchased: ${plan?.name}")
+                                                            viewModel.onPaywallDismissed()
+                                                        }
+                                                        PLYProductViewResult.RESTORED -> {
+                                                            Log.d("DetailScreen", "[Shaker] Restored: ${plan?.name}")
+                                                            viewModel.onPaywallDismissed()
+                                                        }
+                                                        PLYProductViewResult.CANCELLED -> {
+                                                            Log.d("DetailScreen", "[Shaker] Cancelled")
+                                                        }
+                                                        else -> {}
+                                                    }
                                                 }
-                                            )
-                                        ) { result, plan ->
-                                            when (result) {
-                                                PLYProductViewResult.PURCHASED -> {
-                                                    Log.d("DetailScreen", "[Shaker] Purchased: ${plan?.name}")
-                                                    viewModel.onPaywallDismissed()
-                                                }
-                                                PLYProductViewResult.RESTORED -> {
-                                                    Log.d("DetailScreen", "[Shaker] Restored: ${plan?.name}")
-                                                    viewModel.onPaywallDismissed()
-                                                }
-                                                PLYProductViewResult.CANCELLED -> {
-                                                    Log.d("DetailScreen", "[Shaker] Cancelled")
-                                                }
-                                                else -> {}
                                             }
                                         }
-                                        // The SDK displays the paywall automatically
                                     },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary
