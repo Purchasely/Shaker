@@ -39,10 +39,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
+import com.purchasely.shaker.ui.components.CocktailImage
 import io.purchasely.ext.PLYPresentationProperties
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
@@ -113,10 +112,8 @@ fun DetailScreen(
                     .verticalScroll(rememberScrollState())
             ) {
                 // Hero image
-                AsyncImage(
-                    model = "file:///android_asset/images/${c.image.replace(".webp", ".svg")}",
-                    contentDescription = c.name,
-                    contentScale = ContentScale.Crop,
+                CocktailImage(
+                    cocktail = c,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(300.dp)

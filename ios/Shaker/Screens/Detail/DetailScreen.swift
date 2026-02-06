@@ -19,9 +19,7 @@ struct DetailScreen: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 0) {
                         // Hero image
-                        Image(cocktail.image.replacingOccurrences(of: ".webp", with: ""))
-                            .resizable()
-                            .scaledToFill()
+                        CocktailImage(cocktail: cocktail)
                             .frame(height: 300)
                             .clipped()
 

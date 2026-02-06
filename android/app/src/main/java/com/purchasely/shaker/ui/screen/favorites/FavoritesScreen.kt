@@ -32,11 +32,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.ui.components.CocktailImage
 import io.purchasely.ext.PLYPresentationProperties
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
@@ -137,10 +136,8 @@ private fun FavoriteCard(cocktail: Cocktail, onClick: () -> Unit) {
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            AsyncImage(
-                model = "file:///android_asset/images/${cocktail.image.replace(".webp", ".svg")}",
-                contentDescription = cocktail.name,
-                contentScale = ContentScale.Crop,
+            CocktailImage(
+                cocktail = cocktail,
                 modifier = Modifier
                     .size(80.dp)
                     .clip(MaterialTheme.shapes.medium)

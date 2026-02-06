@@ -85,9 +85,7 @@ struct CocktailCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Image(cocktail.image.replacingOccurrences(of: ".webp", with: ""))
-                .resizable()
-                .scaledToFill()
+            CocktailImage(cocktail: cocktail)
                 .frame(height: 150)
                 .clipped()
 

@@ -102,9 +102,7 @@ struct FavoriteRow: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(cocktail.image.replacingOccurrences(of: ".webp", with: ""))
-                .resizable()
-                .scaledToFill()
+            CocktailImage(cocktail: cocktail)
                 .frame(width: 60, height: 60)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
 
