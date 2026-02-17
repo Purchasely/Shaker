@@ -77,23 +77,21 @@ struct SettingsScreen: View {
                 }
             }
 
-            // SDK Mode section
-            Section {
-                Picker("Running Mode", selection: $viewModel.runningMode) {
-                    Text("Full").tag("full")
-                    Text("Observer").tag("observer")
+            // SDK mode section
+            Section("Purchasely SDK") {
+                Picker("Mode", selection: Binding(
+                    get: { viewModel.sdkMode },
+                    set: { viewModel.setSdkMode($0) }
+                )) {
+                    ForEach(PurchaselySDKMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
                 }
                 .pickerStyle(.segmented)
-                .onChange(of: viewModel.runningMode) { newValue in
-                    viewModel.setRunningMode(newValue)
-                    appViewModel.initPurchasely()
-                }
-            } header: {
-                Text("SDK Mode")
-            } footer: {
-                Text(viewModel.runningMode == "observer"
-                    ? "PaywallObserver — Your app handles purchases natively via StoreKit 2."
-                    : "Full — Purchasely SDK handles the entire purchase flow.")
+
+                Text("Default mode is Paywall Observer. Changing mode restarts the SDK.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
             }
 
             // Data Privacy section
@@ -198,6 +196,14 @@ struct SettingsScreen: View {
             Button("OK") { viewModel.clearRestoreMessage() }
         } message: {
             Text(viewModel.restoreMessage ?? "")
+        }
+        .alert("SDK Restart Required", isPresented: .init(
+            get: { viewModel.sdkModeRestartMessage != nil },
+            set: { if !$0 { viewModel.clearSdkModeRestartMessage() } }
+        )) {
+            Button("OK") { viewModel.clearSdkModeRestartMessage() }
+        } message: {
+            Text(viewModel.sdkModeRestartMessage ?? "")
         }
     }
 
