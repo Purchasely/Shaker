@@ -6,6 +6,8 @@ class SettingsViewModel: ObservableObject {
     @Published var userId: String?
     @Published var restoreMessage: String?
     @Published var themeMode: String
+    @Published var sdkMode: PurchaselySDKMode
+    @Published var sdkModeRestartMessage: String?
 
     // Data privacy consent (default: true = consent given)
     @Published var analyticsConsent: Bool
@@ -25,6 +27,8 @@ class SettingsViewModel: ObservableObject {
     init() {
         userId = UserDefaults.standard.string(forKey: userIdKey)
         themeMode = UserDefaults.standard.string(forKey: themeKey) ?? "system"
+        sdkMode = PurchaselySDKMode.current()
+        sdkModeRestartMessage = nil
 
         let defaults = UserDefaults.standard
         analyticsConsent = defaults.object(forKey: consentAnalyticsKey) == nil ? true : defaults.bool(forKey: consentAnalyticsKey)
@@ -87,6 +91,21 @@ class SettingsViewModel: ObservableObject {
         themeMode = mode
         UserDefaults.standard.set(mode, forKey: themeKey)
         Purchasely.setUserAttribute(withStringValue: mode, forKey: "app_theme")
+    }
+
+    func setSdkMode(_ mode: PurchaselySDKMode) {
+        guard sdkMode != mode else { return }
+
+        sdkMode = mode
+        mode.persist()
+        NotificationCenter.default.post(name: .purchaselySdkModeDidChange, object: nil)
+        sdkModeRestartMessage =
+            "Purchasely SDK switched to \(mode.title). Please kill and relaunch the app."
+        print("[Shaker] SDK mode updated to \(mode.rawValue)")
+    }
+
+    func clearSdkModeRestartMessage() {
+        sdkModeRestartMessage = nil
     }
 
     func setAnalyticsConsent(_ enabled: Bool) {
