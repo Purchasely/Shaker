@@ -7,9 +7,9 @@ A cocktail discovery app demonstrating a production-quality [Purchasely](https:/
 | Feature | Android | iOS | Placement |
 |---------|---------|-----|-----------|
 | Onboarding paywall | `fetchPresentation` + `display` | `fetchPresentation` + `display` | `onboarding` |
-| Recipe detail paywall | `presentationView` | `presentationController` | `recipe_detail` |
-| Favorites paywall | `presentationView` | `presentationController` | `favorites` |
-| Filters paywall | `presentationView` | `presentationController` | `filters` |
+| Recipe detail paywall | `fetchPresentation` + `display` | `fetchPresentation` + `display` | `recipe_detail` |
+| Favorites paywall | `fetchPresentation` + `display` | `fetchPresentation` + `display` | `favorites` |
+| Filters paywall | `fetchPresentation` + `display` | `fetchPresentation` + `display` | `filters` |
 | User login/logout | `userLogin` / `userLogout` | `userLogin` / `userLogout` | - |
 | Restore purchases | `restoreAllProducts` | `restoreAllProducts` | - |
 | User attributes | `setUserAttribute` / `incrementUserAttribute` | `setUserAttribute` / `incrementUserAttribute` | - |
@@ -109,6 +109,16 @@ Shaker/
     ├── project.yml         # XcodeGen spec
     └── Podfile
 ```
+
+## Known Constraints
+
+- Purchasely placements and plans must be configured in Console before paywalls can be displayed.
+- A public demo Purchasely API key is hardcoded by default for quick startup.
+- You can override it with local config files:
+  - Android: `android/local.properties` (`purchasely.apiKey=...`)
+  - iOS: `ios/Config.xcconfig` (`PURCHASELY_API_KEY = ...`)
+- Paywall flows require `fetchPresentation + display()`. Do not use convenience APIs like `presentationView` or `presentationController`.
+- Cocktail catalog browsing works offline from bundled JSON, but paywall fetch requires network access.
 
 ## Links
 

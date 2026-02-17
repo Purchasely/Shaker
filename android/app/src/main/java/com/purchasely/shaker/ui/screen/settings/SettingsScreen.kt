@@ -15,8 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +27,7 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -38,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.data.PurchaselySdkMode
 import io.purchasely.ext.PLYPresentationType
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
@@ -51,6 +53,8 @@ fun SettingsScreen(
     val isPremium by viewModel.isPremium.collectAsState()
     val restoreMessage by viewModel.restoreMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
+    val sdkMode by viewModel.sdkMode.collectAsState()
+    val sdkModeChangeAlert by viewModel.sdkModeChangeAlert.collectAsState()
     val analyticsConsent by viewModel.analyticsConsent.collectAsState()
     val identifiedAnalyticsConsent by viewModel.identifiedAnalyticsConsent.collectAsState()
     val personalizationConsent by viewModel.personalizationConsent.collectAsState()
@@ -65,6 +69,19 @@ fun SettingsScreen(
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.clearRestoreMessage()
         }
+    }
+
+    if (sdkModeChangeAlert != null) {
+        AlertDialog(
+            onDismissRequest = { viewModel.clearSdkModeChangeAlert() },
+            title = { Text("SDK Restart Required") },
+            text = { Text(sdkModeChangeAlert ?: "") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearSdkModeChangeAlert() }) {
+                    Text("OK")
+                }
+            }
+        )
     }
 
     Column(
@@ -183,6 +200,38 @@ fun SettingsScreen(
         ) {
             Text("Show Onboarding")
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Purchasely SDK section
+        Text(
+            text = "Purchasely SDK",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val sdkModes = listOf(PurchaselySdkMode.PAYWALL_OBSERVER, PurchaselySdkMode.FULL)
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            sdkModes.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = sdkMode == mode,
+                    onClick = { viewModel.setSdkMode(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = sdkModes.size)
+                ) {
+                    Text(mode.label)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Default mode is Paywall Observer. Changing mode restarts the SDK.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
         HorizontalDivider()

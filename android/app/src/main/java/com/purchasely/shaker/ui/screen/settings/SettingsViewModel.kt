@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import com.purchasely.shaker.ShakerApp
+import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
 import io.purchasely.ext.PLYDataProcessingPurpose
 import io.purchasely.ext.Purchasely
@@ -17,7 +19,7 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     private val prefs: SharedPreferences =
-        context.getSharedPreferences("shaker_settings", Context.MODE_PRIVATE)
+        context.getSharedPreferences(PurchaselySdkMode.PREFERENCES_NAME, Context.MODE_PRIVATE)
 
     private val _userId = MutableStateFlow(prefs.getString(KEY_USER_ID, null))
     val userId: StateFlow<String?> = _userId.asStateFlow()
@@ -29,6 +31,16 @@ class SettingsViewModel(
 
     private val _themeMode = MutableStateFlow(prefs.getString(KEY_THEME, "system") ?: "system")
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    private val _sdkMode = MutableStateFlow(
+        PurchaselySdkMode.fromStorage(
+            prefs.getString(PurchaselySdkMode.KEY, PurchaselySdkMode.DEFAULT.storageValue)
+        )
+    )
+    val sdkMode: StateFlow<PurchaselySdkMode> = _sdkMode.asStateFlow()
+
+    private val _sdkModeChangeAlert = MutableStateFlow<String?>(null)
+    val sdkModeChangeAlert: StateFlow<String?> = _sdkModeChangeAlert.asStateFlow()
 
     // Data privacy consent toggles (default: true = consent given)
     private val _analyticsConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_ANALYTICS, true))
@@ -47,6 +59,9 @@ class SettingsViewModel(
     val thirdPartyConsent: StateFlow<Boolean> = _thirdPartyConsent.asStateFlow()
 
     init {
+        if (!prefs.contains(PurchaselySdkMode.KEY)) {
+            prefs.edit().putString(PurchaselySdkMode.KEY, PurchaselySdkMode.DEFAULT.storageValue).apply()
+        }
         applyConsentPreferences()
     }
 
@@ -103,6 +118,18 @@ class SettingsViewModel(
         Purchasely.setUserAttribute("app_theme", mode)
     }
 
+    fun setSdkMode(mode: PurchaselySdkMode) {
+        if (_sdkMode.value == mode) return
+
+        _sdkMode.value = mode
+        prefs.edit().putString(PurchaselySdkMode.KEY, mode.storageValue).apply()
+        restartPurchaselySdk(mode)
+    }
+
+    fun clearSdkModeChangeAlert() {
+        _sdkModeChangeAlert.value = null
+    }
+
     fun setAnalyticsConsent(enabled: Boolean) {
         _analyticsConsent.value = enabled
         prefs.edit().putBoolean(KEY_CONSENT_ANALYTICS, enabled).apply()
@@ -131,6 +158,20 @@ class SettingsViewModel(
         _thirdPartyConsent.value = enabled
         prefs.edit().putBoolean(KEY_CONSENT_THIRD_PARTY, enabled).apply()
         applyConsentPreferences()
+    }
+
+    private fun restartPurchaselySdk(mode: PurchaselySdkMode) {
+        val app = context.applicationContext as? ShakerApp
+        if (app == null) {
+            Log.e(TAG, "[Shaker] Could not restart SDK: application context is not ShakerApp")
+            _sdkModeChangeAlert.value = "Mode saved (${mode.label}). Please kill and relaunch the app."
+            return
+        }
+
+        app.restartPurchaselySdk()
+        _sdkModeChangeAlert.value =
+            "Purchasely SDK switched to ${mode.label}. Please kill and relaunch the app."
+        Log.d(TAG, "[Shaker] SDK mode updated to ${mode.storageValue}")
     }
 
     private fun applyConsentPreferences() {

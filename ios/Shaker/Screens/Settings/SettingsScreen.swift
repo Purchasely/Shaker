@@ -58,6 +58,23 @@ struct SettingsScreen: View {
                 }
             }
 
+            // SDK mode section
+            Section("Purchasely SDK") {
+                Picker("Mode", selection: Binding(
+                    get: { viewModel.sdkMode },
+                    set: { viewModel.setSdkMode($0) }
+                )) {
+                    ForEach(PurchaselySDKMode.allCases) { mode in
+                        Text(mode.title).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Text("Default mode is Paywall Observer. Changing mode restarts the SDK.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             // Data Privacy section
             Section {
                 Toggle(isOn: Binding(
@@ -160,6 +177,14 @@ struct SettingsScreen: View {
             Button("OK") { viewModel.clearRestoreMessage() }
         } message: {
             Text(viewModel.restoreMessage ?? "")
+        }
+        .alert("SDK Restart Required", isPresented: .init(
+            get: { viewModel.sdkModeRestartMessage != nil },
+            set: { if !$0 { viewModel.clearSdkModeRestartMessage() } }
+        )) {
+            Button("OK") { viewModel.clearSdkModeRestartMessage() }
+        } message: {
+            Text(viewModel.sdkModeRestartMessage ?? "")
         }
     }
 
