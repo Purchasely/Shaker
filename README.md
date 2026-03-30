@@ -1,117 +1,121 @@
-# Shaker
+# Shaker — Purchasely SDK Sample App
 
-A cocktail discovery app demonstrating a production-quality [Purchasely](https://www.purchasely.com/) SDK integration. Built with native technologies on both platforms: **Kotlin/Jetpack Compose** on Android and **SwiftUI** on iOS.
+**A cocktail discovery app showcasing every Purchasely SDK feature.**
+Clone it. Build it. See a full integration in 5 minutes.
 
-## SDK Features Demonstrated
+[![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20Android-blue)]()
+[![Purchasely SDK](https://img.shields.io/badge/Purchasely%20SDK-5.6-orange)]()
+[![License](https://img.shields.io/badge/license-MIT-green)]()
 
-| Feature | Android | iOS | Placement |
-|---------|---------|-----|-----------|
-| Onboarding paywall | `fetchPresentation` + `display` | `fetchPresentation` + `display` | `onboarding` |
-| Recipe detail paywall | `presentationView` | `presentationController` | `recipe_detail` |
-| Favorites paywall | `presentationView` | `presentationController` | `favorites` |
-| Filters paywall | `presentationView` | `presentationController` | `filters` |
-| User login/logout | `userLogin` / `userLogout` | `userLogin` / `userLogout` | - |
-| Restore purchases | `restoreAllProducts` | `restoreAllProducts` | - |
-| User attributes | `setUserAttribute` / `incrementUserAttribute` | `setUserAttribute` / `incrementUserAttribute` | - |
-| Event listener | `EventListener` | `PLYEventDelegate` | - |
-| Paywall interceptor | `setPaywallActionsInterceptor` | `setPaywallActionsInterceptor` | - |
-| Deep linking | `isDeeplinkHandled` | `isDeeplinkHandled` | - |
-| Premium gating | `userSubscriptions` | `userSubscriptions` | - |
+## Features
 
-## Quick Setup
+### SDK Integration
+- [x] SDK initialization (Full & PaywallObserver modes)
+- [x] Paywall display via `fetchPresentation()` + `display()`
+- [x] 4 placements: onboarding, recipe detail, favorites, filters
+- [x] Paywall action interceptor (login, navigate, purchase, restore)
+- [x] User authentication (`userLogin` / `userLogout`)
+- [x] Subscription status checking
+- [x] User attributes (string, bool, date, increment)
+- [x] Event tracking
+- [x] Deeplink handling
+- [x] GDPR consent management (5 purposes)
+- [x] Purchase restoration
+- [x] Promo code redemption (iOS)
+- [x] Paywall display modes (Android)
+
+### App Features
+- 35 cocktail recipes (10 non-alcoholic + 25 classic)
+- Premium-gated features: filters, favorites, full recipes
+- Light/dark/system theme support
+- Search and filter by spirit, category, difficulty
+
+## Quick Start
 
 ### Prerequisites
-
-- A [Purchasely Console](https://console.purchasely.io/) account with an API key
-- Android: Android Studio + JDK 11+
-- iOS: Xcode 15+ with CocoaPods
+- **Android**: Android Studio, JDK 11+
+- **iOS**: Xcode 15+, CocoaPods
 
 ### Android
 
 ```bash
-cd android
-```
-
-1. Copy `local.properties.example` to `local.properties`
-2. Set `purchasely.apiKey=YOUR_API_KEY`
-3. Build and run:
-
-```bash
+git clone https://github.com/Purchasely/Shaker.git
+cd Shaker/android
 ./gradlew :app:assembleDebug
 ```
+
+The app ships with a demo API key — no setup needed.
 
 ### iOS
 
 ```bash
-cd ios
-```
-
-1. Copy `Config.xcconfig.example` to `Config.xcconfig`
-2. Set `PURCHASELY_API_KEY = YOUR_API_KEY`
-3. Install dependencies and build:
-
-```bash
-pod install
-xcodegen generate
-pod install
+git clone https://github.com/Purchasely/Shaker.git
+cd Shaker/ios
+pod install && xcodegen generate && pod install
 open Shaker.xcworkspace
 ```
 
-Build with Cmd+B in Xcode.
-
-## Console Configuration
-
-Create the following in your Purchasely Console:
-
-1. **Entitlement:** `SHAKER_PREMIUM`
-2. **Placements:**
-   - `onboarding` - shown on first launch
-   - `recipe_detail` - shown when viewing locked recipe content
-   - `favorites` - shown when accessing favorites feature
-   - `filters` - shown when accessing filters feature
-3. **Plans:** At least one subscription plan granting the `SHAKER_PREMIUM` entitlement
+Build and run on a simulator (Cmd+R). The app ships with a demo API key.
 
 ## Architecture
 
-Both platforms follow MVVM with a shared data model:
-
 ```
-cocktails.json -> CocktailRepository -> ViewModel -> UI
-                                           |
-                                    Purchasely SDK
-                                    (paywalls, entitlements, user attributes)
-```
+MVVM + Repository Pattern
 
-- **Android:** MVVM + Koin DI + Jetpack Compose + NavHost + kotlinx.serialization
-- **iOS:** MVVM + SwiftUI + NavigationStack + Codable
-
-## Project Structure
-
-```
-Shaker/
-├── shared-assets/          # Shared cocktail data and images
-│   ├── cocktails.json      # 25 cocktails with full data
-│   └── images/             # Placeholder SVG images
-├── android/                # Android app (Kotlin/Jetpack Compose)
-│   ├── app/src/main/java/com/purchasely/shaker/
-│   │   ├── data/           # Repositories + PremiumManager
-│   │   ├── di/             # Koin DI modules
-│   │   ├── domain/model/   # Data models
-│   │   ├── ui/components/  # Shared composables
-│   │   └── ui/screen/      # Screens (home, detail, favorites, settings, onboarding)
-│   └── build.gradle.kts
-└── ios/                    # iOS app (SwiftUI)
-    ├── Shaker/
-    │   ├── Data/           # Repositories + PremiumManager
-    │   ├── Helpers/        # ViewControllerResolver, CocktailImage
-    │   ├── Model/          # Data models
-    │   └── Screens/        # Screens (Home, Detail, Favorites, Settings, Onboarding)
-    ├── project.yml         # XcodeGen spec
-    └── Podfile
+cocktails.json → CocktailRepository → ViewModel → UI (Compose / SwiftUI)
+                                          |
+                              Purchasely SDK (paywalls, subscriptions, attributes)
 ```
 
-## Links
+| Component | Android | iOS |
+|-----------|---------|-----|
+| UI | Jetpack Compose | SwiftUI |
+| DI | Koin | Singletons |
+| Navigation | NavHost | NavigationStack |
+| Data | kotlinx.serialization | Codable |
+| Images | Coil | Bundle loading |
 
-- [Purchasely Documentation](https://docs.purchasely.com/)
-- [Android SDK Guide](https://docs.purchasely.com/quick-start/sdk-installation/quick-start-1)
-- [iOS SDK Guide](https://docs.purchasely.com/quick-start/sdk-installation/quick-start)
+### Key Components
+
+| Class | Purpose |
+|-------|---------|
+| `ShakerApp` / `AppViewModel` | SDK initialization, interceptor, event listener |
+| `PremiumManager` | Subscription status via `userSubscriptions()` |
+| `CocktailRepository` | Loads cocktail data from bundled JSON |
+| `FavoritesRepository` | Premium-gated favorites (UserDefaults / SharedPreferences) |
+| `SettingsViewModel` | Login, restore, GDPR consent, user attributes |
+
+## Placements
+
+| Placement ID | Where | Purpose |
+|-------------|-------|---------|
+| `onboarding` | First launch + Settings | Welcome paywall |
+| `recipe_detail` | Detail screen | Unlock full recipe (with `contentId`) |
+| `favorites` | Favorites tab + Detail | Unlock favorites feature |
+| `filters` | Home toolbar | Unlock filter feature |
+
+## Integration Guide
+
+See [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) for a complete walkthrough of every SDK feature with code snippets from both platforms.
+
+## Console Configuration
+
+To use your own Purchasely account:
+
+1. Create an app in the [Purchasely Console](https://console.purchasely.io)
+2. Create the 4 placements listed above
+3. Configure your store products and plans
+4. **Android**: Replace the API key in `app/build.gradle.kts`
+5. **iOS**: Replace the API key in `AppViewModel.swift`
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup instructions and guidelines.
+
+## License
+
+This project is licensed under the MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+Built with [Purchasely](https://www.purchasely.com)
