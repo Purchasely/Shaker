@@ -11,7 +11,7 @@ class AppViewModel: ObservableObject {
         initPurchasely()
     }
 
-    private func initPurchasely() {
+    func initPurchasely() {
         // PURCHASELY: Initialize the SDK with your API key and configuration
         // Must be called once at app launch before any other SDK call
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration

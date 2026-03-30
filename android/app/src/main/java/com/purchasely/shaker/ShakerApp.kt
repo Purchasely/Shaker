@@ -30,7 +30,7 @@ class ShakerApp : Application() {
         initPurchasely()
     }
 
-    private fun initPurchasely() {
+    fun initPurchasely() {
         // PURCHASELY: Initialize the SDK with API key, store, and running mode
         // Call once in Application.onCreate(); Full mode means Purchasely owns the purchase flow
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration
