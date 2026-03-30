@@ -14,6 +14,7 @@ class SettingsViewModel: ObservableObject {
     @Published var campaignsConsent: Bool
     @Published var thirdPartyConsent: Bool
     @Published var runningMode: String
+    @Published var anonymousId: String = ""
 
     private let userIdKey = "user_id"
     private let themeKey = "theme_mode"
@@ -36,6 +37,11 @@ class SettingsViewModel: ObservableObject {
         runningMode = RunningModeRepository.shared.isObserverMode ? "observer" : "full"
 
         applyConsentPreferences()
+        anonymousId = Purchasely.anonymousUserId ?? ""
+    }
+
+    func refreshAnonymousId() {
+        anonymousId = Purchasely.anonymousUserId ?? ""
     }
 
     func login(userId: String) {

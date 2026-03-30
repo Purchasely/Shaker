@@ -31,6 +31,10 @@ class AppViewModel: ObservableObject {
                 if success {
                     print("[Shaker] Purchasely SDK configured successfully (\(modeName))")
                     PremiumManager.shared.refreshPremiumStatus()
+                    // Track additional user attributes for demo
+                    let dateFormatter = ISO8601DateFormatter()
+                    Purchasely.setUserAttribute(withStringValue: dateFormatter.string(from: Date()), forKey: "last_open_date")
+                    Purchasely.incrementUserAttribute(withKey: "session_count")
                 } else {
                     self?.sdkError = error?.localizedDescription
                     print("[Shaker] Purchasely configuration error: \(error?.localizedDescription ?? "unknown")")

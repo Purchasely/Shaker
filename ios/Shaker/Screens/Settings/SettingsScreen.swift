@@ -47,6 +47,24 @@ struct SettingsScreen: View {
                     Text(premiumManager.isPremium ? "Active" : "Free")
                         .foregroundStyle(premiumManager.isPremium ? .orange : .secondary)
                 }
+
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Anonymous ID")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(viewModel.anonymousId)
+                            .font(.caption2)
+                            .lineLimit(1)
+                    }
+                    Spacer()
+                    Button {
+                        UIPasteboard.general.string = viewModel.anonymousId
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                    }
+                }
             }
 
             // Purchases section
