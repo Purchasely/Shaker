@@ -185,6 +185,10 @@ fun SettingsScreen(
             Text("Show Onboarding")
         }
 
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(24.dp))
+
         // SDK Mode section
         Text(
             text = "SDK Mode",
