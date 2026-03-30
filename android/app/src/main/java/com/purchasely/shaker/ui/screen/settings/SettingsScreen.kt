@@ -56,6 +56,7 @@ fun SettingsScreen(
     val personalizationConsent by viewModel.personalizationConsent.collectAsState()
     val campaignsConsent by viewModel.campaignsConsent.collectAsState()
     val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsState()
+    val runningMode by viewModel.runningMode.collectAsState()
     val context = LocalContext.current
     var loginInput by remember { mutableStateOf("") }
 
@@ -182,6 +183,37 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Show Onboarding")
+        }
+
+        // SDK Mode section
+        Text(
+            text = "SDK Mode",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = if (runningMode == "observer")
+                "PaywallObserver — Your app handles purchases natively"
+            else
+                "Full — Purchasely SDK handles purchases",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val modes = listOf("full", "observer")
+        val modeLabels = listOf("Full", "Observer")
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            modes.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = runningMode == mode,
+                    onClick = { viewModel.setRunningMode(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = modes.size)
+                ) {
+                    Text(modeLabels[index])
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
