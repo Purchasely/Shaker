@@ -13,9 +13,11 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
@@ -43,6 +45,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.ui.components.CocktailImage
 import io.purchasely.ext.PLYPresentationType
@@ -85,14 +88,22 @@ fun HomeScreen(
                                 // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                                 Purchasely.fetchPresentation("filters") { presentation, error ->
                                     if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                                        presentation.display(activity) { result, plan ->
-                                            when (result) {
-                                                PLYProductViewResult.PURCHASED,
-                                                PLYProductViewResult.RESTORED -> {
-                                                    Log.d("HomeScreen", "[Shaker] Purchased/Restored from filters: ${plan?.name}")
-                                                    viewModel.onPaywallDismissed()
+                                        if (presentation.type == PLYPresentationType.CLIENT) {
+                                            // PURCHASELY: CLIENT type — app builds its own paywall UI
+                                            // The presentation contains plan data but no server-built screen
+                                            // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
+                                            Log.d("HomeScreen", "[Shaker] CLIENT presentation received for filters placement — build custom UI here")
+                                            // In a real app, extract plans from presentation and build native UI
+                                        } else {
+                                            presentation.display(activity) { result, plan ->
+                                                when (result) {
+                                                    PLYProductViewResult.PURCHASED,
+                                                    PLYProductViewResult.RESTORED -> {
+                                                        Log.d("HomeScreen", "[Shaker] Purchased/Restored from filters: ${plan?.name}")
+                                                        viewModel.onPaywallDismissed()
+                                                    }
+                                                    else -> {}
                                                 }
-                                                else -> {}
                                             }
                                         }
                                     }
@@ -151,6 +162,14 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (!isPremium) {
+                    item(span = { GridItemSpan(2) }) {
+                        // PURCHASELY: Embedded paywall view — displays a paywall inline within the Home screen
+                        // Uses a dedicated placement configured in the Purchasely console
+                        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
+                        EmbeddedPaywallBanner()
+                    }
+                }
                 items(cocktails, key = { it.id }) { cocktail ->
                     CocktailCard(cocktail = cocktail, onClick = { onCocktailClick(cocktail.id) })
                 }
@@ -164,6 +183,23 @@ fun HomeScreen(
             onDismiss = { showFilterSheet = false }
         )
     }
+}
+
+@Composable
+private fun EmbeddedPaywallBanner() {
+    val context = LocalContext.current
+    AndroidView(
+        factory = {
+            // PURCHASELY: Embedded paywall view — displays a paywall inline within a screen
+            // Uses a dedicated placement configured in the Purchasely console
+            // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
+            Purchasely.presentationView(context, "home_banner")
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 200.dp)
+            .padding(horizontal = 0.dp, vertical = 8.dp)
+    )
 }
 
 @Composable

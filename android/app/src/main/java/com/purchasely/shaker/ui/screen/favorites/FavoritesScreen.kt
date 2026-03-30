@@ -88,14 +88,22 @@ fun FavoritesScreen(
                             // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                             Purchasely.fetchPresentation("favorites") { presentation, error ->
                                 if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                                    presentation.display(activity) { result, plan ->
-                                        when (result) {
-                                            PLYProductViewResult.PURCHASED,
-                                            PLYProductViewResult.RESTORED -> {
-                                                Log.d("FavoritesScreen", "[Shaker] Purchased/Restored: ${plan?.name}")
-                                                viewModel.onPaywallDismissed()
+                                    if (presentation.type == PLYPresentationType.CLIENT) {
+                                        // PURCHASELY: CLIENT type — app builds its own paywall UI
+                                        // The presentation contains plan data but no server-built screen
+                                        // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
+                                        Log.d("FavoritesScreen", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
+                                        // In a real app, extract plans from presentation and build native UI
+                                    } else {
+                                        presentation.display(activity) { result, plan ->
+                                            when (result) {
+                                                PLYProductViewResult.PURCHASED,
+                                                PLYProductViewResult.RESTORED -> {
+                                                    Log.d("FavoritesScreen", "[Shaker] Purchased/Restored: ${plan?.name}")
+                                                    viewModel.onPaywallDismissed()
+                                                }
+                                                else -> {}
                                             }
-                                            else -> {}
                                         }
                                     }
                                 }
