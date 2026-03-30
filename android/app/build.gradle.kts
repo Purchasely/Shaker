@@ -86,4 +86,7 @@ dependencies {
     // Purchasely SDK
     implementation(libs.purchasely.core)
     implementation(libs.purchasely.google)
+
+    // Google Play Billing (for PaywallObserver mode)
+    implementation(libs.google.billing)
 }

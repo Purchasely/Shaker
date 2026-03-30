@@ -5,6 +5,7 @@ import com.purchasely.shaker.data.FavoritesRepository
 import com.purchasely.shaker.data.OnboardingRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
 import com.purchasely.shaker.ui.screen.favorites.FavoritesViewModel
@@ -19,6 +20,7 @@ val appModule = module {
     single { OnboardingRepository(androidContext()) }
     single { RunningModeRepository(androidContext()) }
     single { PremiumManager() }
+    single { PurchaseManager(androidContext()) }
     viewModel { HomeViewModel(get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get()) }
