@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
-import Purchasely
 import StoreKit
+import Purchasely
 
 class AppViewModel: ObservableObject {
 
@@ -156,6 +156,17 @@ class AppViewModel: ObservableObject {
                 } else {
                     proceed(true)
                 }
+
+            case .promoCode:
+                print("[Shaker] Promo code action intercepted")
+                DispatchQueue.main.async {
+                    if let windowScene = UIApplication.shared.connectedScenes
+                        .compactMap({ $0 as? UIWindowScene })
+                        .first {
+                        SKPaymentQueue.default().presentCodeRedemptionSheet()
+                    }
+                }
+                proceed(false)
 
             default:
                 proceed(true)
