@@ -104,6 +104,8 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 - **FavoritesRepository**: UserDefaults/SharedPreferences backed. Premium-gated feature.
 - **OnboardingRepository**: Tracks whether onboarding has been shown (UserDefaults/SharedPreferences).
 - **CocktailImage**: Native placeholder image component (spirit-based colors). No external image loading library needed.
+- **RunningModeRepository**: Persists Full/Observer mode choice. Toggle in Settings re-initializes SDK.
+- **PurchaseManager**: Native purchase handling (StoreKit 2 / Google Play Billing) used only in Observer mode. Calls `synchronize()` after every transaction.
 
 ## Conventions
 
@@ -120,6 +122,8 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 - XcodeGen + CocoaPods: Don't use `configFiles` at target level - causes "no parent for object" error with `pod install`
 - iOS `onChange(of:)` with `{ _, newValue }` requires iOS 17 - use `{ newValue }` for iOS 16 compat
 - SVGs in iOS asset catalog can fail - use native `CocktailImage` view instead
+- iOS `Purchasely.synchronize()` requires `success:` and `failure:` closures — Android version is parameterless
+- Android `PLYPlan` uses `store_product_id` (not `productId`) to get the Google Play product ID
 
 ## Plan
 
