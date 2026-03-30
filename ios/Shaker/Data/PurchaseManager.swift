@@ -31,7 +31,7 @@ class PurchaseManager {
         case .success(let verification):
             let transaction = try checkVerified(verification)
             await transaction.finish()
-            Purchasely.synchronize()
+            Purchasely.synchronize(success: {}, failure: { _ in })
             print("[Shaker] Observer mode: native purchase successful, synchronized")
             return transaction
         case .userCancelled:
@@ -92,7 +92,7 @@ class PurchaseManager {
         case .success(let verification):
             let transaction = try checkVerified(verification)
             await transaction.finish()
-            Purchasely.synchronize()
+            Purchasely.synchronize(success: {}, failure: { _ in })
             print("[Shaker] Observer mode: promo offer purchase successful, synchronized")
             return transaction
         case .userCancelled:
@@ -113,7 +113,7 @@ class PurchaseManager {
                 restoredCount += 1
             }
         }
-        Purchasely.synchronize()
+        Purchasely.synchronize(success: {}, failure: { _ in })
         print("[Shaker] Observer mode: restored \(restoredCount) transactions, synchronized")
     }
 

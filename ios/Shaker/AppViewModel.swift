@@ -46,8 +46,10 @@ class AppViewModel: ObservableObject {
 
         // Synchronize on launch when in Observer mode to catch external transactions
         if RunningModeRepository.shared.isObserverMode {
-            Purchasely.synchronize()
-            print("[Shaker] Observer mode: synchronize() called on launch")
+            Purchasely.synchronize(
+                success: { print("[Shaker] Observer mode: synchronize() on launch succeeded") },
+                failure: { error in print("[Shaker] Observer mode: synchronize() on launch failed: \(error.localizedDescription)") }
+            )
         }
     }
 
@@ -80,8 +82,8 @@ class AppViewModel: ObservableObject {
                     }
 
                     // Check if there's a promotional offer
-                    if let promoOffer = parameters?.promoOffer,
-                       let storeOfferId = promoOffer.storeOfferId {
+                    if let promoOffer = parameters?.promoOffer {
+                        let storeOfferId = promoOffer.storeOfferId
                         print("[Shaker] Observer mode: purchasing with promo offer \(storeOfferId)")
                         if #available(iOS 15.0, *) {
                             Task {
