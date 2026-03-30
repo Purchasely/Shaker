@@ -83,6 +83,9 @@ fun FavoritesScreen(
                     Button(
                         onClick = {
                             val activity = context as? Activity ?: return@Button
+                            // PURCHASELY: Fetch and display the "favorites" placement paywall from the empty state CTA
+                            // Shown to free users who haven't yet saved any favorites
+                            // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                             Purchasely.fetchPresentation("favorites") { presentation, error ->
                                 if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
                                     presentation.display(activity) { result, plan ->

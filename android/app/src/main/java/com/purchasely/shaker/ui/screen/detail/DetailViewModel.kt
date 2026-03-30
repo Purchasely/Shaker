@@ -31,7 +31,12 @@ class DetailViewModel(
     }
 
     private fun trackCocktailViewed() {
+        // PURCHASELY: Increment a numeric counter attribute each time the user views a cocktail detail
+        // Useful for triggering paywalls after N views or segmenting engaged users
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         Purchasely.incrementUserAttribute("cocktails_viewed")
+        // PURCHASELY: Track the spirit of the last-viewed cocktail for personalized paywall content
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         _cocktail.value?.spirit?.let { spirit ->
             Purchasely.setUserAttribute("favorite_spirit", spirit)
         }

@@ -22,6 +22,9 @@ struct OnboardingScreen: View {
     }
 
     private func fetchPresentation() {
+        // PURCHASELY: Fetch and display the onboarding paywall at first app launch
+        // Skipped if showOnboarding is false or the placement is deactivated in the console
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
         Purchasely.fetchPresentation(
             for: "onboarding",
             fetchCompletion: { presentation, error in

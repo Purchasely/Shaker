@@ -34,6 +34,8 @@ class HomeViewModel: ObservableObject {
         )
         .handleEvents(receiveOutput: { query, _, _, _ in
             if !query.isEmpty {
+                // PURCHASELY: Flag the user as having used search for segmentation and targeted offers
+                // Docs: https://docs.purchasely.com/advanced-features/user-attributes
                 Purchasely.setUserAttribute(withBoolValue: true, forKey: "has_used_search")
             }
         })

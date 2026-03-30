@@ -10,6 +10,9 @@ class PremiumManager: ObservableObject {
     private init() {}
 
     func refreshPremiumStatus() {
+        // PURCHASELY: Fetch the current user's active subscriptions to determine premium status
+        // Call after purchase, restore, login, or app foreground to keep entitlements up to date
+        // Docs: https://docs.purchasely.com/advanced-features/subscription-status
         Purchasely.userSubscriptions(
             success: { [weak self] subscriptions in
                 let premium = subscriptions?.contains { subscription in
