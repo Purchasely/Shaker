@@ -31,5 +31,6 @@ private fun spiritBackgroundColor(spirit: String): Color = when (spirit.lowercas
     "gin" -> Color(0xFF87CEEB)
     "tequila" -> Color(0xFF98FB98)
     "vodka" -> Color(0xFFE8E8E8)
+    "non-alcoholic" -> Color(0xFF90EE90)
     else -> Color(0xFFFFB6C1)
 }

@@ -11,6 +11,7 @@ struct CocktailImage: View {
         case "gin": return Color(red: 0.53, green: 0.81, blue: 0.92)
         case "tequila": return Color(red: 0.60, green: 0.98, blue: 0.60)
         case "vodka": return Color(red: 0.91, green: 0.91, blue: 0.91)
+        case "non-alcoholic": return Color(red: 0.56, green: 0.93, blue: 0.56)
         default: return Color(red: 1.0, green: 0.71, blue: 0.76)
         }
     }
