@@ -64,6 +64,7 @@ fun SettingsScreen(
     val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsState()
     val runningMode by viewModel.runningMode.collectAsState()
     val anonymousId by viewModel.anonymousId.collectAsState()
+    val displayMode by viewModel.displayMode.collectAsState()
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     var loginInput by remember { mutableStateOf("") }
@@ -317,6 +318,38 @@ fun SettingsScreen(
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = themes.size)
                 ) {
                     Text(labels[index])
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Display Mode section (Android only)
+        Text(
+            text = "Paywall Display Mode",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "How paywalls are presented on screen",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        val displayModes = listOf("fullscreen", "modal", "drawer", "popin")
+        val displayLabels = listOf("Full", "Modal", "Drawer", "Popin")
+        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+            displayModes.forEachIndexed { index, mode ->
+                SegmentedButton(
+                    selected = displayMode == mode,
+                    onClick = { viewModel.setDisplayMode(mode) },
+                    shape = SegmentedButtonDefaults.itemShape(index = index, count = displayModes.size)
+                ) {
+                    Text(displayLabels[index], style = MaterialTheme.typography.labelSmall)
                 }
             }
         }
