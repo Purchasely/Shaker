@@ -13,6 +13,7 @@ class SettingsViewModel: ObservableObject {
     @Published var personalizationConsent: Bool
     @Published var campaignsConsent: Bool
     @Published var thirdPartyConsent: Bool
+    @Published var runningMode: String
 
     private let userIdKey = "user_id"
     private let themeKey = "theme_mode"
@@ -32,6 +33,7 @@ class SettingsViewModel: ObservableObject {
         personalizationConsent = defaults.object(forKey: consentPersonalizationKey) == nil ? true : defaults.bool(forKey: consentPersonalizationKey)
         campaignsConsent = defaults.object(forKey: consentCampaignsKey) == nil ? true : defaults.bool(forKey: consentCampaignsKey)
         thirdPartyConsent = defaults.object(forKey: consentThirdPartyKey) == nil ? true : defaults.bool(forKey: consentThirdPartyKey)
+        runningMode = RunningModeRepository.shared.isObserverMode ? "observer" : "full"
 
         applyConsentPreferences()
     }
@@ -117,6 +119,12 @@ class SettingsViewModel: ObservableObject {
         thirdPartyConsent = enabled
         UserDefaults.standard.set(enabled, forKey: consentThirdPartyKey)
         applyConsentPreferences()
+    }
+
+    func setRunningMode(_ mode: String) {
+        runningMode = mode
+        RunningModeRepository.shared.runningMode = mode == "observer" ? .paywallObserver : .full
+        print("[Shaker] Running mode changed to: \(mode)")
     }
 
     private func applyConsentPreferences() {
