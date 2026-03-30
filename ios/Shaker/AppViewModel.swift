@@ -46,6 +46,15 @@ class AppViewModel: ObservableObject {
 
         Purchasely.setEventDelegate(self)
 
+        // Handle results from deeplink-triggered paywalls
+        Purchasely.setDefaultPresentationResultHandler { result, plan in
+            print("[Shaker] Default presentation result: \(result) | Plan: \(plan?.name ?? "none")")
+            PremiumManager.shared.refreshPremiumStatus()
+        }
+
+        // Note: User attribute changes from in-paywall surveys are captured via PLYEventDelegate
+        // (no separate setUserAttributeListener API exists in the iOS SDK)
+
         setupInterceptor()
 
         // Synchronize on launch when in Observer mode to catch external transactions
