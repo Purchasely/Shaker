@@ -55,8 +55,15 @@ class SettingsViewModel(
     )
     val runningMode: StateFlow<String> = _runningMode.asStateFlow()
 
+    private val _anonymousId = MutableStateFlow(Purchasely.anonymousUserId)
+    val anonymousId: StateFlow<String> = _anonymousId.asStateFlow()
+
     init {
         applyConsentPreferences()
+    }
+
+    fun refreshAnonymousId() {
+        _anonymousId.value = Purchasely.anonymousUserId
     }
 
     fun login(userId: String) {
