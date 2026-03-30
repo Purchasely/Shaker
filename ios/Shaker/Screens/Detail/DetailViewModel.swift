@@ -48,6 +48,15 @@ class DetailViewModel: ObservableObject {
                     print("[Shaker] Recipe detail presentation not available: \(error?.localizedDescription ?? "deactivated")")
                     return
                 }
+
+                if presentation.type == .client {
+                    // PURCHASELY: CLIENT type — app builds its own paywall UI
+                    // The presentation contains plan data but no server-built screen
+                    // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
+                    print("[Shaker] CLIENT presentation received — build custom UI here")
+                    return
+                }
+
                 DispatchQueue.main.async {
                     presentation.display(from: vc)
                 }
@@ -81,6 +90,15 @@ class DetailViewModel: ObservableObject {
                     print("[Shaker] Favorites presentation not available: \(error?.localizedDescription ?? "deactivated")")
                     return
                 }
+
+                if presentation.type == .client {
+                    // PURCHASELY: CLIENT type — app builds its own paywall UI
+                    // The presentation contains plan data but no server-built screen
+                    // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
+                    print("[Shaker] CLIENT presentation received — build custom UI here")
+                    return
+                }
+
                 DispatchQueue.main.async {
                     presentation.display(from: vc)
                 }

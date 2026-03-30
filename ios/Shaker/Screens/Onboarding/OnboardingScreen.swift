@@ -38,6 +38,15 @@ struct OnboardingScreen: View {
                     return
                 }
 
+                if presentation.type == .client {
+                    // PURCHASELY: CLIENT type — app builds its own paywall UI
+                    // The presentation contains plan data but no server-built screen
+                    // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
+                    print("[Shaker] CLIENT presentation received — build custom UI here")
+                    DispatchQueue.main.async { onComplete() }
+                    return
+                }
+
                 DispatchQueue.main.async {
                     presentation.display(from: hostViewController)
                 }
