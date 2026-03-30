@@ -1,6 +1,234 @@
 {
   "cocktails": [
     {
+      "id": "virgin-mojito",
+      "name": "Virgin Mojito",
+      "image": "virgin-mojito.jpg",
+      "description": "All the refreshing lime-and-mint magic of a classic Mojito, without the rum.",
+      "category": "classic",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["refreshing", "summer", "citrus", "minty"],
+      "ingredients": [
+        { "name": "Fresh lime juice", "amount": "30ml" },
+        { "name": "Sugar syrup", "amount": "20ml" },
+        { "name": "Mint leaves", "amount": "8-10" },
+        { "name": "Soda water", "amount": "150ml" },
+        { "name": "Crushed ice", "amount": "1 cup" }
+      ],
+      "instructions": [
+        "Muddle mint leaves gently with sugar syrup in a tall glass.",
+        "Add lime juice and fill the glass with crushed ice.",
+        "Top with soda water and stir gently.",
+        "Garnish with a sprig of fresh mint and a lime wheel."
+      ]
+    },
+    {
+      "id": "shirley-temple",
+      "name": "Shirley Temple",
+      "image": "shirley-temple.jpg",
+      "description": "A sweet and bubbly classic beloved by all ages, with a signature grenadine blush.",
+      "category": "classic",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["sweet", "fruity", "bubbly"],
+      "ingredients": [
+        { "name": "Ginger ale", "amount": "200ml" },
+        { "name": "Grenadine", "amount": "20ml" },
+        { "name": "Maraschino cherry", "amount": "2" },
+        { "name": "Fresh lime juice", "amount": "10ml" }
+      ],
+      "instructions": [
+        "Fill a tall glass with ice cubes.",
+        "Pour ginger ale over the ice.",
+        "Add grenadine and lime juice, then stir gently.",
+        "Garnish with maraschino cherries and an orange slice."
+      ]
+    },
+    {
+      "id": "virgin-pina-colada",
+      "name": "Virgin Piña Colada",
+      "image": "virgin-pina-colada.jpg",
+      "description": "A creamy, tropical escape blending pineapple and coconut into pure paradise.",
+      "category": "tropical",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["tropical", "creamy", "sweet"],
+      "ingredients": [
+        { "name": "Pineapple juice", "amount": "150ml" },
+        { "name": "Coconut cream", "amount": "60ml" },
+        { "name": "Crushed ice", "amount": "1 cup" },
+        { "name": "Pineapple wedge", "amount": "1" }
+      ],
+      "instructions": [
+        "Add pineapple juice, coconut cream and crushed ice to a blender.",
+        "Blend until smooth and creamy.",
+        "Pour into a hurricane glass.",
+        "Garnish with a pineapple wedge and a maraschino cherry."
+      ]
+    },
+    {
+      "id": "roy-rogers",
+      "name": "Roy Rogers",
+      "image": "roy-rogers.jpg",
+      "description": "A timeless non-alcoholic charmer that pairs cola with a splash of grenadine sweetness.",
+      "category": "classic",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["sweet", "cola", "bubbly"],
+      "ingredients": [
+        { "name": "Cola", "amount": "200ml" },
+        { "name": "Grenadine", "amount": "15ml" },
+        { "name": "Maraschino cherry", "amount": "2" },
+        { "name": "Fresh lime juice", "amount": "5ml" }
+      ],
+      "instructions": [
+        "Fill a tall glass with ice cubes.",
+        "Pour cola over the ice and add grenadine.",
+        "Stir gently to create a gradient effect.",
+        "Garnish with maraschino cherries."
+      ]
+    },
+    {
+      "id": "arnold-palmer",
+      "name": "Arnold Palmer",
+      "image": "arnold-palmer.jpg",
+      "description": "The legendary golfer's go-to refresher, a perfectly balanced blend of iced tea and lemonade.",
+      "category": "classic",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["refreshing", "citrus", "tea"],
+      "ingredients": [
+        { "name": "Iced black tea", "amount": "150ml" },
+        { "name": "Fresh lemonade", "amount": "150ml" },
+        { "name": "Lemon wheel", "amount": "1" },
+        { "name": "Sugar syrup", "amount": "10ml" }
+      ],
+      "instructions": [
+        "Brew black tea and let it cool completely, then chill.",
+        "Fill a tall glass with ice cubes.",
+        "Pour iced tea and lemonade over the ice, adjusting ratio to taste.",
+        "Add sugar syrup if extra sweetness is desired and stir gently.",
+        "Garnish with a lemon wheel."
+      ]
+    },
+    {
+      "id": "virgin-mary",
+      "name": "Virgin Mary",
+      "image": "virgin-mary.jpg",
+      "description": "A savory, spice-kicked tomato cocktail that proves brunch drinks don't need alcohol to shine.",
+      "category": "classic",
+      "spirit": "non-alcoholic",
+      "difficulty": "medium",
+      "tags": ["savory", "spicy", "brunch"],
+      "ingredients": [
+        { "name": "Tomato juice", "amount": "150ml" },
+        { "name": "Fresh lemon juice", "amount": "15ml" },
+        { "name": "Worcestershire sauce", "amount": "3 dashes" },
+        { "name": "Tabasco", "amount": "2 dashes" },
+        { "name": "Celery salt", "amount": "1 pinch" },
+        { "name": "Celery stalk", "amount": "1" }
+      ],
+      "instructions": [
+        "Add tomato juice, lemon juice, Worcestershire sauce, Tabasco and celery salt to a shaker with ice.",
+        "Roll gently between two glasses to mix without bruising the tomato juice.",
+        "Strain into a tall glass filled with ice.",
+        "Garnish with a celery stalk, lemon wedge and a pinch of black pepper."
+      ]
+    },
+    {
+      "id": "nojito",
+      "name": "Nojito",
+      "image": "nojito.jpg",
+      "description": "A sparkling twist on the Mojito, with zesty ginger beer replacing the rum for an effervescent kick.",
+      "category": "contemporary",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["refreshing", "citrus", "sparkling"],
+      "ingredients": [
+        { "name": "Fresh lime juice", "amount": "30ml" },
+        { "name": "Mint leaves", "amount": "8-10" },
+        { "name": "Sugar syrup", "amount": "15ml" },
+        { "name": "Ginger beer", "amount": "150ml" },
+        { "name": "Crushed ice", "amount": "1 cup" }
+      ],
+      "instructions": [
+        "Muddle mint leaves gently with sugar syrup and lime juice in a glass.",
+        "Fill the glass with crushed ice.",
+        "Top with ginger beer and stir gently.",
+        "Garnish with a sprig of mint and a lime wedge."
+      ]
+    },
+    {
+      "id": "cinderella",
+      "name": "Cinderella",
+      "image": "cinderella.jpg",
+      "description": "A fruity, tropical medley of juices with a hint of grenadine that's fit for a ball.",
+      "category": "contemporary",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["fruity", "tropical", "refreshing"],
+      "ingredients": [
+        { "name": "Orange juice", "amount": "60ml" },
+        { "name": "Pineapple juice", "amount": "60ml" },
+        { "name": "Fresh lemon juice", "amount": "30ml" },
+        { "name": "Grenadine", "amount": "10ml" },
+        { "name": "Soda water", "amount": "splash" }
+      ],
+      "instructions": [
+        "Combine orange juice, pineapple juice, lemon juice and grenadine in a shaker with ice.",
+        "Shake vigorously for 10 seconds.",
+        "Strain into a tall glass filled with ice.",
+        "Top with a splash of soda water and garnish with a pineapple wedge."
+      ]
+    },
+    {
+      "id": "safe-sex-on-the-beach",
+      "name": "Safe Sex on the Beach",
+      "image": "safe-sex-on-the-beach.jpg",
+      "description": "A vibrant, fruity cooler with layers of peach, orange and cranberry that captures summer in a glass.",
+      "category": "tropical",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["fruity", "summer", "tropical"],
+      "ingredients": [
+        { "name": "Peach nectar", "amount": "60ml" },
+        { "name": "Orange juice", "amount": "90ml" },
+        { "name": "Cranberry juice", "amount": "90ml" },
+        { "name": "Grenadine", "amount": "10ml" }
+      ],
+      "instructions": [
+        "Fill a tall glass with ice cubes.",
+        "Pour peach nectar and orange juice over the ice.",
+        "Slowly add cranberry juice to create a layered effect.",
+        "Drizzle grenadine down the side of the glass.",
+        "Stir gently and garnish with an orange slice."
+      ]
+    },
+    {
+      "id": "italian-soda",
+      "name": "Italian Soda",
+      "image": "italian-soda.jpg",
+      "description": "An endlessly customizable sparkling refresher, with flavored syrup, fizzy water and a cloud of cream.",
+      "category": "contemporary",
+      "spirit": "non-alcoholic",
+      "difficulty": "easy",
+      "tags": ["sweet", "bubbly", "customizable"],
+      "ingredients": [
+        { "name": "Flavored syrup (raspberry or vanilla)", "amount": "30ml" },
+        { "name": "Sparkling water", "amount": "200ml" },
+        { "name": "Heavy cream", "amount": "30ml" },
+        { "name": "Crushed ice", "amount": "1 cup" }
+      ],
+      "instructions": [
+        "Pour flavored syrup into a tall glass.",
+        "Fill the glass with crushed ice.",
+        "Top with sparkling water and stir gently.",
+        "Float heavy cream on top by pouring slowly over the back of a spoon.",
+        "Garnish with fresh berries if using raspberry syrup."
+      ]
+    },
+    {
       "id": "mojito",
       "name": "Mojito",
       "image": "mojito.jpg",
