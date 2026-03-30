@@ -53,6 +53,9 @@ class ShakerApp : Application() {
                     Log.d(TAG, "[Shaker] Purchasely SDK configured successfully (${currentMode.name})")
                     val premiumManager: PremiumManager by inject()
                     premiumManager.refreshPremiumStatus()
+                    // Track additional user attributes for demo
+                    Purchasely.setUserAttribute("last_open_date", java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.US).format(java.util.Date()))
+                    Purchasely.incrementUserAttribute("session_count")
                 }
                 error?.let {
                     Log.e(TAG, "[Shaker] Purchasely configuration error: ${it.message}")
@@ -63,6 +66,13 @@ class ShakerApp : Application() {
             override fun onEvent(event: PLYEvent) {
                 Log.d(TAG, "[Shaker] Event: ${event.name} | Properties: ${event.properties}")
             }
+        }
+
+        // Handle results from deeplink-triggered paywalls
+        Purchasely.setDefaultPresentationResultHandler { result, plan ->
+            Log.d(TAG, "[Shaker] Default presentation result: $result | Plan: ${plan?.name}")
+            val premiumManager: PremiumManager by inject()
+            premiumManager.refreshPremiumStatus()
         }
 
         setupInterceptor()

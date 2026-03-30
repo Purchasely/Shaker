@@ -55,8 +55,18 @@ class SettingsViewModel(
     )
     val runningMode: StateFlow<String> = _runningMode.asStateFlow()
 
+    private val _anonymousId = MutableStateFlow(Purchasely.anonymousUserId)
+    val anonymousId: StateFlow<String> = _anonymousId.asStateFlow()
+
+    private val _displayMode = MutableStateFlow(prefs.getString(KEY_DISPLAY_MODE, "fullscreen") ?: "fullscreen")
+    val displayMode: StateFlow<String> = _displayMode.asStateFlow()
+
     init {
         applyConsentPreferences()
+    }
+
+    fun refreshAnonymousId() {
+        _anonymousId.value = Purchasely.anonymousUserId
     }
 
     fun login(userId: String) {
@@ -104,6 +114,12 @@ class SettingsViewModel(
 
     fun onPurchaseCompleted() {
         premiumManager.refreshPremiumStatus()
+    }
+
+    fun setDisplayMode(mode: String) {
+        _displayMode.value = mode
+        prefs.edit().putString(KEY_DISPLAY_MODE, mode).apply()
+        Log.d(TAG, "[Shaker] Display mode changed to: $mode")
     }
 
     fun setThemeMode(mode: String) {
@@ -173,5 +189,6 @@ class SettingsViewModel(
         private const val KEY_CONSENT_PERSONALIZATION = "consent_personalization"
         private const val KEY_CONSENT_CAMPAIGNS = "consent_campaigns"
         private const val KEY_CONSENT_THIRD_PARTY = "consent_third_party"
+        private const val KEY_DISPLAY_MODE = "display_mode"
     }
 }

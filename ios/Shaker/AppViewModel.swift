@@ -1,7 +1,7 @@
 import Foundation
 import UIKit
-import Purchasely
 import StoreKit
+import Purchasely
 
 class AppViewModel: ObservableObject {
 
@@ -31,6 +31,10 @@ class AppViewModel: ObservableObject {
                 if success {
                     print("[Shaker] Purchasely SDK configured successfully (\(modeName))")
                     PremiumManager.shared.refreshPremiumStatus()
+                    // Track additional user attributes for demo
+                    let dateFormatter = ISO8601DateFormatter()
+                    Purchasely.setUserAttribute(withStringValue: dateFormatter.string(from: Date()), forKey: "last_open_date")
+                    Purchasely.incrementUserAttribute(withKey: "session_count")
                 } else {
                     self?.sdkError = error?.localizedDescription
                     print("[Shaker] Purchasely configuration error: \(error?.localizedDescription ?? "unknown")")
@@ -41,6 +45,15 @@ class AppViewModel: ObservableObject {
         Purchasely.readyToOpenDeeplink(true)
 
         Purchasely.setEventDelegate(self)
+
+        // Handle results from deeplink-triggered paywalls
+        Purchasely.setDefaultPresentationResultHandler { result, plan in
+            print("[Shaker] Default presentation result: \(result) | Plan: \(plan?.name ?? "none")")
+            PremiumManager.shared.refreshPremiumStatus()
+        }
+
+        // Note: User attribute changes from in-paywall surveys are captured via PLYEventDelegate
+        // (no separate setUserAttributeListener API exists in the iOS SDK)
 
         setupInterceptor()
 
@@ -143,6 +156,17 @@ class AppViewModel: ObservableObject {
                 } else {
                     proceed(true)
                 }
+
+            case .promoCode:
+                print("[Shaker] Promo code action intercepted")
+                DispatchQueue.main.async {
+                    if let windowScene = UIApplication.shared.connectedScenes
+                        .compactMap({ $0 as? UIWindowScene })
+                        .first {
+                        SKPaymentQueue.default().presentCodeRedemptionSheet()
+                    }
+                }
+                proceed(false)
 
             default:
                 proceed(true)
