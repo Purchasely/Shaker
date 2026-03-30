@@ -47,6 +47,9 @@ class SettingsViewModel: ObservableObject {
     func login(userId: String) {
         guard !userId.isEmpty else { return }
 
+        // PURCHASELY: Associate the current device session with a user ID
+        // The callback indicates whether entitlements need to be refreshed for the new user
+        // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         Purchasely.userLogin(with: userId) { refresh in
             if refresh {
                 PremiumManager.shared.refreshPremiumStatus()
@@ -57,10 +60,15 @@ class SettingsViewModel: ObservableObject {
         self.userId = userId
         UserDefaults.standard.set(userId, forKey: userIdKey)
 
+        // PURCHASELY: Store the user ID as a custom attribute for targeting and personalization
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         Purchasely.setUserAttribute(withStringValue: userId, forKey: "user_id")
     }
 
     func logout() {
+        // PURCHASELY: Clear the current user session from the SDK
+        // Resets entitlements to anonymous state; always refresh premium status afterwards
+        // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         Purchasely.userLogout()
         userId = nil
         UserDefaults.standard.removeObject(forKey: userIdKey)
@@ -70,6 +78,9 @@ class SettingsViewModel: ObservableObject {
 
     func restorePurchases() {
         restoreMessage = nil
+        // PURCHASELY: Restore previously completed purchases for the current App Store account
+        // Required by App Store guidelines; must be accessible via a visible UI button
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/restore-purchases
         Purchasely.restoreAllProducts(
             success: { [weak self] in
                 PremiumManager.shared.refreshPremiumStatus()
@@ -94,6 +105,8 @@ class SettingsViewModel: ObservableObject {
     func setThemeMode(_ mode: String) {
         themeMode = mode
         UserDefaults.standard.set(mode, forKey: themeKey)
+        // PURCHASELY: Track user's preferred theme as a custom attribute for audience segmentation
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         Purchasely.setUserAttribute(withStringValue: mode, forKey: "app_theme")
     }
 
@@ -140,6 +153,9 @@ class SettingsViewModel: ObservableObject {
         if !personalizationConsent { revoked.insert(.personalization) }
         if !campaignsConsent { revoked.insert(.campaigns) }
         if !thirdPartyConsent { revoked.insert(.thirdPartyIntegrations) }
+        // PURCHASELY: Apply GDPR consent — revoked purposes are excluded from SDK data processing
+        // Call whenever the user changes any consent toggle to keep the SDK in sync
+        // Docs: https://docs.purchasely.com/advanced-features/gdpr
         Purchasely.revokeDataProcessingConsent(for: revoked)
         print("[Shaker] Consent updated — revoked: \(revoked)")
     }

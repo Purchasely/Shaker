@@ -77,6 +77,9 @@ struct HomeScreen: View {
             .first { $0.isKeyWindow }?
             .rootViewController
 
+        // PURCHASELY: Fetch and display the paywall for the "filters" placement
+        // Use fetchPresentation + display() so the paywall is pre-loaded before being shown
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
         Purchasely.fetchPresentation(
             for: "filters",
             fetchCompletion: { presentation, error in

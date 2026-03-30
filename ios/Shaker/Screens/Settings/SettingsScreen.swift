@@ -208,6 +208,9 @@ struct SettingsScreen: View {
             .first { $0.isKeyWindow }?
             .rootViewController
 
+        // PURCHASELY: Manually re-display the onboarding paywall from Settings
+        // Allows users who skipped onboarding to subscribe later
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
         Purchasely.fetchPresentation(
             for: "onboarding",
             fetchCompletion: { presentation, error in

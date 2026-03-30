@@ -14,8 +14,14 @@ class DetailViewModel: ObservableObject {
     }
 
     private func trackCocktailViewed() {
+        // PURCHASELY: Increment a counter attribute each time the user views a recipe detail
+        // Enables targeting users based on engagement depth (e.g., "viewed 5+ recipes")
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         Purchasely.incrementUserAttribute(withKey: "cocktails_viewed")
         if let spirit = cocktail?.spirit {
+            // PURCHASELY: Record the spirit of the last-viewed cocktail as a user attribute
+            // Allows personalized paywall content based on the user's preferred spirit category
+            // Docs: https://docs.purchasely.com/advanced-features/user-attributes
             Purchasely.setUserAttribute(withStringValue: spirit, forKey: "favorite_spirit")
         }
     }
@@ -31,6 +37,9 @@ class DetailViewModel: ObservableObject {
     func showPaywall(for cocktailId: String) {
         let vc = topViewController
 
+        // PURCHASELY: Fetch and display the "recipe_detail" paywall with a contentId for context
+        // The contentId lets the paywall content reference the specific cocktail being viewed
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
         Purchasely.fetchPresentation(
             for: "recipe_detail",
             contentId: cocktailId,
@@ -63,6 +72,8 @@ class DetailViewModel: ObservableObject {
     func showFavoritesPaywall() {
         let vc = topViewController
 
+        // PURCHASELY: Fetch and display the "favorites" paywall when the user tries to favorite while non-premium
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
         Purchasely.fetchPresentation(
             for: "favorites",
             fetchCompletion: { presentation, error in

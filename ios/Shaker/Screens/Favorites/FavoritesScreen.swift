@@ -72,6 +72,9 @@ struct FavoritesScreen: View {
             .first { $0.isKeyWindow }?
             .rootViewController
 
+        // PURCHASELY: Fetch and display the paywall for the "favorites" placement
+        // Shown when a non-premium user tries to access the Favorites feature
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
         Purchasely.fetchPresentation(
             for: "favorites",
             fetchCompletion: { presentation, error in
