@@ -72,6 +72,9 @@ class SettingsViewModel(
     fun login(userId: String) {
         if (userId.isBlank()) return
 
+        // PURCHASELY: Associate this session with an authenticated user ID
+        // The callback's `refresh` flag indicates whether subscriptions should be re-fetched
+        // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         Purchasely.userLogin(userId) { refresh ->
             if (refresh) {
                 premiumManager.refreshPremiumStatus()
@@ -82,10 +85,14 @@ class SettingsViewModel(
         _userId.value = userId
         prefs.edit().putString(KEY_USER_ID, userId).apply()
 
+        // PURCHASELY: Store the user ID as a custom attribute for paywall targeting/personalization
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         Purchasely.setUserAttribute("user_id", userId)
     }
 
     fun logout() {
+        // PURCHASELY: Disassociate the current user — clears cached user attributes and subscriptions
+        // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         Purchasely.userLogout()
         _userId.value = null
         prefs.edit().remove(KEY_USER_ID).apply()
@@ -95,6 +102,9 @@ class SettingsViewModel(
 
     fun restorePurchases() {
         _restoreMessage.value = null
+        // PURCHASELY: Restore previously purchased products for the current user
+        // Required by App Store / Play Store guidelines; call on explicit user request only
+        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/restore-purchases
         Purchasely.restoreAllProducts(
             onSuccess = { plan ->
                 premiumManager.refreshPremiumStatus()
@@ -125,6 +135,8 @@ class SettingsViewModel(
     fun setThemeMode(mode: String) {
         _themeMode.value = mode
         prefs.edit().putString(KEY_THEME, mode).apply()
+        // PURCHASELY: Track the user's preferred theme as a custom attribute for audience segmentation
+        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         Purchasely.setUserAttribute("app_theme", mode)
     }
 
@@ -176,6 +188,9 @@ class SettingsViewModel(
         if (!_personalizationConsent.value) revoked.add(PLYDataProcessingPurpose.Personalization)
         if (!_campaignsConsent.value) revoked.add(PLYDataProcessingPurpose.Campaigns)
         if (!_thirdPartyConsent.value) revoked.add(PLYDataProcessingPurpose.ThirdPartyIntegrations)
+        // PURCHASELY: Revoke GDPR data-processing consent for specific purposes
+        // Pass the set of revoked purposes; an empty set re-grants all consent
+        // Docs: https://docs.purchasely.com/advanced-features/gdpr
         Purchasely.revokeDataProcessingConsent(revoked)
         Log.d(TAG, "[Shaker] Consent updated — revoked: $revoked")
     }

@@ -14,6 +14,9 @@ class PremiumManager {
     val isPremium: StateFlow<Boolean> = _isPremium.asStateFlow()
 
     fun refreshPremiumStatus() {
+        // PURCHASELY: Fetch the current user's active subscriptions to determine premium access
+        // Pass false to use cached data; true forces a network refresh
+        // Docs: https://docs.purchasely.com/advanced-features/subscription-status
         Purchasely.userSubscriptions(false, object : SubscriptionsListener {
             override fun onSuccess(subscriptions: List<PLYSubscriptionData>) {
                 val premium = subscriptions.any { subscriptionData ->

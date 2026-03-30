@@ -189,6 +189,9 @@ fun SettingsScreen(
         OutlinedButton(
             onClick = {
                 val activity = context as? Activity ?: return@OutlinedButton
+                // PURCHASELY: Manually re-trigger the "onboarding" placement paywall from Settings
+                // Useful for users who want to subscribe after dismissing onboarding
+                // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                 Purchasely.fetchPresentation("onboarding") { presentation, error ->
                     if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
                         presentation.display(activity) { result, plan ->

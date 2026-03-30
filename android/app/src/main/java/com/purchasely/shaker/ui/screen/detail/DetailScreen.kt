@@ -79,6 +79,9 @@ fun DetailScreen(
                         } else {
                             // Free user: show favorites paywall
                             val activity = context as? Activity ?: return@IconButton
+                            // PURCHASELY: Fetch and display the paywall for the "favorites" placement
+                            // Shown when a free user tries to favorite a cocktail from the detail screen
+                            // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                             Purchasely.fetchPresentation("favorites") { presentation, error ->
                                 if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
                                     presentation.display(activity) { result, plan ->
@@ -229,6 +232,9 @@ fun DetailScreen(
                                 Button(
                                     onClick = {
                                         val activity = context as? Activity ?: return@Button
+                                        // PURCHASELY: Fetch the "recipe_detail" paywall with a contentId for contextual personalization
+                                        // contentId lets the paywall template reference the specific cocktail being viewed
+                                        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                                         Purchasely.fetchPresentation(properties = PLYPresentationProperties(placementId = "recipe_detail", contentId = c.id)) { presentation, error ->
                                             if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
                                                 presentation.display(activity) { result, plan ->

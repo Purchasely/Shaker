@@ -48,6 +48,8 @@ class HomeViewModel(
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
         if (query.isNotBlank()) {
+            // PURCHASELY: Record that the user has used search as a boolean attribute for audience targeting
+            // Docs: https://docs.purchasely.com/advanced-features/user-attributes
             Purchasely.setUserAttribute("has_used_search", true)
         }
         applyFilters()

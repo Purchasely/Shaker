@@ -80,6 +80,9 @@ fun HomeScreen(
                             } else {
                                 // Free user: show filters paywall
                                 val activity = context as? Activity ?: return@IconButton
+                                // PURCHASELY: Fetch and display the paywall for the "filters" placement
+                                // fetchPresentation loads the configured paywall; display() shows it modally
+                                // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
                                 Purchasely.fetchPresentation("filters") { presentation, error ->
                                     if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
                                         presentation.display(activity) { result, plan ->
