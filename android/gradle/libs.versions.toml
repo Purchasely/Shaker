@@ -10,6 +10,7 @@ koin = "4.0.0"
 kotlinx-serialization = "1.7.3"
 coil = "3.0.4"
 purchasely = "5.6.0"
+billing = "7.1.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
@@ -35,6 +36,8 @@ coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref 
 
 purchasely-core = { group = "io.purchasely", name = "core", version.ref = "purchasely" }
 purchasely-google = { group = "io.purchasely", name = "google-play", version.ref = "purchasely" }
+
+google-billing = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

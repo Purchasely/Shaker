@@ -5,7 +5,10 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.ShakerApp
 import io.purchasely.ext.PLYDataProcessingPurpose
+import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.Purchasely
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -13,7 +16,8 @@ import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsViewModel(
     private val context: Context,
-    private val premiumManager: PremiumManager
+    private val premiumManager: PremiumManager,
+    private val runningModeRepo: RunningModeRepository
 ) : ViewModel() {
 
     private val prefs: SharedPreferences =
@@ -45,6 +49,11 @@ class SettingsViewModel(
 
     private val _thirdPartyConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_THIRD_PARTY, true))
     val thirdPartyConsent: StateFlow<Boolean> = _thirdPartyConsent.asStateFlow()
+
+    private val _runningMode = MutableStateFlow(
+        if (runningModeRepo.isObserverMode) "observer" else "full"
+    )
+    val runningMode: StateFlow<String> = _runningMode.asStateFlow()
 
     init {
         applyConsentPreferences()
@@ -131,6 +140,17 @@ class SettingsViewModel(
         _thirdPartyConsent.value = enabled
         prefs.edit().putBoolean(KEY_CONSENT_THIRD_PARTY, enabled).apply()
         applyConsentPreferences()
+    }
+
+    fun setRunningMode(mode: String) {
+        _runningMode.value = mode
+        runningModeRepo.runningMode = if (mode == "observer") PLYRunningMode.PaywallObserver else PLYRunningMode.Full
+
+        // Re-initialize the SDK with the new mode
+        val app = context.applicationContext as ShakerApp
+        app.initPurchasely()
+
+        Log.d(TAG, "[Shaker] Running mode changed to: $mode — SDK re-initialized")
     }
 
     private fun applyConsentPreferences() {

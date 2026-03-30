@@ -5,6 +5,7 @@ struct SettingsScreen: View {
 
     @StateObject private var viewModel = SettingsViewModel()
     @EnvironmentObject private var premiumManager: PremiumManager
+    @EnvironmentObject private var appViewModel: AppViewModel
     @State private var loginInput = ""
     var body: some View {
         List {
@@ -56,6 +57,25 @@ struct SettingsScreen: View {
                 Button("Show Onboarding") {
                     showOnboardingPaywall()
                 }
+            }
+
+            // SDK Mode section
+            Section {
+                Picker("Running Mode", selection: $viewModel.runningMode) {
+                    Text("Full").tag("full")
+                    Text("Observer").tag("observer")
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: viewModel.runningMode) { newValue in
+                    viewModel.setRunningMode(newValue)
+                    appViewModel.initPurchasely()
+                }
+            } header: {
+                Text("SDK Mode")
+            } footer: {
+                Text(viewModel.runningMode == "observer"
+                    ? "PaywallObserver — Your app handles purchases natively via StoreKit 2."
+                    : "Full — Purchasely SDK handles the entire purchase flow.")
             }
 
             // Data Privacy section

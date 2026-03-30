@@ -42,6 +42,11 @@ jobs:
 
       - run: gem install cocoapods
 
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - run: xcodegen generate
+
       - name: Cache CocoaPods
         uses: actions/cache@v4
         with:
@@ -50,11 +55,6 @@ jobs:
           restore-keys: pods-
 
       - run: pod install
-
-      - name: Install XcodeGen
-        run: brew install xcodegen
-
-      - run: xcodegen generate
 
       - run: |
           xcodebuild build \
