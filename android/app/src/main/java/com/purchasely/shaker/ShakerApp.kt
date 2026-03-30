@@ -68,6 +68,13 @@ class ShakerApp : Application() {
             }
         }
 
+        // Handle results from deeplink-triggered paywalls
+        Purchasely.setDefaultPresentationResultHandler { result, plan ->
+            Log.d(TAG, "[Shaker] Default presentation result: $result | Plan: ${plan?.name}")
+            val premiumManager: PremiumManager by inject()
+            premiumManager.refreshPremiumStatus()
+        }
+
         setupInterceptor()
 
         // Synchronize on launch when in Observer mode to catch external transactions
