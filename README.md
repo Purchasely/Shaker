@@ -85,6 +85,16 @@ cocktails.json → CocktailRepository → ViewModel → UI (Compose / SwiftUI)
 | `FavoritesRepository` | Premium-gated favorites (UserDefaults / SharedPreferences) |
 | `SettingsViewModel` | Login, restore, GDPR consent, user attributes |
 
+## Known Constraints
+
+- Purchasely placements and plans must be configured in Console before paywalls can be displayed.
+- A public demo Purchasely API key is hardcoded by default for quick startup.
+- You can override it with local config files:
+  - Android: `android/local.properties` (`purchasely.apiKey=...`)
+  - iOS: `ios/Config.xcconfig` (`PURCHASELY_API_KEY = ...`)
+- Paywall flows require `fetchPresentation + display()`. Do not use convenience APIs like `presentationView` or `presentationController`.
+- Cocktail catalog browsing works offline from bundled JSON, but paywall fetch requires network access.
+
 ## Placements
 
 | Placement ID | Where | Purpose |
