@@ -21,11 +21,12 @@ struct DetailScreen: View {
                             .frame(height: 300)
                             .clipped()
 
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 20) {
                             // Name and description
                             Text(cocktail.name)
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
+                                .padding(.top, 4)
 
                             Text(cocktail.description)
                                 .font(.body)
@@ -39,7 +40,7 @@ struct DetailScreen: View {
                             }
 
                             // Ingredients
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 Text("Ingredients")
                                     .font(.title2)
                                     .fontWeight(.semibold)
@@ -54,11 +55,12 @@ struct DetailScreen: View {
                                             .foregroundStyle(premiumManager.isPremium ? .secondary : .quaternary)
                                     }
                                     .padding(.vertical, 2)
+                                    Divider()
                                 }
                             }
 
                             // Instructions
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 Text("Instructions")
                                     .font(.title2)
                                     .fontWeight(.semibold)
@@ -102,7 +104,8 @@ struct DetailScreen: View {
                                 }
                             }
                         }
-                        .padding(16)
+                        .padding(.horizontal, 20)
+                        .padding(.bottom, 20)
                     }
                 }
                 .navigationTitle(cocktail.name)
