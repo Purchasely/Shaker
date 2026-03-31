@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -97,6 +98,7 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .statusBarsPadding()
             .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
@@ -113,7 +115,7 @@ fun SettingsScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Person, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Column {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = "Logged in as",
                         style = MaterialTheme.typography.bodySmall,
@@ -124,34 +126,38 @@ fun SettingsScreen(
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
-            }
-            Spacer(modifier = Modifier.height(12.dp))
-            OutlinedButton(
-                onClick = { viewModel.logout() },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Logout")
+                TextButton(onClick = { viewModel.logout() }) {
+                    Text(
+                        "Logout",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         } else {
             // Login form
-            OutlinedTextField(
-                value = loginInput,
-                onValueChange = { loginInput = it },
-                label = { Text("User ID") },
-                placeholder = { Text("Enter any user ID") },
-                singleLine = true,
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = {
-                    viewModel.login(loginInput)
-                    loginInput = ""
-                },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = loginInput.isNotBlank()
             ) {
-                Text("Login")
+                OutlinedTextField(
+                    value = loginInput,
+                    onValueChange = { loginInput = it },
+                    label = { Text("User ID") },
+                    placeholder = { Text("Enter any user ID") },
+                    singleLine = true,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = {
+                        viewModel.login(loginInput)
+                        loginInput = ""
+                    },
+                    enabled = loginInput.isNotBlank()
+                ) {
+                    Text("Login")
+                }
             }
         }
 
@@ -351,9 +357,9 @@ fun SettingsScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Display Mode section (Android only)
+        // Display Mode section
         Text(
-            text = "Paywall Display Mode",
+            text = "Screen Display Mode",
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )

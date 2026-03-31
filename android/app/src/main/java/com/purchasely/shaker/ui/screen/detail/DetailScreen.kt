@@ -8,10 +8,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,10 +28,11 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +44,8 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.ui.components.CocktailImage
 import io.purchasely.ext.PLYPresentationProperties
@@ -63,75 +68,49 @@ fun DetailScreen(
     val isFavorite = favoriteIds.contains(cocktailId)
     val context = LocalContext.current
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(cocktail?.name ?: "") },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = {
-                        if (isPremium) {
-                            viewModel.toggleFavorite()
-                        } else {
-                            // Free user: show favorites paywall
-                            val activity = context as? Activity ?: return@IconButton
-                            // PURCHASELY: Fetch and display the paywall for the "favorites" placement
-                            // Shown when a free user tries to favorite a cocktail from the detail screen
-                            // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-                            Purchasely.fetchPresentation("favorites") { presentation, error ->
-                                if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                                    if (presentation.type == PLYPresentationType.CLIENT) {
-                                        // PURCHASELY: CLIENT type — app builds its own paywall UI
-                                        // The presentation contains plan data but no server-built screen
-                                        // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
-                                        Log.d("DetailScreen", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
-                                        // In a real app, extract plans from presentation and build native UI
-                                    } else {
-                                        presentation.display(activity) { result, plan ->
-                                            when (result) {
-                                                PLYProductViewResult.PURCHASED,
-                                                PLYProductViewResult.RESTORED -> {
-                                                    Log.d("DetailScreen", "[Shaker] Purchased/Restored from favorites: ${plan?.name}")
-                                                    viewModel.onPaywallDismissed()
-                                                }
-                                                else -> {}
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }) {
-                        Icon(
-                            imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                            contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
-                            tint = if (isFavorite) Color.Red else MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            )
+    // Force light (white) status bar icons over the hero image
+    val view = LocalView.current
+    DisposableEffect(Unit) {
+        val window = (context as Activity).window
+        val controller = WindowCompat.getInsetsController(window, view)
+        controller.isAppearanceLightStatusBars = false // white icons
+        onDispose {
+            controller.isAppearanceLightStatusBars = true // restore dark icons
         }
-    ) { innerPadding ->
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
         cocktail?.let { c ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
             ) {
-                // Hero image
-                CocktailImage(
-                    cocktail = c,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(300.dp)
-                )
+                // Hero image — full bleed behind status bar, with top scrim
+                Box {
+                    CocktailImage(
+                        cocktail = c,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(420.dp)
+                    )
+                    // Dark gradient scrim for status bar / nav bar readability
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp)
+                            .background(
+                                Brush.verticalGradient(
+                                    colors = listOf(
+                                        Color.Black.copy(alpha = 0.4f),
+                                        Color.Transparent
+                                    )
+                                )
+                            )
+                    )
+                }
 
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp)) {
                     // Name and description
                     Text(
                         text = c.name,
@@ -289,5 +268,57 @@ fun DetailScreen(
                 }
             }
         }
+
+        // Transparent TopAppBar overlay — behind status bar
+        TopAppBar(
+            title = { },
+            windowInsets = WindowInsets(0, 0, 0, 0),
+            modifier = Modifier.statusBarsPadding(),
+            navigationIcon = {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Back",
+                        tint = Color.White
+                    )
+                }
+            },
+            actions = {
+                IconButton(onClick = {
+                    if (isPremium) {
+                        viewModel.toggleFavorite()
+                    } else {
+                        val activity = context as? Activity ?: return@IconButton
+                        Purchasely.fetchPresentation("favorites") { presentation, error ->
+                            if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
+                                if (presentation.type == PLYPresentationType.CLIENT) {
+                                    Log.d("DetailScreen", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
+                                } else {
+                                    presentation.display(activity) { result, plan ->
+                                        when (result) {
+                                            PLYProductViewResult.PURCHASED,
+                                            PLYProductViewResult.RESTORED -> {
+                                                Log.d("DetailScreen", "[Shaker] Purchased/Restored from favorites: ${plan?.name}")
+                                                viewModel.onPaywallDismissed()
+                                            }
+                                            else -> {}
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }) {
+                    Icon(
+                        imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        tint = if (isFavorite) Color.Red else Color.White
+                    )
+                }
+            },
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = Color.Transparent
+            )
+        )
     }
 }

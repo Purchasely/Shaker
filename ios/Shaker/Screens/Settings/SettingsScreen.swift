@@ -21,12 +21,13 @@ struct SettingsScreen: View {
                             Text(userId)
                                 .font(.body)
                         }
+                        Spacer()
+                        Button("Logout") {
+                            viewModel.logout()
+                        }
+                        .font(.caption)
+                        .foregroundStyle(.red)
                     }
-
-                    Button("Logout") {
-                        viewModel.logout()
-                    }
-                    .foregroundStyle(.red)
                 } else {
                     HStack {
                         TextField("User ID", text: $loginInput)
@@ -172,6 +173,24 @@ struct SettingsScreen: View {
                 .onChange(of: viewModel.themeMode) { newValue in
                     viewModel.setThemeMode(newValue)
                 }
+            }
+
+            // Screen Display Mode section
+            Section {
+                Picker("Display Mode", selection: Binding(
+                    get: { viewModel.displayMode },
+                    set: { viewModel.setDisplayMode($0) }
+                )) {
+                    Text("Full").tag("fullscreen")
+                    Text("Modal").tag("modal")
+                    Text("Drawer").tag("drawer")
+                    Text("Popin").tag("popin")
+                }
+                .pickerStyle(.segmented)
+            } header: {
+                Text("Screen Display Mode")
+            } footer: {
+                Text("How paywalls are presented on screen")
             }
 
             // About section
