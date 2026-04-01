@@ -66,7 +66,7 @@ open Shaker.xcworkspace
 
 ### Verified SDK APIs (from actual SDK inspection)
 
-**Android SDK 5.6.0:**
+**Android SDK 5.7.3:**
 - `userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener)` - first param is boolean
 - `subscriptionStatus?.isExpired()` - isExpired is a function, subscriptionStatus is nullable
 - `setUserAttribute(key: String, value: Any)` / `incrementUserAttribute(key: String)`
@@ -74,7 +74,7 @@ open Shaker.xcworkspace
 - `fetchPresentation(placementId) { presentation, error -> }` + `presentation.display(activity) { result, plan -> }`
 - No `hasEntitlement()` on PLYPlan
 
-**iOS SDK 5.6.4:**
+**iOS SDK 5.7.3:**
 - `userSubscriptions(success:, failure:)` - separate closures (not a single completion handler)
 - `PLYSubscriptionStatus` is an enum: `.autoRenewing`, `.onHold`, `.inGracePeriod`, `.autoRenewingCanceled`, `.deactivated`, `.revoked`, `.paused`, `.unpaid`, `.unknown`
 - `setUserAttribute(withStringValue:, forKey:)` / `setUserAttribute(withBoolValue:, forKey:)` / `incrementUserAttribute(withKey:)`

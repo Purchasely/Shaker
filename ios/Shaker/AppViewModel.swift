@@ -81,14 +81,21 @@ class AppViewModel: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let resolvedApiKey = apiKey.isEmpty ? "6cda6b92-d63c-4444-bd55-5a164c989bd4" : apiKey
         let selectedMode = PurchaselySDKMode.current()
+        let storedUserId = UserDefaults.standard.string(forKey: "user_id")
         sdkError = nil
+
+        #if DEBUG
+        let sdkLogLevel: PLYLogger.PLYLogLevel = .debug
+        #else
+        let sdkLogLevel: PLYLogger.PLYLogLevel = .warn
+        #endif
 
         Purchasely.start(
             withAPIKey: resolvedApiKey,
-            appUserId: nil,
+            appUserId: storedUserId,
             runningMode: selectedMode.runningMode,
             storekitSettings: .storeKit2,
-            logLevel: .debug
+            logLevel: sdkLogLevel
         ) { [weak self] success, error in
             DispatchQueue.main.async {
                 self?.isSDKReady = success
@@ -131,8 +138,54 @@ class AppViewModel: ObservableObject {
                     }
                 }
                 proceed(false)
+            case .purchase:
+                // PURCHASELY: In Observer mode, handle purchase natively via StoreKit 2;
+                // in Full mode, let the SDK own the purchase flow
+                // Docs: https://docs.purchasely.com/advanced-features/customize-screens/paywall-action-interceptor
+                if PurchaselySDKMode.current() == .paywallObserver {
+                    if let productId = parameters?.plan?.appleProductId {
+                        if #available(iOS 15.0, *) {
+                            Task {
+                                do {
+                                    _ = try await PurchaseManager.shared.purchase(productId: productId)
+                                    PremiumManager.shared.refreshPremiumStatus()
+                                } catch {
+                                    print("[Shaker] Observer purchase error: \(error)")
+                                }
+                                proceed(false)
+                            }
+                        } else {
+                            proceed(false)
+                        }
+                    } else {
+                        print("[Shaker] Observer mode purchase: missing product ID")
+                        proceed(false)
+                    }
+                } else {
+                    proceed(true)
+                }
+            case .restore:
+                // PURCHASELY: In Observer mode, restore via StoreKit 2;
+                // in Full mode, let the SDK handle restore
+                if PurchaselySDKMode.current() == .paywallObserver {
+                    if #available(iOS 15.0, *) {
+                        Task {
+                            do {
+                                try await PurchaseManager.shared.restoreAllTransactions()
+                                PremiumManager.shared.refreshPremiumStatus()
+                            } catch {
+                                print("[Shaker] Observer restore error: \(error)")
+                            }
+                            proceed(false)
+                        }
+                    } else {
+                        proceed(false)
+                    }
+                } else {
+                    proceed(true)
+                }
             default:
-                // PURCHASELY: All other paywall actions (purchase, close, etc.) — let the SDK handle them normally
+                // PURCHASELY: All other paywall actions (close, etc.) — let the SDK handle them normally
                 proceed(true)
             }
         }

@@ -9,7 +9,7 @@ lifecycle = "2.8.7"
 koin = "4.0.0"
 kotlinx-serialization = "1.7.3"
 coil = "3.0.4"
-purchasely = "5.6.0"
+purchasely = "5.7.3"
 billing = "7.1.1"
 
 [libraries]

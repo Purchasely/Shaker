@@ -18,8 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -31,7 +31,6 @@ import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -47,9 +46,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.data.PurchaselySdkMode
+import io.purchasely.ext.PLYPresentationResultHandler
 import io.purchasely.ext.PLYPresentationType
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
+import io.purchasely.models.PLYPlan
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -61,7 +62,7 @@ fun SettingsScreen(
     val restoreMessage by viewModel.restoreMessage.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
     val sdkMode by viewModel.sdkMode.collectAsState()
-    val sdkModeChangeAlert by viewModel.sdkModeChangeAlert.collectAsState()
+
     val analyticsConsent by viewModel.analyticsConsent.collectAsState()
     val identifiedAnalyticsConsent by viewModel.identifiedAnalyticsConsent.collectAsState()
     val personalizationConsent by viewModel.personalizationConsent.collectAsState()
@@ -80,19 +81,6 @@ fun SettingsScreen(
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.clearRestoreMessage()
         }
-    }
-
-    if (sdkModeChangeAlert != null) {
-        AlertDialog(
-            onDismissRequest = { viewModel.clearSdkModeChangeAlert() },
-            title = { Text("SDK Restart Required") },
-            text = { Text(sdkModeChangeAlert ?: "") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.clearSdkModeChangeAlert() }) {
-                    Text("OK")
-                }
-            }
-        )
     }
 
     Column(
@@ -224,6 +212,15 @@ fun SettingsScreen(
                             Log.d("Settings", "[Shaker] CLIENT presentation received for onboarding placement — build custom UI here")
                             // In a real app, extract plans from presentation and build native UI
                         } else {
+                            presentation.getFragment(callback = object: PLYPresentationResultHandler {
+                                override fun invoke(
+                                    p1: PLYProductViewResult,
+                                    p2: PLYPlan?
+                                ) {
+                                    TODO("Not yet implemented")
+                                }
+
+                            })
                             presentation.display(activity) { result, plan ->
                                 when (result) {
                                     PLYProductViewResult.PURCHASED,
@@ -272,7 +269,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Default mode is Paywall Observer. Changing mode restarts the SDK.",
+            text = "Default mode is Paywall Observer.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -402,6 +399,16 @@ fun SettingsScreen(
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "1.0.0",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+        Row {
+            Text("Purchasely SDK", style = MaterialTheme.typography.bodyMedium)
+            Spacer(modifier = Modifier.weight(1f))
+            Text(
+                text = Purchasely.sdkVersion,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

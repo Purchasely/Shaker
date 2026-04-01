@@ -90,7 +90,7 @@ struct SettingsScreen: View {
                 }
                 .pickerStyle(.segmented)
 
-                Text("Default mode is Paywall Observer. Changing mode restarts the SDK.")
+                Text("Default mode is Paywall Observer. Changing mode requires an app restart.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -199,6 +199,13 @@ struct SettingsScreen: View {
                     Text("Version")
                     Spacer()
                     Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack {
+                    Text("Purchasely SDK")
+                    Spacer()
+                    Text(Purchasely.getSDKVersion() ?? "unknown")
                         .foregroundStyle(.secondary)
                 }
 

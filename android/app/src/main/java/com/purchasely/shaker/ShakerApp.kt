@@ -6,6 +6,7 @@ import android.net.Uri
 import android.util.Log
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.di.appModule
 import io.purchasely.ext.EventListener
 import io.purchasely.ext.LogLevel
@@ -38,7 +39,7 @@ class ShakerApp : Application() {
 
         Purchasely.Builder(this)
             .apiKey("6cda6b92-d63c-4444-bd55-5a164c989bd4")
-            .logLevel(LogLevel.DEBUG)
+            .logLevel(if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN)
             .readyToOpenDeeplink(true)
             .runningMode(selectedMode.runningMode)
             .stores(listOf(GoogleStore()))
@@ -86,6 +87,45 @@ class ShakerApp : Application() {
                         startActivity(intent)
                     }
                     proceed(false)
+                }
+                // PURCHASELY: PURCHASE action — in Observer mode, route to native Google Play Billing;
+                // in Full mode, let the SDK handle the purchase flow
+                // Docs: https://docs.purchasely.com/advanced-features/customize-screens/paywall-action-interceptor
+                PLYPresentationAction.PURCHASE -> {
+                    if (getSdkModeFromStorage() == PurchaselySdkMode.PAYWALL_OBSERVER) {
+                        val plan = parameters?.plan
+                        val offer = parameters?.subscriptionOffer
+                        val productId = plan?.store_product_id
+                        val offerToken = offer?.offerToken
+                        val activity = info?.activity
+                        if (activity != null && productId != null && offerToken != null) {
+                            val purchaseManager: PurchaseManager by inject()
+                            val premiumManager: PremiumManager by inject()
+                            purchaseManager.purchase(activity, productId, offerToken) { success ->
+                                if (success) premiumManager.refreshPremiumStatus()
+                                proceed(false)
+                            }
+                        } else {
+                            Log.w(TAG, "[Shaker] Observer mode purchase: missing activity, productId, or offerToken")
+                            proceed(false)
+                        }
+                    } else {
+                        proceed(true)
+                    }
+                }
+                // PURCHASELY: RESTORE action — in Observer mode, query Google Play Billing directly;
+                // in Full mode, let the SDK handle restore
+                PLYPresentationAction.RESTORE -> {
+                    if (getSdkModeFromStorage() == PurchaselySdkMode.PAYWALL_OBSERVER) {
+                        val purchaseManager: PurchaseManager by inject()
+                        val premiumManager: PremiumManager by inject()
+                        purchaseManager.restore { success ->
+                            if (success) premiumManager.refreshPremiumStatus()
+                            proceed(false)
+                        }
+                    } else {
+                        proceed(true)
+                    }
                 }
                 // PURCHASELY: All other actions — let the SDK handle them normally
                 else -> proceed(true)

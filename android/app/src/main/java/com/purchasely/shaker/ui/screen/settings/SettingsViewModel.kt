@@ -42,9 +42,6 @@ class SettingsViewModel(
     )
     val sdkMode: StateFlow<PurchaselySdkMode> = _sdkMode.asStateFlow()
 
-    private val _sdkModeChangeAlert = MutableStateFlow<String?>(null)
-    val sdkModeChangeAlert: StateFlow<String?> = _sdkModeChangeAlert.asStateFlow()
-
     // Data privacy consent toggles (default: true = consent given)
     private val _analyticsConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_ANALYTICS, true))
     val analyticsConsent: StateFlow<Boolean> = _analyticsConsent.asStateFlow()
@@ -162,10 +159,6 @@ class SettingsViewModel(
         restartPurchaselySdk(mode)
     }
 
-    fun clearSdkModeChangeAlert() {
-        _sdkModeChangeAlert.value = null
-    }
-
     fun setAnalyticsConsent(enabled: Boolean) {
         _analyticsConsent.value = enabled
         prefs.edit().putBoolean(KEY_CONSENT_ANALYTICS, enabled).apply()
@@ -200,14 +193,11 @@ class SettingsViewModel(
         val app = context.applicationContext as? ShakerApp
         if (app == null) {
             Log.e(TAG, "[Shaker] Could not restart SDK: application context is not ShakerApp")
-            _sdkModeChangeAlert.value = "Mode saved (${mode.label}). Please kill and relaunch the app."
             return
         }
 
         app.restartPurchaselySdk()
-        _sdkModeChangeAlert.value =
-            "Purchasely SDK switched to ${mode.label}. Please kill and relaunch the app."
-        Log.d(TAG, "[Shaker] SDK mode updated to ${mode.storageValue}")
+        Log.d(TAG, "[Shaker] SDK restarted with mode ${mode.storageValue}")
     }
 
     private fun applyConsentPreferences() {
