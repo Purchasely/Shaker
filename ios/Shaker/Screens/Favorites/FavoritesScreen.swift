@@ -1,11 +1,14 @@
 import SwiftUI
-import Purchasely
 
 struct FavoritesScreen: View {
 
     @ObservedObject private var favoritesRepository = FavoritesRepository.shared
     @EnvironmentObject private var premiumManager: PremiumManager
 
+    @State private var hostViewController: UIViewController?
+    @State private var favoritesFetchResult: FetchResult?
+
+    private let wrapper = PurchaselyWrapper.shared
     private let repository = CocktailRepository.shared
 
     private var favoriteCocktails: [Cocktail] {
@@ -26,9 +29,17 @@ struct FavoritesScreen: View {
                 .listStyle(.plain)
             }
         }
+        .background {
+            ViewControllerResolver { vc in
+                hostViewController = vc
+            }
+        }
         .navigationTitle("Favorites")
         .navigationDestination(for: String.self) { cocktailId in
             DetailScreen(cocktailId: cocktailId)
+        }
+        .onAppear {
+            prefetchFavoritesPaywall()
         }
     }
 
@@ -65,48 +76,23 @@ struct FavoritesScreen: View {
         .padding(32)
     }
 
-    private func showFavoritesPaywall() {
-        let vc = UIApplication.shared.connectedScenes
-            .compactMap { $0 as? UIWindowScene }
-            .flatMap { $0.windows }
-            .first { $0.isKeyWindow }?
-            .rootViewController
-
-        // PURCHASELY: Fetch and display the paywall for the "favorites" placement
-        // Shown when a non-premium user tries to access the Favorites feature
-        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-        Purchasely.fetchPresentation(
-            for: "favorites",
-            fetchCompletion: { presentation, error in
-                guard let presentation = presentation, presentation.type != .deactivated else {
-                    print("[Shaker] Favorites presentation not available: \(error?.localizedDescription ?? "deactivated")")
-                    return
-                }
-
-                if presentation.type == .client {
-                    // PURCHASELY: CLIENT type — app builds its own paywall UI
-                    // The presentation contains plan data but no server-built screen
-                    // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
-                    print("[Shaker] CLIENT presentation received — build custom UI here")
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    presentation.display(from: vc)
-                }
-            },
-            completion: { result, plan in
+    private func prefetchFavoritesPaywall() {
+        guard !premiumManager.isPremium else { return }
+        Task {
+            favoritesFetchResult = await wrapper.loadPresentation(placementId: "favorites") { result in
                 switch result {
                 case .purchased, .restored:
-                    print("[Shaker] Purchased/Restored from favorites: \(plan?.name ?? "unknown")")
                     PremiumManager.shared.refreshPremiumStatus()
                 case .cancelled:
-                    print("[Shaker] Favourites paywall cancelled")
-                @unknown default:
                     break
                 }
             }
-        )
+        }
+    }
+
+    private func showFavoritesPaywall() {
+        guard case .success(let presentation) = favoritesFetchResult else { return }
+        wrapper.display(presentation: presentation, from: hostViewController)
     }
 }
 

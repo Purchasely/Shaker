@@ -22,11 +22,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.purchasely.shaker.data.PremiumManager
-import io.purchasely.ext.PLYPresentation
-import io.purchasely.ext.PLYPresentationType
-import io.purchasely.ext.PLYProductViewResult
-import io.purchasely.ext.Purchasely
-import io.purchasely.models.PLYError
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import org.koin.compose.koinInject
 
 @Composable
@@ -36,33 +34,45 @@ fun OnboardingScreen(
 ) {
     val context = LocalContext.current
     val premiumManager: PremiumManager = koinInject()
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     LaunchedEffect(Unit) {
-        Purchasely.fetchPresentation("onboarding") { presentation: PLYPresentation?, error: PLYError? ->
-            if (showOnboarding && presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                val activity = context as? Activity
-                if (activity != null) {
-                    presentation.display(activity) { result, plan ->
-                        when (result) {
-                            PLYProductViewResult.PURCHASED,
-                            PLYProductViewResult.RESTORED -> {
-                                Log.d(TAG, "[Shaker] Purchased/Restored from onboarding: ${plan?.name}")
-                                premiumManager.refreshPremiumStatus()
-                            }
-                            PLYProductViewResult.CANCELLED -> {
-                                Log.d(TAG, "[Shaker] Onboarding paywall cancelled")
-                            }
-                            else -> {}
-                        }
-                        onComplete()
+        if (!showOnboarding) {
+            onComplete()
+            return@LaunchedEffect
+        }
+
+        val activity = context as? Activity
+        if (activity == null) {
+            onComplete()
+            return@LaunchedEffect
+        }
+
+        when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
+            is FetchResult.Success -> {
+                val displayResult = purchaselyWrapper.display(result.presentation, activity)
+                when (displayResult) {
+                    is DisplayResult.Purchased,
+                    is DisplayResult.Restored -> {
+                        Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")
+                        premiumManager.refreshPremiumStatus()
                     }
-                } else {
-                    onComplete()
+                    is DisplayResult.Cancelled -> {
+                        Log.d(TAG, "[Shaker] Onboarding paywall cancelled")
+                    }
                 }
-            } else {
-                if (error != null) {
-                    Log.e(TAG, "[Shaker] Error fetching onboarding: ${error.message}")
-                }
+                onComplete()
+            }
+            is FetchResult.Client -> {
+                Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding — build custom UI here")
+                onComplete()
+            }
+            is FetchResult.Deactivated -> {
+                Log.d(TAG, "[Shaker] Onboarding placement is deactivated")
+                onComplete()
+            }
+            is FetchResult.Error -> {
+                Log.e(TAG, "[Shaker] Error fetching onboarding: ${result.error?.message}")
                 onComplete()
             }
         }

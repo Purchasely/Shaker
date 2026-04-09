@@ -1,5 +1,4 @@
 import SwiftUI
-import Purchasely
 
 struct OnboardingScreen: View {
 
@@ -7,6 +6,8 @@ struct OnboardingScreen: View {
     let onComplete: () -> Void
 
     @State private var hostViewController: UIViewController?
+
+    private let wrapper = PurchaselyWrapper.shared
 
     var body: some View {
         SplashContent()
@@ -22,48 +23,29 @@ struct OnboardingScreen: View {
     }
 
     private func fetchPresentation() {
-        // PURCHASELY: Fetch and display the onboarding paywall at first app launch
-        // Skipped if showOnboarding is false or the placement is deactivated in the console
-        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-        Purchasely.fetchPresentation(
-            for: "onboarding",
-            fetchCompletion: { presentation, error in
-                guard showOnboarding,
-                      let presentation = presentation,
-                      presentation.type != .deactivated else {
-                    if let error = error {
-                        print("[Shaker] Error fetching onboarding: \(error.localizedDescription)")
-                    }
-                    DispatchQueue.main.async { onComplete() }
-                    return
-                }
-
-                if presentation.type == .client {
-                    // PURCHASELY: CLIENT type — app builds its own paywall UI
-                    // The presentation contains plan data but no server-built screen
-                    // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
-                    print("[Shaker] CLIENT presentation received — build custom UI here")
-                    DispatchQueue.main.async { onComplete() }
-                    return
-                }
-
-                DispatchQueue.main.async {
-                    presentation.display(from: hostViewController)
-                }
-            },
-            completion: { result, plan in
-                switch result {
+        Task {
+            let result = await wrapper.loadPresentation(placementId: "onboarding") { displayResult in
+                switch displayResult {
                 case .purchased, .restored:
-                    print("[Shaker] Purchased/Restored from onboarding: \(plan?.name ?? "unknown")")
                     PremiumManager.shared.refreshPremiumStatus()
                 case .cancelled:
-                    print("[Shaker] Onboarding paywall cancelled")
-                @unknown default:
                     break
                 }
-                DispatchQueue.main.async { onComplete() }
+                onComplete()
             }
-        )
+
+            guard showOnboarding else {
+                onComplete()
+                return
+            }
+
+            guard case .success(let presentation) = result else {
+                onComplete()
+                return
+            }
+
+            wrapper.display(presentation: presentation, from: hostViewController)
+        }
     }
 }
 
