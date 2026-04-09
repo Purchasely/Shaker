@@ -27,6 +27,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -45,9 +46,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
+import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
 
@@ -60,9 +63,12 @@ fun HomeScreen(
     val cocktails by viewModel.cocktails.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val isPremium by viewModel.isPremium.collectAsState()
+    val isFiltersLoading by viewModel.isFiltersLoading.collectAsState()
+    val inlinePresentation by viewModel.inlinePresentation.collectAsState()
     val context = LocalContext.current
     var showFilterSheet by remember { mutableStateOf(false) }
 
+    // Collect paywall display requests from ViewModel
     LaunchedEffect(Unit) {
         viewModel.requestPaywallDisplay.collect {
             val activity = context as? Activity ?: return@collect
@@ -82,19 +88,31 @@ fun HomeScreen(
                     placeholder = { Text("Search cocktails...") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
                     trailingIcon = {
-                        IconButton(onClick = {
-                            if (isPremium) {
-                                showFilterSheet = true
-                            } else {
-                                viewModel.onFilterClick()
+                        if (!isPremium && isFiltersLoading) {
+                            Box(
+                                modifier = Modifier.size(48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
                             }
-                        }) {
-                            if (viewModel.hasActiveFilters) {
-                                BadgedBox(badge = { Badge() }) {
+                        } else {
+                            IconButton(onClick = {
+                                if (isPremium) {
+                                    showFilterSheet = true
+                                } else {
+                                    viewModel.onFilterClick()
+                                }
+                            }) {
+                                if (viewModel.hasActiveFilters) {
+                                    BadgedBox(badge = { Badge() }) {
+                                        Icon(Icons.Default.Tune, contentDescription = "Filters")
+                                    }
+                                } else {
                                     Icon(Icons.Default.Tune, contentDescription = "Filters")
                                 }
-                            } else {
-                                Icon(Icons.Default.Tune, contentDescription = "Filters")
                             }
                         }
                     }
@@ -141,14 +159,21 @@ fun HomeScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                if (!isPremium) {
+                val inlineResult = inlinePresentation
+                if (!isPremium && inlineResult is FetchResult.Success) {
                     item(span = { GridItemSpan(2) }) {
+                        val density = LocalDensity.current
+                        val heightModifier = if (inlineResult.height > 0) {
+                            Modifier.height(with(density) { inlineResult.height.toDp() })
+                        } else {
+                            Modifier.heightIn(max = 200.dp)
+                        }
                         EmbeddedScreenBanner(
-                            placementId = "inline",
+                            fetchResult = inlineResult,
                             onResult = { viewModel.onPaywallDismissed() },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .heightIn(max = 200.dp)
+                                .then(heightModifier)
                                 .padding(vertical = 8.dp)
                         )
                     }

@@ -62,13 +62,32 @@ fun getView(presentation: PLYPresentation, context: Context, onResult): View? {
 
 **Rule: ViewModels decide when and what to show. Screens only provide the Activity and render the UI.**
 
-**Modal paywall flow:**
-1. User action triggers ViewModel method (e.g., `onFilterClick()`)
-2. ViewModel checks premium status
-3. If not premium, ViewModel calls `wrapper.loadPresentation()` (suspend, in `viewModelScope`)
-4. On success, ViewModel stores the presentation and emits an event via `SharedFlow<Unit>`
+**Prefetch pattern:** All presentations must be prefetched by the ViewModel on init (if not premium). This ensures paywalls are ready to display instantly when the user interacts.
+
+```kotlin
+init {
+    prefetchPresentations()
+}
+
+private fun prefetchPresentations() {
+    if (isPremium.value) return
+    viewModelScope.launch {
+        _filtersPresentation.value = purchaselyWrapper.loadPresentation("filters")
+    }
+    viewModelScope.launch {
+        _inlinePresentation.value = purchaselyWrapper.loadPresentation("inline")
+    }
+}
+```
+
+**Modal paywall flow (e.g., filters):**
+1. ViewModel prefetches the presentation on init, exposes `filtersPresentation: StateFlow<FetchResult?>` and `isFiltersLoading: StateFlow<Boolean>`
+2. Screen shows a loader on the icon while loading, the regular icon once ready
+3. User taps icon → ViewModel checks if presentation is ready (`FetchResult.Success`)
+4. If ready, ViewModel stores it and emits an event via `SharedFlow<Unit>`
 5. Screen collects the event, gets the Activity, calls `viewModel.displayPendingPaywall(activity)`
 6. ViewModel calls `wrapper.display(presentation, activity)` and handles the result
+7. If presentation is still loading or failed, the tap is ignored (loader is visible)
 
 **Why the Activity passes through the ViewModel:**
 - The SDK requires an `Activity` to display modal paywalls
@@ -76,32 +95,44 @@ fun getView(presentation: PLYPresentation, context: Context, onResult): View? {
 - The Screen provides the Activity on-demand when the ViewModel signals readiness
 - This is a standard Android MVVM compromise for SDK interactions
 
-**Embedded paywall flow:**
-1. Use the `EmbeddedScreenBanner` composable from the `purchasely` package
-2. Pass `placementId` and an `onResult` callback
-3. The composable handles fetch + buildView internally via `LaunchedEffect`
-4. The `onResult` callback notifies the ViewModel of purchase results
+**Embedded paywall flow (e.g., inline banner):**
+1. ViewModel prefetches the presentation on init, exposes `inlinePresentation: StateFlow<FetchResult?>`
+2. Screen observes the state — when `FetchResult.Success`, passes it to `EmbeddedScreenBanner`
+3. If fetch failed or is still loading, nothing is displayed (no crash, no empty space)
+4. Use `FetchResult.Success.height` (pixels, convert to dp) for the view height
 
 ---
 
 ## 4. EmbeddedScreenBanner: Reusable Inline Paywall
 
-**Rule: Use `EmbeddedScreenBanner` for any inline/embedded paywall display.**
+**Rule: Use `EmbeddedScreenBanner` for any inline/embedded paywall display. The presentation must be prefetched by the ViewModel.**
 
 ```kotlin
-EmbeddedScreenBanner(
-    placementId = "inline",
-    onResult = { viewModel.onPaywallDismissed() },
-    modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp)
-)
+// In Screen — only render when prefetch succeeded
+val inlineResult by viewModel.inlinePresentation.collectAsState()
+if (inlineResult is FetchResult.Success) {
+    val density = LocalDensity.current
+    val heightModifier = if (inlineResult.height > 0) {
+        Modifier.height(with(density) { inlineResult.height.toDp() })
+    } else {
+        Modifier.heightIn(max = 200.dp)
+    }
+    EmbeddedScreenBanner(
+        fetchResult = inlineResult as FetchResult.Success,
+        onResult = { viewModel.onPaywallDismissed() },
+        modifier = Modifier.fillMaxWidth().then(heightModifier)
+    )
+}
 ```
 
 **Behavior:**
-- Fetches the presentation via `PurchaselyWrapper.loadPresentation()`
-- Builds the view via `PurchaselyWrapper.getView()`
+- Accepts a prefetched `FetchResult.Success` (ViewModel owns the fetch)
+- Builds the view via `PurchaselyWrapper.getView()` using `remember`
 - Renders via `AndroidView`
-- Handles CLIENT and DEACTIVATED types gracefully (logs, no crash)
+- Uses `presentation.height` (in pixels) for view height — convert to dp via `LocalDensity`
+- If height is 0, falls back to `heightIn(max = 200.dp)`
 - `onResult` forwards purchase events to the ViewModel
+- If fetch failed, the banner is simply not shown (Screen checks for `FetchResult.Success`)
 
 ---
 
@@ -178,8 +209,10 @@ _To be defined — will follow the same architectural principles adapted to Swif
 - [ ] All SDK calls go through `PurchaselyWrapper`
 - [ ] Screen has zero `io.purchasely` imports
 - [ ] Uses `loadPresentation()` + `display()`/`getView()`, never `presentationView()`
+- [ ] Presentations are prefetched by the ViewModel on init (not on user action)
 - [ ] Handles all `FetchResult` variants (Success, Client, Deactivated, Error)
 - [ ] User attributes set from ViewModel, not Screen
-- [ ] Modal paywalls: ViewModel fetches, Screen provides Activity
-- [ ] Embedded paywalls: uses `EmbeddedScreenBanner`
-- [ ] No crashes on SDK errors
+- [ ] Modal paywalls: ViewModel prefetches, shows loader while loading, Screen provides Activity on display
+- [ ] Embedded paywalls: ViewModel prefetches, Screen passes `FetchResult.Success` to `EmbeddedScreenBanner`
+- [ ] Uses `FetchResult.Success.height` (pixels → dp) for embedded view sizing
+- [ ] No crashes on SDK errors — nothing shown if fetch fails

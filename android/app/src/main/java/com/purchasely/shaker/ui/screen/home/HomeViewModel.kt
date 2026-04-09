@@ -52,13 +52,37 @@ class HomeViewModel(
                 _selectedCategories.value.isNotEmpty() ||
                 _selectedDifficulty.value != null
 
-    private var pendingFiltersPresentation: PLYPresentation? = null
+    // Prefetched inline presentation
+    private val _inlinePresentation = MutableStateFlow<FetchResult?>(null)
+    val inlinePresentation: StateFlow<FetchResult?> = _inlinePresentation.asStateFlow()
 
+    // Prefetched filters presentation
+    private val _filtersPresentation = MutableStateFlow<FetchResult?>(null)
+    val filtersPresentation: StateFlow<FetchResult?> = _filtersPresentation.asStateFlow()
+
+    private val _isFiltersLoading = MutableStateFlow(false)
+    val isFiltersLoading: StateFlow<Boolean> = _isFiltersLoading.asStateFlow()
+
+    // Signal Screen to display filters paywall
+    private var pendingFiltersPresentation: PLYPresentation? = null
     private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
     val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
 
     init {
         _cocktails.value = repository.loadCocktails()
+        prefetchPresentations()
+    }
+
+    private fun prefetchPresentations() {
+        if (isPremium.value) return
+        viewModelScope.launch {
+            _isFiltersLoading.value = true
+            _filtersPresentation.value = purchaselyWrapper.loadPresentation("filters")
+            _isFiltersLoading.value = false
+        }
+        viewModelScope.launch {
+            _inlinePresentation.value = purchaselyWrapper.loadPresentation("inline")
+        }
     }
 
     fun onSearchQueryChanged(query: String) {
@@ -71,17 +95,10 @@ class HomeViewModel(
 
     fun onFilterClick() {
         if (isPremium.value) return
-        viewModelScope.launch {
-            when (val result = purchaselyWrapper.loadPresentation("filters")) {
-                is FetchResult.Success -> {
-                    pendingFiltersPresentation = result.presentation
-                    _requestPaywallDisplay.emit(Unit)
-                }
-                is FetchResult.Client -> {
-                    Log.d("HomeViewModel", "[Shaker] CLIENT presentation for filters — build custom UI here")
-                }
-                else -> {}
-            }
+        val result = _filtersPresentation.value
+        if (result is FetchResult.Success) {
+            pendingFiltersPresentation = result.presentation
+            viewModelScope.launch { _requestPaywallDisplay.emit(Unit) }
         }
     }
 
