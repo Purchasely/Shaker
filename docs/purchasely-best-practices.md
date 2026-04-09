@@ -7,22 +7,30 @@ All changes to the Purchasely integration must follow and update this document.
 
 ## 1. Architecture: PurchaselyWrapper
 
-**Rule: Never call the Purchasely SDK directly from Screens or ViewModels.**
+**Rule: Never call the Purchasely SDK directly. All calls go through `PurchaselyWrapper`.**
 
-All SDK calls go through `PurchaselyWrapper`, a Koin-injectable class in the `purchasely` package.
+The only exception is `PremiumManager`, which directly calls `userSubscriptions` — it's already an abstraction layer for subscription status.
 
 **Why:**
-- Single point of control for all SDK interactions
-- Screens have zero `io.purchasely` imports — clean separation of concerns
+- Single point of control for all SDK interactions — easy to swap with a stub for removal
+- Screens have zero `io.purchasely` / `import Purchasely` imports — clean separation
 - Easier to test (mock the wrapper, not the SDK)
 - Consistent error handling and result mapping
 - Type-safe result types (`FetchResult`, `DisplayResult`) instead of raw SDK enums
 
 **Wrapper responsibilities:**
-- `loadPresentation()` — fetch a presentation (suspend, uses native suspend API)
-- `display()` — show a modal paywall (suspend, wraps callback)
-- `getView()` — build an inline view for embedding (returns `View?`)
-- `setUserAttribute()` / `incrementUserAttribute()` — user targeting
+
+| Category | Methods |
+|----------|---------|
+| **Init** | `start()`, `close()`, `setPaywallActionsInterceptor()`, `setEventListener/Delegate()`, `readyToOpenDeeplink()` |
+| **Presentations** | `loadPresentation()`, `display()`, `getView()` (Android) / `getController()` (iOS) |
+| **User Attributes** | `setUserAttribute()`, `incrementUserAttribute()` |
+| **User Management** | `userLogin()`, `userLogout()`, `anonymousUserId` |
+| **Purchases** | `restoreAllProducts()`, `synchronize()`, `signPromotionalOffer()` (iOS) |
+| **Consent** | `revokeDataProcessingConsent()` |
+| **Info** | `sdkVersion`, `isDeeplinkHandled()` |
+
+**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature` — these are enums/types needed for configuration, not SDK call points.
 
 ---
 
@@ -220,13 +228,16 @@ Always handle all `FetchResult` variants:
 
 ## Checklist for New Purchasely Integrations
 
-- [ ] All SDK calls go through `PurchaselyWrapper`
+- [ ] All SDK calls go through `PurchaselyWrapper` (exception: `PremiumManager`)
 - [ ] Screen has zero `io.purchasely` / `import Purchasely` imports
 - [ ] Uses `loadPresentation()` + `display()`/`getView()`/`getController()`, never `presentationView()` or `presentationController()`
-- [ ] Presentations are prefetched by the ViewModel (Android: `init`, iOS: `prefetchPresentations()` from `onAppear`)
+- [ ] Presentations are prefetched by the ViewModel (Android: `init`, iOS: `onAppear`)
 - [ ] Handles all `FetchResult` variants (success, client, deactivated, error)
 - [ ] User attributes set from ViewModel, not Screen
 - [ ] Modal paywalls: ViewModel prefetches, shows loader while loading, Screen provides Activity/ViewController on display
 - [ ] Embedded paywalls: ViewModel prefetches, Screen uses `EmbeddedScreenBanner` with prefetched result/controller
 - [ ] Uses `presentation.height` (dp/points) for embedded view sizing
 - [ ] No crashes on SDK errors — nothing shown if fetch fails
+- [ ] SDK init, interceptor, events, deeplinks go through wrapper in App class
+- [ ] Login/logout, restore, consent, synchronize go through wrapper in ViewModels
+- [ ] SDK types (PLYRunningMode, PLYDataProcessingPurpose, etc.) are tolerated as direct imports
