@@ -1,20 +1,76 @@
 package com.purchasely.shaker.purchasely
 
 import android.app.Activity
+import android.app.Application
 import android.content.Context
+import android.net.Uri
 import android.view.View
+import io.purchasely.ext.EventListener
+import io.purchasely.ext.LogLevel
 import io.purchasely.ext.PLYPresentation
 import io.purchasely.ext.PLYPresentationProperties
 import io.purchasely.ext.PLYPresentationType
 import io.purchasely.ext.PLYProductViewResult
+import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.fetchPresentation
 import io.purchasely.models.PLYError
 import io.purchasely.models.PLYPlan
+import io.purchasely.google.GoogleStore
 import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class PurchaselyWrapper {
+
+    // MARK: - SDK Initialization
+
+    fun start(
+        application: Application,
+        apiKey: String,
+        logLevel: LogLevel = LogLevel.DEBUG,
+        runningMode: PLYRunningMode = PLYRunningMode.Full,
+        readyToOpenDeeplink: Boolean = true,
+        onStarted: (Boolean, PLYError?) -> Unit
+    ) {
+        Purchasely.Builder(application)
+            .apiKey(apiKey)
+            .logLevel(logLevel)
+            .readyToOpenDeeplink(readyToOpenDeeplink)
+            .runningMode(runningMode)
+            .stores(listOf(GoogleStore()))
+            .build()
+            .start { isConfigured, error ->
+                onStarted(isConfigured, error)
+            }
+    }
+
+    fun close() {
+        Purchasely.close()
+    }
+
+    var eventListener: EventListener?
+        get() = Purchasely.eventListener
+        set(value) { Purchasely.eventListener = value }
+
+    fun setPaywallActionsInterceptor(
+        interceptor: (
+            info: io.purchasely.ext.PLYPresentationInfo?,
+            action: io.purchasely.ext.PLYPresentationAction,
+            parameters: io.purchasely.ext.PLYPresentationActionParameters?,
+            processAction: (Boolean) -> Unit
+        ) -> Unit
+    ) {
+        Purchasely.setPaywallActionsInterceptor(interceptor)
+    }
+
+    // MARK: - Deeplinks
+
+    fun isDeeplinkHandled(deeplink: Uri, activity: Activity?): Boolean {
+        @Suppress("DEPRECATION")
+        return Purchasely.isDeeplinkHandled(deeplink, activity)
+    }
+
+    // MARK: - Presentation Loading
 
     suspend fun loadPresentation(
         placementId: String,
@@ -38,6 +94,8 @@ class PurchaselyWrapper {
         }
     }
 
+    // MARK: - Modal Display
+
     suspend fun display(
         presentation: PLYPresentation,
         activity: Activity
@@ -50,6 +108,8 @@ class PurchaselyWrapper {
             }
         }
     }
+
+    // MARK: - Embedded View
 
     fun getView(
         presentation: PLYPresentation,
@@ -67,6 +127,21 @@ class PurchaselyWrapper {
             }
         )
     }
+
+    // MARK: - User Management
+
+    fun userLogin(userId: String, onRefresh: (Boolean) -> Unit) {
+        Purchasely.userLogin(userId, onRefresh)
+    }
+
+    fun userLogout() {
+        Purchasely.userLogout()
+    }
+
+    val anonymousUserId: String
+        get() = Purchasely.anonymousUserId
+
+    // MARK: - User Attributes
 
     fun setUserAttribute(key: String, value: String) {
         Purchasely.setUserAttribute(key, value)
@@ -87,4 +162,30 @@ class PurchaselyWrapper {
     fun incrementUserAttribute(key: String) {
         Purchasely.incrementUserAttribute(key)
     }
+
+    // MARK: - Restore
+
+    fun restoreAllProducts(
+        onSuccess: (PLYPlan?) -> Unit,
+        onError: (PLYError?) -> Unit
+    ) {
+        Purchasely.restoreAllProducts(onSuccess, onError)
+    }
+
+    // MARK: - Observer Mode
+
+    fun synchronize() {
+        Purchasely.synchronize()
+    }
+
+    // MARK: - GDPR Consent
+
+    fun revokeDataProcessingConsent(purposes: Set<io.purchasely.ext.PLYDataProcessingPurpose>) {
+        Purchasely.revokeDataProcessingConsent(purposes)
+    }
+
+    // MARK: - SDK Info
+
+    val sdkVersion: String
+        get() = Purchasely.sdkVersion
 }

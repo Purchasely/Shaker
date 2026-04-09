@@ -7,10 +7,54 @@ final class PurchaselyWrapper {
 
     private init() {}
 
+    // MARK: - SDK Initialization
+
+    func start(
+        apiKey: String,
+        appUserId: String? = nil,
+        runningMode: PLYRunningMode = .full,
+        storekitSettings: StorekitSettings = .storeKit2,
+        logLevel: PLYLogger.PLYLogLevel = .debug,
+        onStarted: @escaping (Bool, Error?) -> Void
+    ) {
+        Purchasely.start(
+            withAPIKey: apiKey,
+            appUserId: appUserId,
+            runningMode: runningMode,
+            storekitSettings: storekitSettings,
+            logLevel: logLevel
+        ) { success, error in
+            onStarted(success, error)
+        }
+    }
+
+    func readyToOpenDeeplink(_ ready: Bool) {
+        Purchasely.readyToOpenDeeplink(ready)
+    }
+
+    func setEventDelegate(_ delegate: PLYEventDelegate) {
+        Purchasely.setEventDelegate(delegate)
+    }
+
+    func setPaywallActionsInterceptor(
+        _ interceptor: @escaping (PLYPresentationAction, PLYPresentationActionParameters?, PLYPresentationInfo?, @escaping (Bool) -> Void) -> Void
+    ) {
+        Purchasely.setPaywallActionsInterceptor(interceptor)
+    }
+
+    func closeDisplayedPresentation() {
+        Purchasely.closeDisplayedPresentation()
+    }
+
+    // MARK: - Deeplinks
+
+    @discardableResult
+    func isDeeplinkHandled(deeplink: URL) -> Bool {
+        Purchasely.isDeeplinkHandled(deeplink: deeplink)
+    }
+
     // MARK: - Presentation Loading
 
-    /// Fetches a presentation for a given placement. The `onResult` callback fires
-    /// when the presentation is dismissed (after display or embedded interaction).
     @MainActor
     func loadPresentation(
         placementId: String,
@@ -55,7 +99,6 @@ final class PurchaselyWrapper {
 
     // MARK: - Modal Display
 
-    /// Displays a previously loaded presentation modally.
     func display(presentation: PLYPresentation, from viewController: UIViewController?) {
         DispatchQueue.main.async {
             presentation.display(from: viewController)
@@ -64,9 +107,22 @@ final class PurchaselyWrapper {
 
     // MARK: - Embedded View Controller
 
-    /// Returns the PLYPresentationViewController for inline/embedded display.
     func getController(presentation: PLYPresentation) -> PLYPresentationViewController? {
         presentation.controller
+    }
+
+    // MARK: - User Management
+
+    func userLogin(userId: String, onRefresh: @escaping (Bool) -> Void) {
+        Purchasely.userLogin(with: userId, shouldRefresh: onRefresh)
+    }
+
+    func userLogout() {
+        Purchasely.userLogout()
+    }
+
+    var anonymousUserId: String {
+        Purchasely.anonymousUserId ?? ""
     }
 
     // MARK: - User Attributes
@@ -89,5 +145,46 @@ final class PurchaselyWrapper {
 
     func incrementUserAttribute(forKey key: String) {
         Purchasely.incrementUserAttribute(withKey: key)
+    }
+
+    // MARK: - Restore
+
+    func restoreAllProducts(
+        success: @escaping () -> Void,
+        failure: @escaping (Error) -> Void
+    ) {
+        Purchasely.restoreAllProducts(success: success, failure: failure)
+    }
+
+    // MARK: - Observer Mode
+
+    func synchronize() {
+        Purchasely.synchronize(success: {}, failure: { _ in })
+    }
+
+    func signPromotionalOffer(
+        storeProductId: String,
+        storeOfferId: String,
+        success: @escaping (PLYOfferSignature) -> Void,
+        failure: @escaping (Error) -> Void
+    ) {
+        Purchasely.signPromotionalOffer(
+            storeProductId: storeProductId,
+            storeOfferId: storeOfferId,
+            success: success,
+            failure: failure
+        )
+    }
+
+    // MARK: - GDPR Consent
+
+    func revokeDataProcessingConsent(for purposes: Set<PLYDataProcessingPurpose>) {
+        Purchasely.revokeDataProcessingConsent(for: purposes)
+    }
+
+    // MARK: - SDK Info
+
+    var sdkVersion: String {
+        Purchasely.getSDKVersion() ?? ""
     }
 }
