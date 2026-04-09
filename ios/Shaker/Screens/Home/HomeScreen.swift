@@ -35,27 +35,29 @@ struct HomeScreen: View {
             } else {
                 ScrollViewReader { proxy in
                     ScrollView {
-                        LazyVGrid(columns: columns, spacing: 12) {
-                            // Embedded inline paywall banner
+                        VStack(spacing: 0) {
+                            // Embedded inline paywall banner — above the grid
                             if !premiumManager.isPremium, let controller = viewModel.inlineController {
                                 let height = viewModel.inlineHeight > 0 ? CGFloat(viewModel.inlineHeight) : 200
                                 EmbeddedScreenBanner(controller: controller, height: height)
                                     .frame(height: height)
+                                    .padding(.horizontal, 16)
+                                    .padding(.top, 16)
                                     .id("inline_banner")
-                                    .gridCellColumns(2)
                             }
 
-                            ForEach(viewModel.cocktails) { cocktail in
-                                NavigationLink(value: cocktail.id) {
-                                    CocktailCard(cocktail: cocktail)
+                            LazyVGrid(columns: columns, spacing: 12) {
+                                ForEach(viewModel.cocktails) { cocktail in
+                                    NavigationLink(value: cocktail.id) {
+                                        CocktailCard(cocktail: cocktail)
+                                    }
+                                    .buttonStyle(.plain)
                                 }
-                                .buttonStyle(.plain)
                             }
+                            .padding(16)
                         }
-                        .padding(16)
                     }
                     .onChange(of: viewModel.inlinePresentation != nil) { _ in
-                        // Scroll to top when inline presentation arrives
                         withAnimation {
                             proxy.scrollTo("inline_banner", anchor: .top)
                         }
