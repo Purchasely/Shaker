@@ -1,5 +1,6 @@
 import UIKit
 import Combine
+import Purchasely
 
 class HomeViewModel: ObservableObject {
 
@@ -28,8 +29,8 @@ class HomeViewModel: ObservableObject {
         !selectedSpirits.isEmpty || !selectedCategories.isEmpty || selectedDifficulty != nil
     }
 
-    /// The UIViewController for the inline embedded presentation, if available.
-    var inlineController: UIViewController? {
+    /// The PLYPresentationViewController for the inline embedded presentation, if available.
+    var inlineController: PLYPresentationViewController? {
         guard case .success(let presentation) = inlinePresentation else { return nil }
         return wrapper.getController(presentation: presentation)
     }

@@ -64,8 +64,8 @@ final class PurchaselyWrapper {
 
     // MARK: - Embedded View Controller
 
-    /// Returns the UIViewController for inline/embedded display.
-    func getController(presentation: PLYPresentation) -> UIViewController? {
+    /// Returns the PLYPresentationViewController for inline/embedded display.
+    func getController(presentation: PLYPresentation) -> PLYPresentationViewController? {
         presentation.controller
     }
 

@@ -1,15 +1,14 @@
 import SwiftUI
+import Purchasely
 
 /// Displays a prefetched Purchasely presentation inline as an embedded view.
-/// The presentation must be loaded by the ViewModel before passing it here.
-struct EmbeddedScreenBanner: UIViewControllerRepresentable {
+/// Uses the SDK's native PLYPresentationView (UIViewControllerRepresentable)
+/// for correct rendering and trait collection propagation.
+struct EmbeddedScreenBanner: View {
 
-    let controller: UIViewController
-    let height: CGFloat
+    let controller: PLYPresentationViewController
 
-    func makeUIViewController(context: Context) -> UIViewController {
-        controller
+    var body: some View {
+        controller.PresentationView
     }
-
-    func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
 }

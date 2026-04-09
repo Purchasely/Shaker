@@ -39,7 +39,7 @@ struct HomeScreen: View {
                             // Embedded inline paywall banner — above the grid
                             if !premiumManager.isPremium, let controller = viewModel.inlineController {
                                 let height = viewModel.inlineHeight > 0 ? CGFloat(viewModel.inlineHeight) : 200
-                                EmbeddedScreenBanner(controller: controller, height: height)
+                                EmbeddedScreenBanner(controller: controller)
                                     .frame(height: height)
                                     .padding(.horizontal, 16)
                                     .padding(.top, 16)
