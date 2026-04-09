@@ -111,9 +111,8 @@ private fun prefetchPresentations() {
 // In Screen — only render when prefetch succeeded
 val inlineResult by viewModel.inlinePresentation.collectAsState()
 if (inlineResult is FetchResult.Success) {
-    val density = LocalDensity.current
     val heightModifier = if (inlineResult.height > 0) {
-        Modifier.height(with(density) { inlineResult.height.toDp() })
+        Modifier.height(inlineResult.height.dp)
     } else {
         Modifier.heightIn(max = 200.dp)
     }
@@ -129,7 +128,7 @@ if (inlineResult is FetchResult.Success) {
 - Accepts a prefetched `FetchResult.Success` (ViewModel owns the fetch)
 - Builds the view via `PurchaselyWrapper.getView()` using `remember`
 - Renders via `AndroidView`
-- Uses `presentation.height` (in pixels) for view height — convert to dp via `LocalDensity`
+- Uses `presentation.height` (dp) for view height
 - If height is 0, falls back to `heightIn(max = 200.dp)`
 - `onResult` forwards purchase events to the ViewModel
 - If fetch failed, the banner is simply not shown (Screen checks for `FetchResult.Success`)
@@ -214,5 +213,5 @@ _To be defined — will follow the same architectural principles adapted to Swif
 - [ ] User attributes set from ViewModel, not Screen
 - [ ] Modal paywalls: ViewModel prefetches, shows loader while loading, Screen provides Activity on display
 - [ ] Embedded paywalls: ViewModel prefetches, Screen passes `FetchResult.Success` to `EmbeddedScreenBanner`
-- [ ] Uses `FetchResult.Success.height` (pixels → dp) for embedded view sizing
+- [ ] Uses `FetchResult.Success.height` (dp) for embedded view sizing
 - [ ] No crashes on SDK errors — nothing shown if fetch fails

@@ -46,7 +46,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
@@ -162,9 +161,8 @@ fun HomeScreen(
                 val inlineResult = inlinePresentation
                 if (!isPremium && inlineResult is FetchResult.Success) {
                     item(span = { GridItemSpan(2) }) {
-                        val density = LocalDensity.current
                         val heightModifier = if (inlineResult.height > 0) {
-                            Modifier.height(with(density) { inlineResult.height.toDp() })
+                            Modifier.height(inlineResult.height.dp)
                         } else {
                             Modifier.heightIn(max = 200.dp)
                         }
