@@ -1,24 +1,33 @@
 package com.purchasely.shaker.ui.screen.settings
 
+import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.ShakerApp
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import io.purchasely.ext.PLYDataProcessingPurpose
-import io.purchasely.ext.PLYRunningMode
-import io.purchasely.ext.Purchasely
+import io.purchasely.ext.PLYPresentation
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val context: Context,
     private val premiumManager: PremiumManager,
-    private val runningModeRepo: RunningModeRepository
+    private val runningModeRepo: RunningModeRepository,
+    private val purchaselyWrapper: PurchaselyWrapper
 ) : ViewModel() {
 
     private val prefs: SharedPreferences =
@@ -63,11 +72,18 @@ class SettingsViewModel(
     )
     val runningMode: StateFlow<String> = _runningMode.asStateFlow()
 
-    private val _anonymousId = MutableStateFlow(Purchasely.anonymousUserId)
+    private val _anonymousId = MutableStateFlow(purchaselyWrapper.anonymousUserId)
     val anonymousId: StateFlow<String> = _anonymousId.asStateFlow()
 
     private val _displayMode = MutableStateFlow(prefs.getString(KEY_DISPLAY_MODE, "fullscreen") ?: "fullscreen")
     val displayMode: StateFlow<String> = _displayMode.asStateFlow()
+
+    // Signal Screen to display onboarding paywall
+    private var pendingOnboardingPresentation: PLYPresentation? = null
+    private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
+    val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
+
+    val sdkVersion: String get() = purchaselyWrapper.sdkVersion
 
     init {
         if (!prefs.contains(PurchaselySdkMode.KEY)) {
@@ -77,7 +93,7 @@ class SettingsViewModel(
     }
 
     fun refreshAnonymousId() {
-        _anonymousId.value = Purchasely.anonymousUserId
+        _anonymousId.value = purchaselyWrapper.anonymousUserId
     }
 
     fun login(userId: String) {
@@ -86,7 +102,7 @@ class SettingsViewModel(
         // PURCHASELY: Associate this session with an authenticated user ID
         // The callback's `refresh` flag indicates whether subscriptions should be re-fetched
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
-        Purchasely.userLogin(userId) { refresh ->
+        purchaselyWrapper.userLogin(userId) { refresh ->
             if (refresh) {
                 premiumManager.refreshPremiumStatus()
             }
@@ -98,13 +114,13 @@ class SettingsViewModel(
 
         // PURCHASELY: Store the user ID as a custom attribute for paywall targeting/personalization
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-        Purchasely.setUserAttribute("user_id", userId)
+        purchaselyWrapper.setUserAttribute("user_id", userId)
     }
 
     fun logout() {
         // PURCHASELY: Disassociate the current user — clears cached user attributes and subscriptions
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
-        Purchasely.userLogout()
+        purchaselyWrapper.userLogout()
         _userId.value = null
         prefs.edit().remove(KEY_USER_ID).apply()
         premiumManager.refreshPremiumStatus()
@@ -116,7 +132,7 @@ class SettingsViewModel(
         // PURCHASELY: Restore previously purchased products for the current user
         // Required by App Store / Play Store guidelines; call on explicit user request only
         // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/restore-purchases
-        Purchasely.restoreAllProducts(
+        purchaselyWrapper.restoreAllProducts(
             onSuccess = { plan ->
                 premiumManager.refreshPremiumStatus()
                 _restoreMessage.value = "Purchases restored successfully!"
@@ -137,6 +153,39 @@ class SettingsViewModel(
         premiumManager.refreshPremiumStatus()
     }
 
+    fun showOnboardingPaywall() {
+        viewModelScope.launch {
+            when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
+                is FetchResult.Success -> {
+                    pendingOnboardingPresentation = result.presentation
+                    _requestPaywallDisplay.emit(Unit)
+                }
+                is FetchResult.Client -> {
+                    Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding placement — build custom UI here")
+                }
+                is FetchResult.Deactivated -> {
+                    Log.d(TAG, "[Shaker] Onboarding presentation is deactivated")
+                }
+                is FetchResult.Error -> {
+                    Log.d(TAG, "[Shaker] Onboarding presentation not available: ${result.error?.message}")
+                }
+            }
+        }
+    }
+
+    suspend fun displayPendingPaywall(activity: Activity) {
+        val presentation = pendingOnboardingPresentation ?: return
+        pendingOnboardingPresentation = null
+        val result = purchaselyWrapper.display(presentation, activity)
+        when (result) {
+            is DisplayResult.Purchased, is DisplayResult.Restored -> {
+                Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")
+                onPurchaseCompleted()
+            }
+            else -> {}
+        }
+    }
+
     fun setDisplayMode(mode: String) {
         _displayMode.value = mode
         prefs.edit().putString(KEY_DISPLAY_MODE, mode).apply()
@@ -148,7 +197,7 @@ class SettingsViewModel(
         prefs.edit().putString(KEY_THEME, mode).apply()
         // PURCHASELY: Track the user's preferred theme as a custom attribute for audience segmentation
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-        Purchasely.setUserAttribute("app_theme", mode)
+        purchaselyWrapper.setUserAttribute("app_theme", mode)
     }
 
     fun setSdkMode(mode: PurchaselySdkMode) {
@@ -210,7 +259,7 @@ class SettingsViewModel(
         // PURCHASELY: Revoke GDPR data-processing consent for specific purposes
         // Pass the set of revoked purposes; an empty set re-grants all consent
         // Docs: https://docs.purchasely.com/advanced-features/gdpr
-        Purchasely.revokeDataProcessingConsent(revoked)
+        purchaselyWrapper.revokeDataProcessingConsent(revoked)
         Log.d(TAG, "[Shaker] Consent updated — revoked: $revoked")
     }
 

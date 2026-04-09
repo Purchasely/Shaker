@@ -19,6 +19,11 @@ class SettingsViewModel: ObservableObject {
     @Published var anonymousId: String = ""
     @Published var displayMode: String
 
+    // Prefetched onboarding presentation
+    @Published var onboardingFetchResult: FetchResult?
+
+    private let wrapper = PurchaselyWrapper.shared
+
     private let userIdKey = "user_id"
     private let themeKey = "theme_mode"
     private let displayModeKey = "display_mode"
@@ -27,6 +32,8 @@ class SettingsViewModel: ObservableObject {
     private let consentPersonalizationKey = "consent_personalization"
     private let consentCampaignsKey = "consent_campaigns"
     private let consentThirdPartyKey = "consent_third_party"
+
+    var sdkVersion: String { wrapper.sdkVersion }
 
     init() {
         userId = UserDefaults.standard.string(forKey: userIdKey)
@@ -44,20 +51,31 @@ class SettingsViewModel: ObservableObject {
         displayMode = UserDefaults.standard.string(forKey: displayModeKey) ?? "fullscreen"
 
         applyConsentPreferences()
-        anonymousId = Purchasely.anonymousUserId ?? ""
+        anonymousId = wrapper.anonymousUserId
     }
 
     func refreshAnonymousId() {
-        anonymousId = Purchasely.anonymousUserId ?? ""
+        anonymousId = wrapper.anonymousUserId
+    }
+
+    func prefetchOnboardingPresentation() {
+        Task {
+            onboardingFetchResult = await wrapper.loadPresentation(placementId: "onboarding") { result in
+                if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
+                if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }
+            }
+        }
+    }
+
+    func displayOnboardingPaywall(from viewController: UIViewController?) {
+        guard case .success(let presentation) = onboardingFetchResult else { return }
+        wrapper.display(presentation: presentation, from: viewController)
     }
 
     func login(userId: String) {
         guard !userId.isEmpty else { return }
 
-        // PURCHASELY: Associate the current device session with a user ID
-        // The callback indicates whether entitlements need to be refreshed for the new user
-        // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
-        Purchasely.userLogin(with: userId) { refresh in
+        wrapper.userLogin(userId: userId) { refresh in
             if refresh {
                 PremiumManager.shared.refreshPremiumStatus()
             }
@@ -66,17 +84,11 @@ class SettingsViewModel: ObservableObject {
 
         self.userId = userId
         UserDefaults.standard.set(userId, forKey: userIdKey)
-
-        // PURCHASELY: Store the user ID as a custom attribute for targeting and personalization
-        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-        Purchasely.setUserAttribute(withStringValue: userId, forKey: "user_id")
+        wrapper.setUserAttribute(userId, forKey: "user_id")
     }
 
     func logout() {
-        // PURCHASELY: Clear the current user session from the SDK
-        // Resets entitlements to anonymous state; always refresh premium status afterwards
-        // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
-        Purchasely.userLogout()
+        wrapper.userLogout()
         userId = nil
         UserDefaults.standard.removeObject(forKey: userIdKey)
         PremiumManager.shared.refreshPremiumStatus()
@@ -85,10 +97,7 @@ class SettingsViewModel: ObservableObject {
 
     func restorePurchases() {
         restoreMessage = nil
-        // PURCHASELY: Restore previously completed purchases for the current App Store account
-        // Required by App Store guidelines; must be accessible via a visible UI button
-        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/restore-purchases
-        Purchasely.restoreAllProducts(
+        wrapper.restoreAllProducts(
             success: { [weak self] in
                 PremiumManager.shared.refreshPremiumStatus()
                 DispatchQueue.main.async {
@@ -112,9 +121,7 @@ class SettingsViewModel: ObservableObject {
     func setThemeMode(_ mode: String) {
         themeMode = mode
         UserDefaults.standard.set(mode, forKey: themeKey)
-        // PURCHASELY: Track user's preferred theme as a custom attribute for audience segmentation
-        // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-        Purchasely.setUserAttribute(withStringValue: mode, forKey: "app_theme")
+        wrapper.setUserAttribute(mode, forKey: "app_theme")
     }
 
     func setSdkMode(_ mode: PurchaselySDKMode) {
@@ -181,10 +188,7 @@ class SettingsViewModel: ObservableObject {
         if !personalizationConsent { revoked.insert(.personalization) }
         if !campaignsConsent { revoked.insert(.campaigns) }
         if !thirdPartyConsent { revoked.insert(.thirdPartyIntegrations) }
-        // PURCHASELY: Apply GDPR consent — revoked purposes are excluded from SDK data processing
-        // Call whenever the user changes any consent toggle to keep the SDK in sync
-        // Docs: https://docs.purchasely.com/advanced-features/gdpr
-        Purchasely.revokeDataProcessingConsent(for: revoked)
+        wrapper.revokeDataProcessingConsent(for: revoked)
         print("[Shaker] Consent updated — revoked: \(revoked)")
     }
 }

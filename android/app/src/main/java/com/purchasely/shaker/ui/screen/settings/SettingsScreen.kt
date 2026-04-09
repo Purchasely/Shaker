@@ -1,7 +1,6 @@
 package com.purchasely.shaker.ui.screen.settings
 
 import android.app.Activity
-import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -46,11 +45,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.data.PurchaselySdkMode
-import io.purchasely.ext.PLYPresentationResultHandler
-import io.purchasely.ext.PLYPresentationType
-import io.purchasely.ext.PLYProductViewResult
-import io.purchasely.ext.Purchasely
-import io.purchasely.models.PLYPlan
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -80,6 +74,14 @@ fun SettingsScreen(
         restoreMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
             viewModel.clearRestoreMessage()
+        }
+    }
+
+    // Collect paywall display requests from ViewModel
+    LaunchedEffect(Unit) {
+        viewModel.requestPaywallDisplay.collect {
+            val activity = context as? Activity ?: return@collect
+            viewModel.displayPendingPaywall(activity)
         }
     }
 
@@ -198,45 +200,7 @@ fun SettingsScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
-            onClick = {
-                val activity = context as? Activity ?: return@OutlinedButton
-                // PURCHASELY: Manually re-trigger the "onboarding" placement paywall from Settings
-                // Useful for users who want to subscribe after dismissing onboarding
-                // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-                Purchasely.fetchPresentation("onboarding") { presentation, error ->
-                    if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                        if (presentation.type == PLYPresentationType.CLIENT) {
-                            // PURCHASELY: CLIENT type — app builds its own paywall UI
-                            // The presentation contains plan data but no server-built screen
-                            // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
-                            Log.d("Settings", "[Shaker] CLIENT presentation received for onboarding placement — build custom UI here")
-                            // In a real app, extract plans from presentation and build native UI
-                        } else {
-                            presentation.getFragment(callback = object: PLYPresentationResultHandler {
-                                override fun invoke(
-                                    p1: PLYProductViewResult,
-                                    p2: PLYPlan?
-                                ) {
-                                    TODO("Not yet implemented")
-                                }
-
-                            })
-                            presentation.display(activity) { result, plan ->
-                                when (result) {
-                                    PLYProductViewResult.PURCHASED,
-                                    PLYProductViewResult.RESTORED -> {
-                                        Log.d("Settings", "[Shaker] Purchased/Restored from onboarding: ${plan?.name}")
-                                        viewModel.onPurchaseCompleted()
-                                    }
-                                    else -> {}
-                                }
-                            }
-                        }
-                    } else {
-                        Log.d("Settings", "[Shaker] Onboarding presentation not available: ${error?.message}")
-                    }
-                }
-            },
+            onClick = { viewModel.showOnboardingPaywall() },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("Show Onboarding")
@@ -408,7 +372,7 @@ fun SettingsScreen(
             Text("Purchasely SDK", style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = Purchasely.sdkVersion,
+                text = viewModel.sdkVersion,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
