@@ -1,6 +1,5 @@
-import Foundation
+import UIKit
 import Combine
-import Purchasely
 
 class HomeViewModel: ObservableObject {
 
@@ -12,7 +11,13 @@ class HomeViewModel: ObservableObject {
     @Published var selectedCategories: Set<String> = []
     @Published var selectedDifficulty: String?
 
+    // Prefetched presentations
+    @Published var inlinePresentation: FetchResult?
+    @Published var filtersPresentation: FetchResult?
+    @Published var isFiltersLoading = false
+
     private let repository = CocktailRepository.shared
+    private let wrapper = PurchaselyWrapper.shared
     private var cancellables = Set<AnyCancellable>()
 
     var availableSpirits: [String] { repository.spirits() }
@@ -21,6 +26,17 @@ class HomeViewModel: ObservableObject {
 
     var hasActiveFilters: Bool {
         !selectedSpirits.isEmpty || !selectedCategories.isEmpty || selectedDifficulty != nil
+    }
+
+    /// The UIViewController for the inline embedded presentation, if available.
+    var inlineController: UIViewController? {
+        guard case .success(let presentation) = inlinePresentation else { return nil }
+        return wrapper.getController(presentation: presentation)
+    }
+
+    /// The height (dp/points) for the inline presentation, 0 if unknown.
+    var inlineHeight: Int {
+        inlinePresentation?.height ?? 0
     }
 
     init() {
@@ -32,11 +48,9 @@ class HomeViewModel: ObservableObject {
             $selectedCategories,
             $selectedDifficulty
         )
-        .handleEvents(receiveOutput: { query, _, _, _ in
+        .handleEvents(receiveOutput: { [weak self] query, _, _, _ in
             if !query.isEmpty {
-                // PURCHASELY: Flag the user as having used search for segmentation and targeted offers
-                // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-                Purchasely.setUserAttribute(withBoolValue: true, forKey: "has_used_search")
+                self?.wrapper.setUserAttribute(true, forKey: "has_used_search")
             }
         })
         .map { query, spirits, categories, difficulty in
@@ -51,6 +65,31 @@ class HomeViewModel: ObservableObject {
         .assign(to: &$cocktails)
 
         cocktails = allCocktails
+    }
+
+    func prefetchPresentations(isPremium: Bool) {
+        guard !isPremium else { return }
+
+        Task {
+            isFiltersLoading = true
+            filtersPresentation = await wrapper.loadPresentation(placementId: "filters") { result in
+                if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
+                if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }
+            }
+            isFiltersLoading = false
+        }
+
+        Task {
+            inlinePresentation = await wrapper.loadPresentation(placementId: "inline") { result in
+                if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
+                if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }
+            }
+        }
+    }
+
+    func displayFiltersPaywall(from viewController: UIViewController?) {
+        guard case .success(let presentation) = filtersPresentation else { return }
+        wrapper.display(presentation: presentation, from: viewController)
     }
 
     func toggleSpirit(_ spirit: String) {

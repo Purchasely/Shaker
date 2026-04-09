@@ -171,19 +171,25 @@ Always handle all `FetchResult` variants:
 ## 7. Error Handling
 
 - **Never crash on SDK errors.** Log and degrade gracefully.
-- **Never block the UI** waiting for a presentation. Use coroutines (suspend) and show content immediately.
+- **Never block the UI** waiting for a presentation. Use coroutines/async-await and show content immediately.
 - **Embedded views:** If fetch fails, the banner simply doesn't appear.
 - **Modal paywalls:** If fetch fails, the user action is silently ignored (with a log).
 
 ---
 
-## 8. Async: Coroutines over Callbacks
+## 8. Async: Native Async Patterns
 
-**Rule: Use suspend functions for async operations. Only use callbacks when the SDK doesn't provide a suspend alternative.**
+**Rule: Use the platform's native async pattern. Only use callbacks when the SDK doesn't provide an alternative.**
 
+**Android (Kotlin):**
 - `loadPresentation()` — uses the native suspend `Purchasely.fetchPresentation()`
 - `display()` — wraps the callback-based `display(activity)` with `suspendCoroutine`
 - `getView()` — keeps callbacks because `buildView()` returns a `View?` synchronously; the callback fires later on purchase events
+
+**iOS (Swift):**
+- `loadPresentation()` — uses `async/await` with `withCheckedContinuation` to bridge `fetchPresentation(for:, fetchCompletion:, completion:)`; the `onResult` callback is bound at fetch time via the `completion` closure
+- `display()` — synchronous, calls `presentation.display(from:)` on main thread; result delivered through the `onResult` callback from fetch
+- `getController()` — returns the presentation's `UIViewController` for embedding
 
 ---
 
@@ -199,19 +205,28 @@ Always handle all `FetchResult` variants:
 
 ### iOS (SwiftUI)
 
-_To be defined — will follow the same architectural principles adapted to SwiftUI/Combine patterns._
+- `PurchaselyWrapper` is a Swift singleton (`PurchaselyWrapper.shared`)
+- ViewModels access it directly: `private let wrapper = PurchaselyWrapper.shared`
+- Async operations use Swift `async/await` (`withCheckedContinuation` to bridge callbacks)
+- `loadPresentation()` is `async` and takes an `onResult` callback for purchase/dismiss events (bound at fetch time via `fetchPresentation(for:, fetchCompletion:, completion:)`)
+- `display()` is synchronous — calls `presentation.display(from: viewController)` on main thread; result comes through the `onResult` callback from `loadPresentation`
+- `getController()` returns `PLYPresentationViewController?` for embedding via `UIViewControllerRepresentable`
+- `EmbeddedScreenBanner` is a `UIViewControllerRepresentable` wrapping the presentation's controller
+- Screen resolves a `UIViewController` via `ViewControllerResolver` (background helper) for modal display
+- `presentation.height` is in points (use as `CGFloat` directly in `.frame(height:)`)
+- Prefetch is triggered from `onAppear` since `@StateObject` init doesn't have access to `@EnvironmentObject` (premium status)
 
 ---
 
 ## Checklist for New Purchasely Integrations
 
 - [ ] All SDK calls go through `PurchaselyWrapper`
-- [ ] Screen has zero `io.purchasely` imports
-- [ ] Uses `loadPresentation()` + `display()`/`getView()`, never `presentationView()`
-- [ ] Presentations are prefetched by the ViewModel on init (not on user action)
-- [ ] Handles all `FetchResult` variants (Success, Client, Deactivated, Error)
+- [ ] Screen has zero `io.purchasely` / `import Purchasely` imports
+- [ ] Uses `loadPresentation()` + `display()`/`getView()`/`getController()`, never `presentationView()` or `presentationController()`
+- [ ] Presentations are prefetched by the ViewModel (Android: `init`, iOS: `prefetchPresentations()` from `onAppear`)
+- [ ] Handles all `FetchResult` variants (success, client, deactivated, error)
 - [ ] User attributes set from ViewModel, not Screen
-- [ ] Modal paywalls: ViewModel prefetches, shows loader while loading, Screen provides Activity on display
-- [ ] Embedded paywalls: ViewModel prefetches, Screen passes `FetchResult.Success` to `EmbeddedScreenBanner`
-- [ ] Uses `FetchResult.Success.height` (dp) for embedded view sizing
+- [ ] Modal paywalls: ViewModel prefetches, shows loader while loading, Screen provides Activity/ViewController on display
+- [ ] Embedded paywalls: ViewModel prefetches, Screen uses `EmbeddedScreenBanner` with prefetched result/controller
+- [ ] Uses `presentation.height` (dp/points) for embedded view sizing
 - [ ] No crashes on SDK errors — nothing shown if fetch fails

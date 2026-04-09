@@ -25,6 +25,7 @@ Shaker/
     │   ├── Data/            # CocktailRepository, FavoritesRepository, PremiumManager, OnboardingRepository
     │   ├── Helpers/         # ViewControllerResolver, CocktailImage
     │   ├── Model/           # Cocktail, Ingredient
+    │   ├── Purchasely/      # PurchaselyWrapper, EmbeddedScreenBanner, FetchResult, DisplayResult
     │   └── Screens/         # Home, Detail, Favorites, Settings, Onboarding
     ├── project.yml          # XcodeGen spec
     └── Podfile
