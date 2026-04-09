@@ -1,5 +1,4 @@
 import SwiftUI
-import Purchasely
 
 @main
 struct ShakerApp: App {
@@ -17,7 +16,7 @@ struct ShakerApp: App {
                     // PURCHASELY: Forward incoming URLs to the SDK to handle Purchasely deeplinks
                     // Returns true if the SDK handled the URL (e.g., open a specific paywall)
                     // Docs: https://docs.purchasely.com/advanced-features/deeplinks
-                    _ = Purchasely.isDeeplinkHandled(deeplink: url)
+                    _ = PurchaselyWrapper.shared.isDeeplinkHandled(deeplink: url)
                 }
                 .onChange(of: scenePhase) { newValue in
                     // PURCHASELY: Refresh entitlements when app returns to foreground

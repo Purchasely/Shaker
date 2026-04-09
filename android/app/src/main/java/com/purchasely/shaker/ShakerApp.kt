@@ -8,17 +8,18 @@ import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.di.appModule
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import io.purchasely.ext.EventListener
 import io.purchasely.ext.LogLevel
 import io.purchasely.ext.PLYEvent
 import io.purchasely.ext.PLYPresentationAction
-import io.purchasely.ext.Purchasely
-import io.purchasely.google.GoogleStore
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
 
 class ShakerApp : Application() {
+
+    private val purchaselyWrapper: PurchaselyWrapper by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -37,28 +38,27 @@ class ShakerApp : Application() {
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration
         val selectedMode = getSdkModeFromStorage()
 
-        Purchasely.Builder(this)
-            .apiKey("6cda6b92-d63c-4444-bd55-5a164c989bd4")
-            .logLevel(if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN)
-            .readyToOpenDeeplink(true)
-            .runningMode(selectedMode.runningMode)
-            .stores(listOf(GoogleStore()))
-            .build()
-            .start { isConfigured, error ->
-                if (isConfigured) {
-                    Log.d(TAG, "[Shaker] Purchasely SDK configured successfully (mode: ${selectedMode.label})")
-                    val premiumManager: PremiumManager by inject()
-                    premiumManager.refreshPremiumStatus()
-                }
-                error?.let {
-                    Log.e(TAG, "[Shaker] Purchasely configuration error: ${it.message}")
-                }
+        purchaselyWrapper.start(
+            application = this,
+            apiKey = "6cda6b92-d63c-4444-bd55-5a164c989bd4",
+            logLevel = if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN,
+            runningMode = selectedMode.runningMode,
+            readyToOpenDeeplink = true
+        ) { isConfigured, error ->
+            if (isConfigured) {
+                Log.d(TAG, "[Shaker] Purchasely SDK configured successfully (mode: ${selectedMode.label})")
+                val premiumManager: PremiumManager by inject()
+                premiumManager.refreshPremiumStatus()
             }
+            error?.let {
+                Log.e(TAG, "[Shaker] Purchasely configuration error: ${it.message}")
+            }
+        }
 
         // PURCHASELY: Subscribe to SDK analytics events (purchases, cancellations, paywall views, etc.)
         // Forward these to your own analytics pipeline or BI tool as needed
         // Docs: https://docs.purchasely.com/advanced-features/events
-        Purchasely.eventListener = object : EventListener {
+        purchaselyWrapper.eventListener = object : EventListener {
             override fun onEvent(event: PLYEvent) {
                 Log.d(TAG, "[Shaker] Event: ${event.name} | Properties: ${event.properties}")
             }
@@ -67,7 +67,7 @@ class ShakerApp : Application() {
         // PURCHASELY: Intercept paywall button actions before the SDK handles them
         // Use this to customize LOGIN, NAVIGATE, or other CTA behavior app-side
         // Docs: https://docs.purchasely.com/advanced-features/customize-screens/paywall-action-interceptor
-        Purchasely.setPaywallActionsInterceptor { info, action, parameters, proceed ->
+        purchaselyWrapper.setPaywallActionsInterceptor { info, action, parameters, proceed ->
             when (action) {
                 // PURCHASELY: LOGIN action — dismiss paywall and redirect user to app login flow
                 // Call proceed(false) to prevent the SDK's default behavior
@@ -135,7 +135,7 @@ class ShakerApp : Application() {
 
     fun restartPurchaselySdk() {
         Log.d(TAG, "[Shaker] Restarting Purchasely SDK")
-        Purchasely.close()
+        purchaselyWrapper.close()
         initPurchasely()
     }
 

@@ -53,6 +53,8 @@ class AppViewModel: ObservableObject {
     @Published var isSDKReady = false
     @Published var sdkError: String?
 
+    private let wrapper = PurchaselyWrapper.shared
+
     init() {
         NotificationCenter.default.addObserver(
             self,
@@ -90,8 +92,8 @@ class AppViewModel: ObservableObject {
         let sdkLogLevel: PLYLogger.PLYLogLevel = .warn
         #endif
 
-        Purchasely.start(
-            withAPIKey: resolvedApiKey,
+        wrapper.start(
+            apiKey: resolvedApiKey,
             appUserId: storedUserId,
             runningMode: selectedMode.runningMode,
             storekitSettings: .storeKit2,
@@ -113,17 +115,17 @@ class AppViewModel: ObservableObject {
         // PURCHASELY: Signal that the app is ready to process deeplinks
         // Call after SDK init so pending deeplinks queued at launch are not dropped
         // Docs: https://docs.purchasely.com/advanced-features/deeplinks
-        Purchasely.readyToOpenDeeplink(true)
+        wrapper.readyToOpenDeeplink(true)
 
         // PURCHASELY: Register a delegate to receive SDK analytics events
         // Useful for forwarding Purchasely events to your own analytics pipeline
         // Docs: https://docs.purchasely.com/advanced-features/events
-        Purchasely.setEventDelegate(self)
+        wrapper.setEventDelegate(self)
 
         // PURCHASELY: Intercept paywall actions before the SDK handles them
         // Use to implement custom login flow or handle navigation links from paywalls
         // Docs: https://docs.purchasely.com/advanced-features/customize-screens/paywall-action-interceptor
-        Purchasely.setPaywallActionsInterceptor { action, parameters, info, proceed in
+        wrapper.setPaywallActionsInterceptor { action, parameters, info, proceed in
             switch action {
             case .login:
                 // PURCHASELY: User tapped "Sign In" on a paywall — handle login yourself, then call proceed(true) if refresh is needed
@@ -192,7 +194,7 @@ class AppViewModel: ObservableObject {
     }
 
     private func restartPurchaselySdk() {
-        Purchasely.closeDisplayedPresentation()
+        wrapper.closeDisplayedPresentation()
         initPurchasely()
     }
 }

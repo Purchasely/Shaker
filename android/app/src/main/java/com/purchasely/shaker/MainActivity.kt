@@ -6,11 +6,15 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.navigation.ShakerNavHost
 import com.purchasely.shaker.ui.theme.ShakerTheme
-import io.purchasely.ext.Purchasely
+import org.koin.android.ext.android.inject
 
 class MainActivity : ComponentActivity() {
+
+    private val purchaselyWrapper: PurchaselyWrapper by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -31,7 +35,7 @@ class MainActivity : ComponentActivity() {
 
     private fun handleDeepLink(intent: Intent?) {
         val uri = intent?.data ?: return
-        if (Purchasely.isDeeplinkHandled(uri, this)) {
+        if (purchaselyWrapper.isDeeplinkHandled(uri, this)) {
             Log.d("MainActivity", "[Shaker] Deep link handled by Purchasely: $uri")
         } else {
             Log.d("MainActivity", "[Shaker] Deep link not handled by Purchasely: $uri")

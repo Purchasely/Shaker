@@ -12,9 +12,9 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.android.billingclient.api.AcknowledgePurchaseParams
 import com.android.billingclient.api.QueryProductDetailsParams
 import android.content.Context
-import io.purchasely.ext.Purchasely
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 
-class PurchaseManager(context: Context) : PurchasesUpdatedListener {
+class PurchaseManager(context: Context, private val purchaselyWrapper: PurchaselyWrapper) : PurchasesUpdatedListener {
 
     private var onPurchaseResult: ((Boolean) -> Unit)? = null
 
@@ -115,7 +115,7 @@ class PurchaseManager(context: Context) : PurchasesUpdatedListener {
                 activePurchases.forEach { acknowledgePurchase(it) }
 
                 Log.d(TAG, "[Shaker] Restored ${activePurchases.size} purchases")
-                Purchasely.synchronize()
+                purchaselyWrapper.synchronize()
                 onResult(activePurchases.isNotEmpty())
             } else {
                 Log.e(TAG, "[Shaker] Restore failed: ${billingResult.debugMessage}")
@@ -132,7 +132,7 @@ class PurchaseManager(context: Context) : PurchasesUpdatedListener {
                 }
             }
             Log.d(TAG, "[Shaker] Purchase successful, synchronizing with Purchasely...")
-            Purchasely.synchronize()
+            purchaselyWrapper.synchronize()
             onPurchaseResult?.invoke(true)
         } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
             Log.d(TAG, "[Shaker] Purchase cancelled by user")

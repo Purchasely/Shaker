@@ -21,7 +21,7 @@ val appModule = module {
     single { OnboardingRepository(androidContext()) }
     single { RunningModeRepository(androidContext()) }
     single { PremiumManager() }
-    single { PurchaseManager(androidContext()) }
+    single { PurchaseManager(androidContext(), get()) }
     single { PurchaselyWrapper() }
     viewModel { HomeViewModel(get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }

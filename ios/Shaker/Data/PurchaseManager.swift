@@ -18,7 +18,7 @@ class PurchaseManager {
         }
 
         // Use Purchasely anonymous user ID (lowercased) as the app account token
-        let userId = Purchasely.anonymousUserId.lowercased()
+        let userId = PurchaselyWrapper.shared.anonymousUserId.lowercased()
 
         var options: Set<Product.PurchaseOption> = []
         if let uuid = UUID(uuidString: userId) {
@@ -31,7 +31,7 @@ class PurchaseManager {
         case .success(let verification):
             let transaction = try checkVerified(verification)
             await transaction.finish()
-            Purchasely.synchronize(success: {}, failure: { _ in })
+            PurchaselyWrapper.shared.synchronize()
             print("[Shaker] Observer mode: native purchase successful, synchronized")
             return transaction
         case .userCancelled:
@@ -56,7 +56,7 @@ class PurchaseManager {
 
         // Sign the promotional offer via Purchasely backend
         let signature = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<PLYOfferSignature, Error>) in
-            Purchasely.signPromotionalOffer(
+            PurchaselyWrapper.shared.signPromotionalOffer(
                 storeProductId: productId,
                 storeOfferId: storeOfferId,
                 success: { signature in
@@ -68,7 +68,7 @@ class PurchaseManager {
             )
         }
 
-        let userId = Purchasely.anonymousUserId.lowercased()
+        let userId = PurchaselyWrapper.shared.anonymousUserId.lowercased()
         var options: Set<Product.PurchaseOption> = []
         if let uuid = UUID(uuidString: userId) {
             options.insert(.appAccountToken(uuid))
@@ -92,7 +92,7 @@ class PurchaseManager {
         case .success(let verification):
             let transaction = try checkVerified(verification)
             await transaction.finish()
-            Purchasely.synchronize(success: {}, failure: { _ in })
+            PurchaselyWrapper.shared.synchronize()
             print("[Shaker] Observer mode: promo offer purchase successful, synchronized")
             return transaction
         case .userCancelled:
@@ -113,7 +113,7 @@ class PurchaseManager {
                 restoredCount += 1
             }
         }
-        Purchasely.synchronize(success: {}, failure: { _ in })
+        PurchaselyWrapper.shared.synchronize()
         print("[Shaker] Observer mode: restored \(restoredCount) transactions, synchronized")
     }
 
