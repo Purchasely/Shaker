@@ -2,7 +2,7 @@
 
 ## About
 
-Shaker is a cocktail discovery app demonstrating a production-quality Purchasely SDK integration. It contains both an Android app (Kotlin/Jetpack Compose) and an iOS app (SwiftUI), plus shared assets.
+Shaker is a **reference demo application** showcasing the best way to integrate the Purchasely SDK on iOS and Android. It serves as the canonical example for SDK integration patterns — all code must follow the best practices defined in `docs/purchasely-best-practices.md`. It contains both an Android app (Kotlin/Jetpack Compose) and an iOS app (SwiftUI), plus shared assets.
 
 ## Repository Structure
 
@@ -16,6 +16,7 @@ Shaker/
 │   │   ├── data/            # CocktailRepository, FavoritesRepository, PremiumManager, OnboardingRepository
 │   │   ├── di/              # Koin DI modules
 │   │   ├── domain/model/    # Data models (Cocktail, Ingredient)
+│   │   ├── purchasely/      # PurchaselyWrapper, EmbeddedScreenBanner, result types
 │   │   └── ui/              # Compose UI (screens, navigation, theme, components)
 │   ├── build.gradle.kts
 │   └── settings.gradle.kts
@@ -99,6 +100,8 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 
 ### Key Components
 
+- **PurchaselyWrapper**: Koin singleton wrapping all Purchasely SDK calls. ViewModels use this exclusively — Screens never import `io.purchasely`. See `docs/purchasely-best-practices.md`.
+- **EmbeddedScreenBanner**: Reusable Composable for inline paywall display. Uses PurchaselyWrapper internally.
 - **PremiumManager**: Singleton checking subscription status via `userSubscriptions`. Used by ViewModels to gate features.
 - **CocktailRepository**: Loads `cocktails.json` from bundled assets. Single source of truth for cocktail data.
 - **FavoritesRepository**: UserDefaults/SharedPreferences backed. Premium-gated feature.
@@ -115,6 +118,7 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 - Shared data in `shared-assets/` - copied to platform asset dirs
 - API keys via local config files (never committed)
 - Purchasely Maven repo: `https://maven.purchasely.io`
+- **Purchasely best practices**: All SDK integration changes must follow `docs/purchasely-best-practices.md`. Update the doc when patterns change.
 
 ## Gotchas
 

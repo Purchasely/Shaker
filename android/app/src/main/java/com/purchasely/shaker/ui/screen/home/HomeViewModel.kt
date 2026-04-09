@@ -1,17 +1,28 @@
 package com.purchasely.shaker.ui.screen.home
 
+import android.app.Activity
+import android.util.Log
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.data.CocktailRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.domain.model.Cocktail
-import io.purchasely.ext.Purchasely
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
+import io.purchasely.ext.PLYPresentation
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val repository: CocktailRepository,
-    private val premiumManager: PremiumManager
+    private val premiumManager: PremiumManager,
+    private val purchaselyWrapper: PurchaselyWrapper
 ) : ViewModel() {
 
     private val _cocktails = MutableStateFlow<List<Cocktail>>(emptyList())
@@ -41,6 +52,11 @@ class HomeViewModel(
                 _selectedCategories.value.isNotEmpty() ||
                 _selectedDifficulty.value != null
 
+    private var pendingFiltersPresentation: PLYPresentation? = null
+
+    private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
+    val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
+
     init {
         _cocktails.value = repository.loadCocktails()
     }
@@ -48,11 +64,38 @@ class HomeViewModel(
     fun onSearchQueryChanged(query: String) {
         _searchQuery.value = query
         if (query.isNotBlank()) {
-            // PURCHASELY: Record that the user has used search as a boolean attribute for audience targeting
-            // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-            Purchasely.setUserAttribute("has_used_search", true)
+            purchaselyWrapper.setUserAttribute("has_used_search", true)
         }
         applyFilters()
+    }
+
+    fun onFilterClick() {
+        if (isPremium.value) return
+        viewModelScope.launch {
+            when (val result = purchaselyWrapper.loadPresentation("filters")) {
+                is FetchResult.Success -> {
+                    pendingFiltersPresentation = result.presentation
+                    _requestPaywallDisplay.emit(Unit)
+                }
+                is FetchResult.Client -> {
+                    Log.d("HomeViewModel", "[Shaker] CLIENT presentation for filters — build custom UI here")
+                }
+                else -> {}
+            }
+        }
+    }
+
+    suspend fun displayPendingPaywall(activity: Activity) {
+        val presentation = pendingFiltersPresentation ?: return
+        pendingFiltersPresentation = null
+        val result = purchaselyWrapper.display(presentation, activity)
+        when (result) {
+            is DisplayResult.Purchased, is DisplayResult.Restored -> {
+                Log.d("HomeViewModel", "[Shaker] Purchased/Restored from filters")
+                onPaywallDismissed()
+            }
+            else -> {}
+        }
     }
 
     fun toggleSpirit(spirit: String) {

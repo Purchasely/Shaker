@@ -1,7 +1,6 @@
 package com.purchasely.shaker.ui.screen.home
 
 import android.app.Activity
-import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,6 +35,7 @@ import androidx.compose.material3.SearchBar
 import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,12 +46,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.viewinterop.AndroidView
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
 import com.purchasely.shaker.ui.components.CocktailImage
-import io.purchasely.ext.PLYPresentationType
-import io.purchasely.ext.PLYProductViewResult
-import io.purchasely.ext.Purchasely
 import org.koin.androidx.compose.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -65,6 +62,13 @@ fun HomeScreen(
     val isPremium by viewModel.isPremium.collectAsState()
     val context = LocalContext.current
     var showFilterSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.requestPaywallDisplay.collect {
+            val activity = context as? Activity ?: return@collect
+            viewModel.displayPendingPaywall(activity)
+        }
+    }
 
     Column(modifier = Modifier.fillMaxSize().statusBarsPadding()) {
         SearchBar(
@@ -82,33 +86,7 @@ fun HomeScreen(
                             if (isPremium) {
                                 showFilterSheet = true
                             } else {
-                                // Free user: show filters paywall
-                                val activity = context as? Activity ?: return@IconButton
-                                // PURCHASELY: Fetch and display the paywall for the "filters" placement
-                                // fetchPresentation loads the configured paywall; display() shows it modally
-                                // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-                                Purchasely.fetchPresentation("filters") { presentation, error ->
-                                    if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                                        if (presentation.type == PLYPresentationType.CLIENT) {
-                                            // PURCHASELY: CLIENT type — app builds its own paywall UI
-                                            // The presentation contains plan data but no server-built screen
-                                            // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
-                                            Log.d("HomeScreen", "[Shaker] CLIENT presentation received for filters placement — build custom UI here")
-                                            // In a real app, extract plans from presentation and build native UI
-                                        } else {
-                                            presentation.display(activity) { result, plan ->
-                                                when (result) {
-                                                    PLYProductViewResult.PURCHASED,
-                                                    PLYProductViewResult.RESTORED -> {
-                                                        Log.d("HomeScreen", "[Shaker] Purchased/Restored from filters: ${plan?.name}")
-                                                        viewModel.onPaywallDismissed()
-                                                    }
-                                                    else -> {}
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                viewModel.onFilterClick()
                             }
                         }) {
                             if (viewModel.hasActiveFilters) {
@@ -165,10 +143,14 @@ fun HomeScreen(
             ) {
                 if (!isPremium) {
                     item(span = { GridItemSpan(2) }) {
-                        // PURCHASELY: Embedded paywall view — displays a paywall inline within the Home screen
-                        // Uses a dedicated placement configured in the Purchasely console
-                        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-                        EmbeddedPaywallBanner()
+                        EmbeddedScreenBanner(
+                            placementId = "inline",
+                            onResult = { viewModel.onPaywallDismissed() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 200.dp)
+                                .padding(vertical = 8.dp)
+                        )
                     }
                 }
                 items(cocktails, key = { it.id }) { cocktail ->
@@ -184,23 +166,6 @@ fun HomeScreen(
             onDismiss = { showFilterSheet = false }
         )
     }
-}
-
-@Composable
-private fun EmbeddedPaywallBanner() {
-    val context = LocalContext.current
-    AndroidView(
-        factory = {
-            // PURCHASELY: Embedded paywall view — displays a paywall inline within a screen
-            // Uses a dedicated placement configured in the Purchasely console
-            // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-            Purchasely.presentationView(context, "home_banner")
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .heightIn(max = 200.dp)
-            .padding(horizontal = 0.dp, vertical = 8.dp)
-    )
 }
 
 @Composable
