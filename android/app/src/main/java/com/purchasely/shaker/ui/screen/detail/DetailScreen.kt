@@ -1,7 +1,6 @@
 package com.purchasely.shaker.ui.screen.detail
 
 import android.app.Activity
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,11 +32,9 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -48,10 +45,6 @@ import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.ui.components.CocktailImage
-import io.purchasely.ext.PLYPresentationProperties
-import io.purchasely.ext.PLYPresentationType
-import io.purchasely.ext.PLYProductViewResult
-import io.purchasely.ext.Purchasely
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
 
@@ -76,6 +69,22 @@ fun DetailScreen(
         controller.isAppearanceLightStatusBars = false // white icons
         onDispose {
             controller.isAppearanceLightStatusBars = true // restore dark icons
+        }
+    }
+
+    // Collect recipe paywall display requests from ViewModel
+    LaunchedEffect(Unit) {
+        viewModel.requestRecipePaywall.collect {
+            val activity = context as? Activity ?: return@collect
+            viewModel.displayPendingRecipePaywall(activity)
+        }
+    }
+
+    // Collect favorites paywall display requests from ViewModel
+    LaunchedEffect(Unit) {
+        viewModel.requestFavoritesPaywall.collect {
+            val activity = context as? Activity ?: return@collect
+            viewModel.displayPendingFavoritesPaywall(activity)
         }
     }
 
@@ -217,40 +226,7 @@ fun DetailScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Button(
-                                    onClick = {
-                                        val activity = context as? Activity ?: return@Button
-                                        // PURCHASELY: Fetch the "recipe_detail" paywall with a contentId for contextual personalization
-                                        // contentId lets the paywall template reference the specific cocktail being viewed
-                                        // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
-                                        Purchasely.fetchPresentation(properties = PLYPresentationProperties(placementId = "recipe_detail", contentId = c.id)) { presentation, error ->
-                                            if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                                                if (presentation.type == PLYPresentationType.CLIENT) {
-                                                    // PURCHASELY: CLIENT type — app builds its own paywall UI
-                                                    // The presentation contains plan data but no server-built screen
-                                                    // Docs: https://docs.purchasely.com/advanced-features/customize-screens/custom-paywall
-                                                    Log.d("DetailScreen", "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
-                                                    // In a real app, extract plans from presentation and build native UI
-                                                } else {
-                                                    presentation.display(activity) { result, plan ->
-                                                        when (result) {
-                                                            PLYProductViewResult.PURCHASED -> {
-                                                                Log.d("DetailScreen", "[Shaker] Purchased: ${plan?.name}")
-                                                                viewModel.onPaywallDismissed()
-                                                            }
-                                                            PLYProductViewResult.RESTORED -> {
-                                                                Log.d("DetailScreen", "[Shaker] Restored: ${plan?.name}")
-                                                                viewModel.onPaywallDismissed()
-                                                            }
-                                                            PLYProductViewResult.CANCELLED -> {
-                                                                Log.d("DetailScreen", "[Shaker] Cancelled")
-                                                            }
-                                                            else -> {}
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
+                                    onClick = { viewModel.showRecipePaywall() },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary
                                     )
@@ -288,25 +264,7 @@ fun DetailScreen(
                     if (isPremium) {
                         viewModel.toggleFavorite()
                     } else {
-                        val activity = context as? Activity ?: return@IconButton
-                        Purchasely.fetchPresentation("favorites") { presentation, error ->
-                            if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-                                if (presentation.type == PLYPresentationType.CLIENT) {
-                                    Log.d("DetailScreen", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
-                                } else {
-                                    presentation.display(activity) { result, plan ->
-                                        when (result) {
-                                            PLYProductViewResult.PURCHASED,
-                                            PLYProductViewResult.RESTORED -> {
-                                                Log.d("DetailScreen", "[Shaker] Purchased/Restored from favorites: ${plan?.name}")
-                                                viewModel.onPaywallDismissed()
-                                            }
-                                            else -> {}
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                        viewModel.showFavoritesPaywall()
                     }
                 }) {
                     Icon(
