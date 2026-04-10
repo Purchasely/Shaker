@@ -16,6 +16,15 @@ android {
     namespace = "com.purchasely.shaker"
     compileSdk = 35
 
+    signingConfigs {
+        create("release") {
+            storeFile = rootProject.file("shaker-release.jks")
+            storePassword = localProperties.getProperty("signing.storePassword", "shaker2026")
+            keyAlias = localProperties.getProperty("signing.keyAlias", "shaker")
+            keyPassword = localProperties.getProperty("signing.keyPassword", "shaker2026")
+        }
+    }
+
     defaultConfig {
         applicationId = "com.purchasely.shaker"
         minSdk = 26
@@ -33,6 +42,7 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
