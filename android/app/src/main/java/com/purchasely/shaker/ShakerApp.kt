@@ -25,5 +25,6 @@ class ShakerApp : Application() {
             apiKey = BuildConfig.PURCHASELY_API_KEY,
             logLevel = if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN
         )
+
     }
 }

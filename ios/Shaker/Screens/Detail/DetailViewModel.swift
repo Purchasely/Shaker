@@ -7,10 +7,14 @@ class DetailViewModel: ObservableObject {
     @Published var recipeFetchResult: FetchResult?
     @Published var favoritesFetchResult: FetchResult?
 
-    private let repository = CocktailRepository.shared
-    private let wrapper = PurchaselyWrapper.shared
+    private let repository: CocktailRepository
+    private let wrapper: PurchaselyWrapping
 
-    init(cocktailId: String) {
+    init(cocktailId: String,
+         repository: CocktailRepository = .shared,
+         wrapper: PurchaselyWrapping = PurchaselyWrapper.shared) {
+        self.repository = repository
+        self.wrapper = wrapper
         cocktail = repository.cocktail(byId: cocktailId)
         trackCocktailViewed()
     }

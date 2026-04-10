@@ -11,6 +11,10 @@ kotlinx-serialization = "1.7.3"
 coil = "3.0.4"
 purchasely = "5.7.3"
 billing = "7.1.1"
+junit = "4.13.2"
+mockk = "1.13.13"
+coroutines-test = "1.9.0"
+turbine = "1.2.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core-ktx" }
@@ -38,6 +42,11 @@ purchasely-core = { group = "io.purchasely", name = "core", version.ref = "purch
 purchasely-google = { group = "io.purchasely", name = "google-play", version.ref = "purchasely" }
 
 google-billing = { group = "com.android.billingclient", name = "billing-ktx", version.ref = "billing" }
+
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines-test" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

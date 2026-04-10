@@ -1,6 +1,7 @@
 package com.purchasely.shaker.di
 
 import com.android.billingclient.api.BillingClient
+import com.android.billingclient.api.PendingPurchasesParams
 import com.purchasely.shaker.data.CocktailRepository
 import com.purchasely.shaker.data.FavoritesRepository
 import com.purchasely.shaker.data.OnboardingRepository
@@ -38,11 +39,15 @@ val appModule = module {
             billingClientFactory = { listener ->
                 BillingClient.newBuilder(androidContext())
                     .setListener(listener)
-                    .enablePendingPurchases()
+                    .enablePendingPurchases(
+                        PendingPurchasesParams.newBuilder()
+                            .enableOneTimeProducts()
+                            .build()
+                    )
                     .build()
             },
-            purchaseRequests = get(named("purchaseRequests")),
-            restoreRequests = get(named("restoreRequests")),
+            purchaseRequests = get<MutableSharedFlow<PurchaseRequest>>(named("purchaseRequests")),
+            restoreRequests = get<MutableSharedFlow<RestoreRequest>>(named("restoreRequests")),
             scope = get(named("appScope"))
         )
     }

@@ -10,6 +10,11 @@ class CocktailRepository {
         loadCocktails()
     }
 
+    /// For testing: create a repository with pre-loaded cocktails
+    init(cocktails: [Cocktail]) {
+        self.cocktails = cocktails
+    }
+
     @discardableResult
     func loadCocktails() -> [Cocktail] {
         guard cocktails.isEmpty else { return cocktails }
