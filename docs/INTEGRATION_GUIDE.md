@@ -290,8 +290,11 @@ class PurchaseManager(
 scope.launch {
     purchaseRequests.emit(PurchaseRequest(activity, productId, offerToken))
 }
-// In init block:
-transactionResult.collect { result -> handleTransactionResult(result) }
+// Collection starts in init{} and restarts on initialize()/restart():
+private fun startTransactionCollection() {
+    collectionJob?.cancel()
+    collectionJob = scope.launch { transactionResult.collect { handleTransactionResult(it) } }
+}
 ```
 
 ### iOS (Swift)

@@ -27,6 +27,7 @@ import io.purchasely.models.PLYError
 import io.purchasely.models.PLYPlan
 import io.purchasely.google.GoogleStore
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
@@ -38,7 +39,7 @@ class PurchaselyWrapper(
     private val runningModeRepo: RunningModeRepository,
     private val purchaseRequests: MutableSharedFlow<PurchaseRequest>,
     private val restoreRequests: MutableSharedFlow<RestoreRequest>,
-    transactionResult: SharedFlow<TransactionResult>,
+    private val transactionResult: SharedFlow<TransactionResult>,
     private val scope: CoroutineScope
 ) {
 
@@ -46,9 +47,15 @@ class PurchaselyWrapper(
     private var apiKey: String = ""
     private var logLevel: LogLevel = LogLevel.DEBUG
     private var pendingProcessAction: ((Boolean) -> Unit)? = null
+    private var collectionJob: Job? = null
 
     init {
-        scope.launch {
+        startTransactionCollection()
+    }
+
+    private fun startTransactionCollection() {
+        collectionJob?.cancel()
+        collectionJob = scope.launch {
             transactionResult.collect { result ->
                 handleTransactionResult(result)
             }
@@ -94,6 +101,8 @@ class PurchaselyWrapper(
         setPaywallActionsInterceptor { info, action, parameters, proceed ->
             handlePaywallAction(info, action, parameters, proceed)
         }
+
+        startTransactionCollection()
     }
 
     fun restart() {
@@ -103,6 +112,10 @@ class PurchaselyWrapper(
     }
 
     fun close() {
+        collectionJob?.cancel()
+        collectionJob = null
+        pendingProcessAction?.invoke(false)
+        pendingProcessAction = null
         Purchasely.close()
     }
 
@@ -137,6 +150,7 @@ class PurchaselyWrapper(
                     val offerToken = offer?.offerToken
                     val activity = info?.activity
                     if (activity != null && productId != null && offerToken != null) {
+                        pendingProcessAction?.invoke(false)
                         pendingProcessAction = processAction
                         scope.launch {
                             purchaseRequests.emit(PurchaseRequest(activity, productId, offerToken))
@@ -151,6 +165,7 @@ class PurchaselyWrapper(
             }
             PLYPresentationAction.RESTORE -> {
                 if (runningModeRepo.isObserverMode) {
+                    pendingProcessAction?.invoke(false)
                     pendingProcessAction = processAction
                     scope.launch {
                         restoreRequests.emit(RestoreRequest)

@@ -1,14 +1,14 @@
 package com.purchasely.shaker.di
 
+import com.android.billingclient.api.BillingClient
 import com.purchasely.shaker.data.CocktailRepository
 import com.purchasely.shaker.data.FavoritesRepository
 import com.purchasely.shaker.data.OnboardingRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
-import com.purchasely.shaker.data.purchase.TransactionResult
-// import com.purchasely.shaker.data.purchase.PurchaseManager // TODO: Task 4 will re-enable
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
@@ -32,17 +32,27 @@ val appModule = module {
     // Reactive flows for purchase orchestration
     single(named("purchaseRequests")) { MutableSharedFlow<PurchaseRequest>() }
     single(named("restoreRequests")) { MutableSharedFlow<RestoreRequest>() }
-    single(named("transactionResult")) { MutableSharedFlow<TransactionResult>() }
     single(named("appScope")) { CoroutineScope(SupervisorJob() + Dispatchers.Main) }
-    // TODO: Task 4 will update PurchaseManager wiring with reactive flows
-    // single { PurchaseManager(androidContext(), get()) }
+    single {
+        PurchaseManager(
+            billingClientFactory = { listener ->
+                BillingClient.newBuilder(androidContext())
+                    .setListener(listener)
+                    .enablePendingPurchases()
+                    .build()
+            },
+            purchaseRequests = get(named("purchaseRequests")),
+            restoreRequests = get(named("restoreRequests")),
+            scope = get(named("appScope"))
+        )
+    }
     single {
         PurchaselyWrapper(
             premiumManager = get(),
             runningModeRepo = get(),
             purchaseRequests = get(named("purchaseRequests")),
             restoreRequests = get(named("restoreRequests")),
-            transactionResult = get(named("transactionResult")),
+            transactionResult = get<PurchaseManager>().transactionResult,
             scope = get(named("appScope"))
         )
     }

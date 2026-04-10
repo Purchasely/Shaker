@@ -33,7 +33,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,9 +55,9 @@ fun DetailScreen(
     onBack: () -> Unit,
     viewModel: DetailViewModel = koinViewModel { parametersOf(cocktailId) }
 ) {
-    val cocktail by viewModel.cocktail.collectAsState()
-    val isPremium by viewModel.isPremium.collectAsState()
-    val favoriteIds by viewModel.favoriteIds.collectAsState()
+    val cocktail by viewModel.cocktail.collectAsStateWithLifecycle()
+    val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
+    val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val isFavorite = favoriteIds.contains(cocktailId)
     val context = LocalContext.current
 

@@ -135,6 +135,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             if PurchaselySDKMode.current() == .paywallObserver {
                 if let productId = parameters?.plan?.appleProductId {
                     if #available(iOS 15.0, *) {
+                        pendingProcessAction?(false)
                         pendingProcessAction = processAction
                         PurchaseManager.shared.purchaseSubject.send(PurchaseRequest(productId: productId))
                     } else {
@@ -150,6 +151,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         case .restore:
             if PurchaselySDKMode.current() == .paywallObserver {
                 if #available(iOS 15.0, *) {
+                    pendingProcessAction?(false)
                     pendingProcessAction = processAction
                     PurchaseManager.shared.restoreSubject.send()
                 } else {

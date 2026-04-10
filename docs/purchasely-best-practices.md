@@ -32,7 +32,7 @@ The only exception is `PremiumManager`, which directly calls `userSubscriptions`
 | **Consent** | `revokeDataProcessingConsent()` |
 | **Info** | `sdkVersion`, `isDeeplinkHandled()` |
 
-**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature`, `LogLevel`/`PLYLogger.PLYLogLevel` — these are enums/types needed for configuration, not SDK call points.
+**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `PLYPresentationInfo`, `PLYPresentationActionParameters`, `PLYPresentation`, `PLYPresentationViewController`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature`, `LogLevel`/`PLYLogger.PLYLogLevel` — these are enums/types needed for configuration, interceptor logic, and presentation handling. They are not SDK call points.
 
 ---
 
@@ -84,7 +84,7 @@ struct PurchaseRequest { let productId: String }
 enum TransactionResult { case success, cancelled, error(String?), idle }
 ```
 
-**processAction callback:** The wrapper stores a single `pendingProcessAction: ((Boolean) -> Unit)?` when emitting a purchase/restore request. When TransactionResult arrives, it invokes the callback and nullifies it. Only one purchase at a time (paywall flow is sequential).
+**processAction callback:** The wrapper stores a single `pendingProcessAction: ((Boolean) -> Unit)?` when emitting a purchase/restore request. When TransactionResult arrives, it invokes the callback and nullifies it. **Race guard:** Before storing a new `pendingProcessAction`, the wrapper cancels any existing one by calling `pendingProcessAction?.invoke(false)` — this prevents a second interceptor action from silently overwriting and orphaning the first callback.
 
 **Interceptor rules:**
 
@@ -122,7 +122,7 @@ The wrapper internally configures:
 5. Combine/Flow subscriptions for Observer purchase flow
 
 **Restart:** When the SDK mode changes, `wrapper.restart()` is called:
-- **Android:** `SettingsViewModel` calls `purchaselyWrapper.restart()` directly
+- **Android:** `SettingsViewModel` calls `purchaselyWrapper.restart()` directly. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection.
 - **iOS:** `SettingsViewModel` posts `.purchaselySdkModeDidChange` notification, wrapper observes it and calls `restart()` internally
 
 ---
@@ -147,14 +147,12 @@ suspend fun loadPresentation(placementId: String): FetchResult {
 }
 
 // For modal display
-suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult {
-    // Uses presentation.display(activity) { result, plan -> } internally
-}
+suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult
+func display(presentation: PLYPresentation, from viewController: UIViewController?)  // iOS
 
 // For inline/embedded display
-fun getView(presentation: PLYPresentation, context: Context, onResult): View? {
-    // Uses presentation.buildView(context, callback) internally
-}
+fun getView(presentation: PLYPresentation, context: Context, onResult): View?                // Android
+func getController(presentation: PLYPresentation) -> PLYPresentationViewController?          // iOS
 ```
 
 ---
@@ -210,7 +208,7 @@ private fun prefetchPresentations() {
 
 ```kotlin
 // In Screen — only render when prefetch succeeded
-val inlineResult by viewModel.inlinePresentation.collectAsState()
+val inlineResult by viewModel.inlinePresentation.collectAsStateWithLifecycle()
 if (inlineResult is FetchResult.Success) {
     val heightModifier = if (inlineResult.height > 0) {
         Modifier.height(inlineResult.height.dp)
@@ -354,4 +352,5 @@ Always handle all `FetchResult` variants:
 - [ ] PurchaseManager has zero Purchasely/SDK imports
 - [ ] Login/logout, restore, consent, synchronize go through wrapper in ViewModels
 - [ ] SDK types (PLYRunningMode, PLYDataProcessingPurpose, etc.) are tolerated as direct imports
+- [ ] Android Screens use `collectAsStateWithLifecycle()` (not `collectAsState()`) for lifecycle-aware collection
 - [ ] Tests use MockPurchaselyWrapper (iOS) or mockk (Android) — never the real SDK

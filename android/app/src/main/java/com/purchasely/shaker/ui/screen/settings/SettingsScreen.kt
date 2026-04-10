@@ -32,7 +32,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -51,20 +51,20 @@ import org.koin.androidx.compose.koinViewModel
 fun SettingsScreen(
     viewModel: SettingsViewModel = koinViewModel()
 ) {
-    val userId by viewModel.userId.collectAsState()
-    val isPremium by viewModel.isPremium.collectAsState()
-    val restoreMessage by viewModel.restoreMessage.collectAsState()
-    val themeMode by viewModel.themeMode.collectAsState()
-    val sdkMode by viewModel.sdkMode.collectAsState()
+    val userId by viewModel.userId.collectAsStateWithLifecycle()
+    val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
+    val restoreMessage by viewModel.restoreMessage.collectAsStateWithLifecycle()
+    val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
+    val sdkMode by viewModel.sdkMode.collectAsStateWithLifecycle()
 
-    val analyticsConsent by viewModel.analyticsConsent.collectAsState()
-    val identifiedAnalyticsConsent by viewModel.identifiedAnalyticsConsent.collectAsState()
-    val personalizationConsent by viewModel.personalizationConsent.collectAsState()
-    val campaignsConsent by viewModel.campaignsConsent.collectAsState()
-    val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsState()
-    val runningMode by viewModel.runningMode.collectAsState()
-    val anonymousId by viewModel.anonymousId.collectAsState()
-    val displayMode by viewModel.displayMode.collectAsState()
+    val analyticsConsent by viewModel.analyticsConsent.collectAsStateWithLifecycle()
+    val identifiedAnalyticsConsent by viewModel.identifiedAnalyticsConsent.collectAsStateWithLifecycle()
+    val personalizationConsent by viewModel.personalizationConsent.collectAsStateWithLifecycle()
+    val campaignsConsent by viewModel.campaignsConsent.collectAsStateWithLifecycle()
+    val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsStateWithLifecycle()
+    val runningMode by viewModel.runningMode.collectAsStateWithLifecycle()
+    val anonymousId by viewModel.anonymousId.collectAsStateWithLifecycle()
+    val displayMode by viewModel.displayMode.collectAsStateWithLifecycle()
     val clipboardManager: ClipboardManager = LocalClipboardManager.current
     val context = LocalContext.current
     var loginInput by remember { mutableStateOf("") }
