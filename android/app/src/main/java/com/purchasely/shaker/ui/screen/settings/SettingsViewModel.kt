@@ -6,7 +6,6 @@ import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.purchasely.shaker.ShakerApp
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
@@ -239,13 +238,7 @@ class SettingsViewModel(
     }
 
     private fun restartPurchaselySdk(mode: PurchaselySdkMode) {
-        val app = context.applicationContext as? ShakerApp
-        if (app == null) {
-            Log.e(TAG, "[Shaker] Could not restart SDK: application context is not ShakerApp")
-            return
-        }
-
-        app.restartPurchaselySdk()
+        purchaselyWrapper.restart()
         Log.d(TAG, "[Shaker] SDK restarted with mode ${mode.storageValue}")
     }
 
