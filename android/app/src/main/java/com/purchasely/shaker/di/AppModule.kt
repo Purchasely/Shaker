@@ -5,7 +5,7 @@ import com.purchasely.shaker.data.FavoritesRepository
 import com.purchasely.shaker.data.OnboardingRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
-import com.purchasely.shaker.data.purchase.PurchaseManager
+// import com.purchasely.shaker.data.purchase.PurchaseManager // TODO: Task 4 will re-enable
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
@@ -21,7 +21,8 @@ val appModule = module {
     single { OnboardingRepository(androidContext()) }
     single { RunningModeRepository(androidContext()) }
     single { PremiumManager() }
-    single { PurchaseManager(androidContext(), get()) }
+    // TODO: Task 4 will update PurchaseManager wiring with reactive flows
+    // single { PurchaseManager(androidContext(), get()) }
     single { PurchaselyWrapper() }
     viewModel { HomeViewModel(get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }

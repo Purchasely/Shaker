@@ -4,9 +4,8 @@ import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
-import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
-import com.purchasely.shaker.data.purchase.PurchaseManager
+import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.di.appModule
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import io.purchasely.ext.EventListener
@@ -99,12 +98,8 @@ class ShakerApp : Application() {
                         val offerToken = offer?.offerToken
                         val activity = info?.activity
                         if (activity != null && productId != null && offerToken != null) {
-                            val purchaseManager: PurchaseManager by inject()
-                            val premiumManager: PremiumManager by inject()
-                            purchaseManager.purchase(activity, productId, offerToken) { success ->
-                                if (success) premiumManager.refreshPremiumStatus()
-                                proceed(false)
-                            }
+                            // TODO: Task 5 will update to use reactive flows
+                            proceed(false)
                         } else {
                             Log.w(TAG, "[Shaker] Observer mode purchase: missing activity, productId, or offerToken")
                             proceed(false)
@@ -117,12 +112,8 @@ class ShakerApp : Application() {
                 // in Full mode, let the SDK handle restore
                 PLYPresentationAction.RESTORE -> {
                     if (getSdkModeFromStorage() == PurchaselySdkMode.PAYWALL_OBSERVER) {
-                        val purchaseManager: PurchaseManager by inject()
-                        val premiumManager: PremiumManager by inject()
-                        purchaseManager.restore { success ->
-                            if (success) premiumManager.refreshPremiumStatus()
-                            proceed(false)
-                        }
+                        // TODO: Task 5 will update to use reactive flows
+                        proceed(false)
                     } else {
                         proceed(true)
                     }
