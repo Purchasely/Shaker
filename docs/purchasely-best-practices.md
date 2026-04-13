@@ -22,7 +22,9 @@ The only exception is `PremiumManager`, which directly calls `userSubscriptions`
 
 | Category | Methods |
 |----------|---------|
-| **Init** | `start()`, `close()`, `setPaywallActionsInterceptor()`, `setEventListener/Delegate()`, `readyToOpenDeeplink()` |
+| **Init & Lifecycle** | `initialize()`, `restart()`, `close()`, `closeDisplayedPresentation()` |
+| **Interceptor** | Internal paywall actions interceptor (LOGIN, NAVIGATE, PURCHASE, RESTORE) |
+| **Events** | Internal event listener/delegate |
 | **Presentations** | `loadPresentation()`, `display()`, `getView()` (Android) / `getController()` (iOS) |
 | **User Attributes** | `setUserAttribute()`, `incrementUserAttribute()` |
 | **User Management** | `userLogin()`, `userLogout()`, `anonymousUserId` |
@@ -30,11 +32,102 @@ The only exception is `PremiumManager`, which directly calls `userSubscriptions`
 | **Consent** | `revokeDataProcessingConsent()` |
 | **Info** | `sdkVersion`, `isDeeplinkHandled()` |
 
-**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature` — these are enums/types needed for configuration, not SDK call points.
+**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `PLYPresentationInfo`, `PLYPresentationActionParameters`, `PLYPresentation`, `PLYPresentationViewController`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature`, `LogLevel`/`PLYLogger.PLYLogLevel` — these are enums/types needed for configuration, interceptor logic, and presentation handling. They are not SDK call points.
 
 ---
 
-## 2. Presentation Loading: Always fetch then build/display
+## 2. Observer Mode: Reactive Purchase Flow
+
+**Rule: In Observer mode, purchases and restores are decoupled from the SDK via reactive flows. `PurchaseManager` has zero Purchasely imports.**
+
+### Architecture
+
+```
+PurchaselyWrapper                          PurchaseManager
+    │                                           │
+    │ PURCHASE (observer) ──────────────────►   │
+    │   emit PurchaseRequest                     │
+    │                                           │ Native billing
+    │                                           │ (Play Billing / StoreKit 2)
+    │   ◄────────────────────────────────────   │
+    │   TransactionResult                        │
+    │                                           │
+    │ synchronize()                              │
+    │ processAction(false)                       │
+    │ premiumManager.refreshPremiumStatus()      │
+```
+
+**Android (Kotlin):**
+- `SharedFlow<PurchaseRequest>` — wrapper emits, PurchaseManager collects
+- `SharedFlow<RestoreRequest>` — wrapper emits, PurchaseManager collects
+- `SharedFlow<TransactionResult>` — PurchaseManager emits, wrapper collects
+- PurchaseManager takes a `billingClientFactory` lambda (testable, no hardcoded BillingClient)
+
+**iOS (Swift):**
+- `PassthroughSubject<PurchaseRequest, Never>` — wrapper sends, PurchaseManager sinks
+- `PassthroughSubject<Void, Never>` — wrapper sends restore trigger
+- `PassthroughSubject<TransactionResult, Never>` — PurchaseManager sends, wrapper sinks
+- PurchaseManager uses injected closures for `anonymousUserId` and `signPromotionalOffer` (no wrapper reference)
+
+**Types:**
+
+```kotlin
+// Android
+data class PurchaseRequest(val activity: Activity, val productId: String, val offerToken: String)
+data object RestoreRequest
+sealed class TransactionResult { Success, Cancelled, Error(message), Idle }
+```
+
+```swift
+// iOS
+struct PurchaseRequest { let productId: String }
+enum TransactionResult { case success, cancelled, error(String?), idle }
+```
+
+**processAction callback:** The wrapper stores a single `pendingProcessAction: ((Boolean) -> Unit)?` when emitting a purchase/restore request. When TransactionResult arrives, it invokes the callback and nullifies it. **Race guard:** Before storing a new `pendingProcessAction`, the wrapper cancels any existing one by calling `pendingProcessAction?.invoke(false)` — this prevents a second interceptor action from silently overwriting and orphaning the first callback.
+
+**Interceptor rules:**
+
+| Action | Observer mode | Full mode |
+|--------|--------------|-----------|
+| PURCHASE | Store processAction, emit PurchaseRequest | proceed(true) |
+| RESTORE | Store processAction, emit RestoreRequest | proceed(true) |
+| LOGIN | proceed(false) | proceed(false) |
+| NAVIGATE | Open URL, proceed(false) | Open URL, proceed(false) |
+| Other | proceed(true) | proceed(true) |
+
+**TransactionResult handling:**
+
+| Result | Wrapper actions |
+|--------|----------------|
+| Success | synchronize() → processAction(false) → premiumManager.refreshPremiumStatus() |
+| Cancelled | processAction(false) |
+| Error | processAction(false) |
+| Idle | ignore |
+
+---
+
+## 3. SDK Initialization
+
+**Rule: `PurchaselyWrapper.initialize()` is the single entry point for SDK setup. The app entry point (ShakerApp/AppViewModel) only calls `wrapper.initialize()` and handles the ready callback.**
+
+**Android:** `ShakerApp.onCreate()` calls `wrapper.initialize(application, apiKey, logLevel)`
+**iOS:** `AppViewModel.init()` calls `wrapper.initialize(apiKey:, appUserId:, logLevel:, onReady:)`
+
+The wrapper internally configures:
+1. SDK start with API key, running mode, StoreKit settings
+2. Event listener/delegate
+3. Paywall actions interceptor
+4. Deeplink readiness
+5. Combine/Flow subscriptions for Observer purchase flow
+
+**Restart:** When the SDK mode changes, `wrapper.restart()` is called:
+- **Android:** `SettingsViewModel` calls `purchaselyWrapper.restart()` directly. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection.
+- **iOS:** `SettingsViewModel` posts `.purchaselySdkModeDidChange` notification, wrapper observes it and calls `restart()` internally
+
+---
+
+## 4. Presentation Loading: Always fetch then build/display
 
 **Rule: Always use `Purchasely.fetchPresentation()` followed by `presentation.buildView()` or `presentation.display()`. Never use `Purchasely.presentationView()`.**
 
@@ -54,19 +147,17 @@ suspend fun loadPresentation(placementId: String): FetchResult {
 }
 
 // For modal display
-suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult {
-    // Uses presentation.display(activity) { result, plan -> } internally
-}
+suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult
+func display(presentation: PLYPresentation, from viewController: UIViewController?)  // iOS
 
 // For inline/embedded display
-fun getView(presentation: PLYPresentation, context: Context, onResult): View? {
-    // Uses presentation.buildView(context, callback) internally
-}
+fun getView(presentation: PLYPresentation, context: Context, onResult): View?                // Android
+func getController(presentation: PLYPresentation) -> PLYPresentationViewController?          // iOS
 ```
 
 ---
 
-## 3. MVVM Pattern: ViewModel Owns Paywall Logic
+## 5. MVVM Pattern: ViewModel Owns Paywall Logic
 
 **Rule: ViewModels decide when and what to show. Screens only provide the Activity and render the UI.**
 
@@ -111,13 +202,13 @@ private fun prefetchPresentations() {
 
 ---
 
-## 4. EmbeddedScreenBanner: Reusable Inline Paywall
+## 6. EmbeddedScreenBanner: Reusable Inline Paywall
 
 **Rule: Use `EmbeddedScreenBanner` for any inline/embedded paywall display. The presentation must be prefetched by the ViewModel.**
 
 ```kotlin
 // In Screen — only render when prefetch succeeded
-val inlineResult by viewModel.inlinePresentation.collectAsState()
+val inlineResult by viewModel.inlinePresentation.collectAsStateWithLifecycle()
 if (inlineResult is FetchResult.Success) {
     val heightModifier = if (inlineResult.height > 0) {
         Modifier.height(inlineResult.height.dp)
@@ -143,7 +234,7 @@ if (inlineResult is FetchResult.Success) {
 
 ---
 
-## 5. User Attributes
+## 7. User Attributes
 
 **Rule: Set user attributes through `PurchaselyWrapper`, always from the ViewModel layer.**
 
@@ -159,11 +250,11 @@ purchaselyWrapper.setUserAttribute("favorite_spirit", "gin")
 - On preference changes (theme, user ID)
 - Never on every recomposition — only on actual state changes
 
-**Typed overloads:** The wrapper provides `String`, `Boolean`, `Int`, and `Float` overloads matching the SDK.
+**Typed overloads:** The wrapper provides `String`, `Boolean`, `Int`, and `Float`/`Double` overloads matching the SDK.
 
 ---
 
-## 6. Handling Presentation Types
+## 8. Handling Presentation Types
 
 Always handle all `FetchResult` variants:
 
@@ -176,7 +267,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 7. Error Handling
+## 9. Error Handling
 
 - **Never crash on SDK errors.** Log and degrade gracefully.
 - **Never block the UI** waiting for a presentation. Use coroutines/async-await and show content immediately.
@@ -185,7 +276,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 8. Async: Native Async Patterns
+## 10. Async: Native Async Patterns
 
 **Rule: Use the platform's native async pattern. Only use callbacks when the SDK doesn't provide an alternative.**
 
@@ -201,11 +292,28 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 9. Platform-Specific Notes
+## 11. Testability
+
+**Rule: All Purchasely integration code must be testable. ViewModels use dependency injection for the wrapper.**
+
+**Protocol (iOS):** `PurchaselyWrapping` protocol abstracts the wrapper. ViewModels accept `PurchaselyWrapping` via init with default `PurchaselyWrapper.shared`. Tests inject `MockPurchaselyWrapper`.
+
+**Mocking (Android):** `PurchaselyWrapper` is injected via Koin constructor. Tests use MockK to mock it with `mockk<PurchaselyWrapper>(relaxed = true)`.
+
+**PurchaseManager testability:**
+- **Android:** Constructor takes `billingClientFactory: (PurchasesUpdatedListener) -> BillingClient` — tests inject a mock BillingClient
+- **iOS:** Uses injected closures (`anonymousUserIdProvider`, `signPromotionalOfferProvider`) instead of direct wrapper access
+
+**Repository testability (iOS):** `FavoritesRepository`, `OnboardingRepository` accept custom `UserDefaults` for test isolation. `CocktailRepository` accepts a `[Cocktail]` array for test data.
+
+---
+
+## 12. Platform-Specific Notes
 
 ### Android (Kotlin / Jetpack Compose)
 
-- `PurchaselyWrapper` is a Koin singleton (`single { PurchaselyWrapper() }`)
+- `PurchaselyWrapper` is a Koin singleton with DI constructor: `PurchaselyWrapper(premiumManager, runningModeRepo, purchaseRequests, restoreRequests, transactionResult, scope)`
+- `ShakerApp.onCreate()` calls `wrapper.initialize(application, apiKey, logLevel)` — nothing else
 - ViewModels inject it via constructor: `class HomeViewModel(..., private val purchaselyWrapper: PurchaselyWrapper)`
 - `EmbeddedScreenBanner` uses `koinInject()` for DI in Composables
 - `display()` requires an `Activity` — passed from Screen to ViewModel on-demand
@@ -213,16 +321,17 @@ Always handle all `FetchResult` variants:
 
 ### iOS (SwiftUI)
 
-- `PurchaselyWrapper` is a Swift singleton (`PurchaselyWrapper.shared`)
-- ViewModels access it directly: `private let wrapper = PurchaselyWrapper.shared`
+- `PurchaselyWrapper` is a Swift singleton (`PurchaselyWrapper.shared`) conforming to `PurchaselyWrapping`
+- `AppViewModel.init()` calls `wrapper.initialize(apiKey:, appUserId:, logLevel:, onReady:)` — nothing else
+- ViewModels accept `PurchaselyWrapping` via init with default `.shared`
 - Async operations use Swift `async/await` (`withCheckedContinuation` to bridge callbacks)
-- `loadPresentation()` is `async` and takes an `onResult` callback for purchase/dismiss events (bound at fetch time via `fetchPresentation(for:, fetchCompletion:, completion:)`)
-- `display()` is synchronous — calls `presentation.display(from: viewController)` on main thread; result comes through the `onResult` callback from `loadPresentation`
+- `loadPresentation()` is `async` and takes an `onResult` callback for purchase/dismiss events
+- `display()` is synchronous — calls `presentation.display(from: viewController)` on main thread
 - `getController()` returns `PLYPresentationViewController?` for embedding via `UIViewControllerRepresentable`
 - `EmbeddedScreenBanner` is a `UIViewControllerRepresentable` wrapping the presentation's controller
-- Screen resolves a `UIViewController` via `ViewControllerResolver` (background helper) for modal display
+- Screen resolves a `UIViewController` via `ViewControllerResolver` for modal display
 - `presentation.height` is in points (use as `CGFloat` directly in `.frame(height:)`)
-- Prefetch is triggered from `onAppear` since `@StateObject` init doesn't have access to `@EnvironmentObject` (premium status)
+- Prefetch is triggered from `onAppear` since `@StateObject` init doesn't have access to `@EnvironmentObject`
 
 ---
 
@@ -238,6 +347,10 @@ Always handle all `FetchResult` variants:
 - [ ] Embedded paywalls: ViewModel prefetches, Screen uses `EmbeddedScreenBanner` with prefetched result/controller
 - [ ] Uses `presentation.height` (dp/points) for embedded view sizing
 - [ ] No crashes on SDK errors — nothing shown if fetch fails
-- [ ] SDK init, interceptor, events, deeplinks go through wrapper in App class
+- [ ] SDK init and interceptor are in PurchaselyWrapper.initialize() — NOT in App class
+- [ ] Observer mode purchases flow through PurchaseManager via reactive subjects (not direct wrapper calls)
+- [ ] PurchaseManager has zero Purchasely/SDK imports
 - [ ] Login/logout, restore, consent, synchronize go through wrapper in ViewModels
 - [ ] SDK types (PLYRunningMode, PLYDataProcessingPurpose, etc.) are tolerated as direct imports
+- [ ] Android Screens use `collectAsStateWithLifecycle()` (not `collectAsState()`) for lifecycle-aware collection
+- [ ] Tests use MockPurchaselyWrapper (iOS) or mockk (Android) — never the real SDK

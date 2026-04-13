@@ -22,7 +22,8 @@ class SettingsViewModel: ObservableObject {
     // Prefetched onboarding presentation
     @Published var onboardingFetchResult: FetchResult?
 
-    private let wrapper = PurchaselyWrapper.shared
+    private let wrapper: PurchaselyWrapping
+    private let defaults: UserDefaults
 
     private let userIdKey = "user_id"
     private let themeKey = "theme_mode"
@@ -35,20 +36,22 @@ class SettingsViewModel: ObservableObject {
 
     var sdkVersion: String { wrapper.sdkVersion }
 
-    init() {
-        userId = UserDefaults.standard.string(forKey: userIdKey)
-        themeMode = UserDefaults.standard.string(forKey: themeKey) ?? "system"
+    init(wrapper: PurchaselyWrapping = PurchaselyWrapper.shared,
+         defaults: UserDefaults = .standard) {
+        self.wrapper = wrapper
+        self.defaults = defaults
+        userId = defaults.string(forKey: userIdKey)
+        themeMode = defaults.string(forKey: themeKey) ?? "system"
         sdkMode = PurchaselySDKMode.current()
         sdkModeRestartMessage = nil
 
-        let defaults = UserDefaults.standard
         analyticsConsent = defaults.object(forKey: consentAnalyticsKey) == nil ? true : defaults.bool(forKey: consentAnalyticsKey)
         identifiedAnalyticsConsent = defaults.object(forKey: consentIdentifiedAnalyticsKey) == nil ? true : defaults.bool(forKey: consentIdentifiedAnalyticsKey)
         personalizationConsent = defaults.object(forKey: consentPersonalizationKey) == nil ? true : defaults.bool(forKey: consentPersonalizationKey)
         campaignsConsent = defaults.object(forKey: consentCampaignsKey) == nil ? true : defaults.bool(forKey: consentCampaignsKey)
         thirdPartyConsent = defaults.object(forKey: consentThirdPartyKey) == nil ? true : defaults.bool(forKey: consentThirdPartyKey)
         runningMode = RunningModeRepository.shared.isObserverMode ? "observer" : "full"
-        displayMode = UserDefaults.standard.string(forKey: displayModeKey) ?? "fullscreen"
+        displayMode = defaults.string(forKey: displayModeKey) ?? "fullscreen"
 
         applyConsentPreferences()
         anonymousId = wrapper.anonymousUserId
@@ -83,14 +86,14 @@ class SettingsViewModel: ObservableObject {
         }
 
         self.userId = userId
-        UserDefaults.standard.set(userId, forKey: userIdKey)
+        defaults.set(userId, forKey: userIdKey)
         wrapper.setUserAttribute(userId, forKey: "user_id")
     }
 
     func logout() {
         wrapper.userLogout()
         userId = nil
-        UserDefaults.standard.removeObject(forKey: userIdKey)
+        defaults.removeObject(forKey: userIdKey)
         PremiumManager.shared.refreshPremiumStatus()
         print("[Shaker] Logged out")
     }
@@ -120,7 +123,7 @@ class SettingsViewModel: ObservableObject {
 
     func setThemeMode(_ mode: String) {
         themeMode = mode
-        UserDefaults.standard.set(mode, forKey: themeKey)
+        defaults.set(mode, forKey: themeKey)
         wrapper.setUserAttribute(mode, forKey: "app_theme")
     }
 
@@ -141,31 +144,31 @@ class SettingsViewModel: ObservableObject {
 
     func setAnalyticsConsent(_ enabled: Bool) {
         analyticsConsent = enabled
-        UserDefaults.standard.set(enabled, forKey: consentAnalyticsKey)
+        defaults.set(enabled, forKey: consentAnalyticsKey)
         applyConsentPreferences()
     }
 
     func setIdentifiedAnalyticsConsent(_ enabled: Bool) {
         identifiedAnalyticsConsent = enabled
-        UserDefaults.standard.set(enabled, forKey: consentIdentifiedAnalyticsKey)
+        defaults.set(enabled, forKey: consentIdentifiedAnalyticsKey)
         applyConsentPreferences()
     }
 
     func setPersonalizationConsent(_ enabled: Bool) {
         personalizationConsent = enabled
-        UserDefaults.standard.set(enabled, forKey: consentPersonalizationKey)
+        defaults.set(enabled, forKey: consentPersonalizationKey)
         applyConsentPreferences()
     }
 
     func setCampaignsConsent(_ enabled: Bool) {
         campaignsConsent = enabled
-        UserDefaults.standard.set(enabled, forKey: consentCampaignsKey)
+        defaults.set(enabled, forKey: consentCampaignsKey)
         applyConsentPreferences()
     }
 
     func setThirdPartyConsent(_ enabled: Bool) {
         thirdPartyConsent = enabled
-        UserDefaults.standard.set(enabled, forKey: consentThirdPartyKey)
+        defaults.set(enabled, forKey: consentThirdPartyKey)
         applyConsentPreferences()
     }
 
@@ -177,7 +180,7 @@ class SettingsViewModel: ObservableObject {
 
     func setDisplayMode(_ mode: String) {
         displayMode = mode
-        UserDefaults.standard.set(mode, forKey: displayModeKey)
+        defaults.set(mode, forKey: displayModeKey)
         print("[Shaker] Display mode changed to: \(mode)")
     }
 

@@ -6,13 +6,23 @@ class OnboardingRepository: ObservableObject {
 
     @Published var isOnboardingCompleted: Bool {
         didSet {
-            UserDefaults.standard.set(isOnboardingCompleted, forKey: key)
+            defaults.set(isOnboardingCompleted, forKey: key)
         }
     }
 
-    private let key = "onboarding_completed"
+    private let defaults: UserDefaults
+    private let key: String
 
     private init() {
-        isOnboardingCompleted = UserDefaults.standard.bool(forKey: key)
+        self.defaults = .standard
+        self.key = "onboarding_completed"
+        isOnboardingCompleted = defaults.bool(forKey: key)
+    }
+
+    /// For testing: create a repository with a custom UserDefaults suite
+    init(defaults: UserDefaults, key: String = "onboarding_completed") {
+        self.defaults = defaults
+        self.key = key
+        isOnboardingCompleted = defaults.bool(forKey: key)
     }
 }

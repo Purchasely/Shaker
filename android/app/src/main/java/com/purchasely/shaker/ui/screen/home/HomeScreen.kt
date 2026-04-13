@@ -38,7 +38,7 @@ import androidx.compose.material3.SearchBarDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,11 +60,11 @@ fun HomeScreen(
     onCocktailClick: (String) -> Unit,
     viewModel: HomeViewModel = koinViewModel()
 ) {
-    val cocktails by viewModel.cocktails.collectAsState()
-    val searchQuery by viewModel.searchQuery.collectAsState()
-    val isPremium by viewModel.isPremium.collectAsState()
-    val isFiltersLoading by viewModel.isFiltersLoading.collectAsState()
-    val inlinePresentation by viewModel.inlinePresentation.collectAsState()
+    val cocktails by viewModel.cocktails.collectAsStateWithLifecycle()
+    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
+    val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
+    val isFiltersLoading by viewModel.isFiltersLoading.collectAsStateWithLifecycle()
+    val inlinePresentation by viewModel.inlinePresentation.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showFilterSheet by remember { mutableStateOf(false) }
 

@@ -6,10 +6,20 @@ class FavoritesRepository: ObservableObject {
 
     @Published var favoriteIds: Set<String> = []
 
-    private let defaults = UserDefaults.standard
-    private let key = "favorite_cocktail_ids"
+    private let defaults: UserDefaults
+    private let key: String
 
     private init() {
+        self.defaults = .standard
+        self.key = "favorite_cocktail_ids"
+        let saved = defaults.stringArray(forKey: key) ?? []
+        favoriteIds = Set(saved)
+    }
+
+    /// For testing: create a repository with a custom UserDefaults suite
+    init(defaults: UserDefaults, key: String = "favorite_cocktail_ids") {
+        self.defaults = defaults
+        self.key = key
         let saved = defaults.stringArray(forKey: key) ?? []
         favoriteIds = Set(saved)
     }

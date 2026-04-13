@@ -36,5 +36,19 @@ targets:
         Release:
           SWIFT_OPTIMIZATION_LEVEL: -O
     scheme:
-      testTargets: []
-      gatherCoverageData: false
+      testTargets:
+        - ShakerTests
+      gatherCoverageData: true
+  ShakerTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ShakerTests
+        excludes:
+          - "**/.DS_Store"
+    dependencies:
+      - target: Shaker
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.purchasely.shaker.tests
+        GENERATE_INFOPLIST_FILE: "YES"

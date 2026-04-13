@@ -17,8 +17,8 @@ class HomeViewModel: ObservableObject {
     @Published var filtersPresentation: FetchResult?
     @Published var isFiltersLoading = false
 
-    private let repository = CocktailRepository.shared
-    private let wrapper = PurchaselyWrapper.shared
+    private let repository: CocktailRepository
+    private let wrapper: PurchaselyWrapping
     private var cancellables = Set<AnyCancellable>()
 
     var availableSpirits: [String] { repository.spirits() }
@@ -40,7 +40,10 @@ class HomeViewModel: ObservableObject {
         inlinePresentation?.height ?? 0
     }
 
-    init() {
+    init(repository: CocktailRepository = .shared,
+         wrapper: PurchaselyWrapping = PurchaselyWrapper.shared) {
+        self.repository = repository
+        self.wrapper = wrapper
         let allCocktails = repository.allCocktails()
 
         Publishers.CombineLatest4(

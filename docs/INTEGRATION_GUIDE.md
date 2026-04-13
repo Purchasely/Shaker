@@ -2,19 +2,22 @@
 
 > This guide walks through every Purchasely SDK feature demonstrated in the Shaker sample app.
 > Code snippets are taken directly from the app — see the referenced files for full context.
+>
+> **Architecture note:** Shaker wraps all SDK calls in `PurchaselyWrapper`. ViewModels and Screens never import the Purchasely SDK directly. See `docs/purchasely-best-practices.md` for the full architecture rationale.
 
 ## Table of Contents
 
 1. [SDK Initialization](#1-sdk-initialization)
 2. [Displaying Paywalls](#2-displaying-paywalls)
 3. [Paywall Actions Interceptor](#3-paywall-actions-interceptor)
-4. [User Authentication](#4-user-authentication)
-5. [Subscription Status](#5-subscription-status)
-6. [User Attributes](#6-user-attributes)
-7. [Events & Analytics](#7-events--analytics)
-8. [Deeplinks](#8-deeplinks)
-9. [GDPR & Privacy](#9-gdpr--privacy)
-10. [Restore Purchases](#10-restore-purchases)
+4. [Observer Mode: Native Purchase Flow](#4-observer-mode-native-purchase-flow)
+5. [User Authentication](#5-user-authentication)
+6. [Subscription Status](#6-subscription-status)
+7. [User Attributes](#7-user-attributes)
+8. [Events & Analytics](#8-events--analytics)
+9. [Deeplinks](#9-deeplinks)
+10. [GDPR & Privacy](#10-gdpr--privacy)
+11. [Restore Purchases](#11-restore-purchases)
 
 ---
 
@@ -22,24 +25,37 @@
 
 **What it does:** Bootstraps the Purchasely SDK at app launch — configures the API key, running mode, store adapters, and log level. No other SDK method may be called before `start()` completes successfully.
 
+**Architecture:** `PurchaselyWrapper.initialize()` owns the entire init: SDK start, event listener, paywall actions interceptor, and deeplink readiness. The app entry point just calls `initialize()`.
+
 ### Android (Kotlin)
 
 Source: `android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt`
 
 ```kotlin
-Purchasely.Builder(this)
-    .apiKey("YOUR_API_KEY")
-    .logLevel(LogLevel.DEBUG)
+// ShakerApp.onCreate() — just Koin init + wrapper.initialize()
+val purchaselyWrapper: PurchaselyWrapper by inject()
+purchaselyWrapper.initialize(
+    application = this,
+    apiKey = BuildConfig.PURCHASELY_API_KEY,
+    logLevel = if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN
+)
+```
+
+Inside `PurchaselyWrapper.initialize()`:
+
+```kotlin
+Purchasely.Builder(application)
+    .apiKey(apiKey)
+    .logLevel(logLevel)
     .readyToOpenDeeplink(true)
-    .runningMode(PLYRunningMode.Full)
+    .runningMode(runningModeRepo.runningMode)
     .stores(listOf(GoogleStore()))
     .build()
     .start { isConfigured, error ->
-        if (isConfigured) {
-            premiumManager.refreshPremiumStatus()
-        }
-        error?.let { Log.e(TAG, "SDK error: ${it.message}") }
+        if (isConfigured) premiumManager.refreshPremiumStatus()
     }
+
+// Event listener and interceptor also configured here
 ```
 
 ### iOS (Swift)
@@ -47,22 +63,33 @@ Purchasely.Builder(this)
 Source: `ios/Shaker/AppViewModel.swift`
 
 ```swift
-Purchasely.start(
-    withAPIKey: "YOUR_API_KEY",
-    appUserId: nil,
-    runningMode: .full,
-    storekitSettings: .storeKit2,
-    logLevel: .debug
+// AppViewModel.init() — just wrapper.initialize() + isSDKReady tracking
+wrapper.initialize(
+    apiKey: resolvedApiKey,
+    appUserId: storedUserId,
+    logLevel: sdkLogLevel
 ) { [weak self] success, error in
     DispatchQueue.main.async {
         self?.isSDKReady = success
-        if success {
-            PremiumManager.shared.refreshPremiumStatus()
-        }
+        self?.sdkError = success ? nil : error?.localizedDescription
     }
 }
+```
 
+Inside `PurchaselyWrapper.initialize()`:
+
+```swift
+Purchasely.start(withAPIKey: apiKey, appUserId: appUserId,
+                  runningMode: selectedMode.runningMode,
+                  storekitSettings: .storeKit2, logLevel: logLevel) { success, error in
+    if success { PremiumManager.shared.refreshPremiumStatus() }
+    onReady(success, error)
+}
 Purchasely.readyToOpenDeeplink(true)
+Purchasely.setEventDelegate(self)
+Purchasely.setPaywallActionsInterceptor { [weak self] action, params, info, proceed in
+    self?.handlePaywallAction(action: action, parameters: params, info: info, processAction: proceed)
+}
 ```
 
 ### Console Setup
@@ -74,13 +101,14 @@ Purchasely.readyToOpenDeeplink(true)
 ### Common Pitfalls
 
 - `start()` is **asynchronous**. Calling `userSubscriptions()`, `fetchPresentation()`, or any other SDK method before the completion fires will produce unexpected results.
-- On Android, call `start()` inside `Application.onCreate()`, not inside an Activity, so the SDK is ready before any screen is shown.
+- On Android, call `initialize()` inside `Application.onCreate()`, not inside an Activity.
+- The wrapper's `restart()` method re-initializes the SDK when the running mode changes (Full ↔ Observer).
 
 ---
 
 ## 2. Displaying Paywalls
 
-**What it does:** The `fetchPresentation()` + `display()` two-step pattern fetches a paywall configured in the Purchasely Console for a given **placement**, then renders it modally. A `contentId` can be passed to personalise the paywall for a specific content item (e.g. a cocktail recipe).
+**What it does:** The `loadPresentation()` + `display()` two-step pattern fetches a paywall configured in the Purchasely Console for a given **placement**, then renders it modally. A `contentId` can be passed to personalise the paywall for a specific content item (e.g. a cocktail recipe).
 
 Shaker uses four placements:
 
@@ -91,78 +119,59 @@ Shaker uses four placements:
 | `favorites`     | Tapping the favorites heart when not premium |
 | `filters`       | Tapping the filter button when not premium|
 
-### Android (Kotlin) — basic placement
+### Android (Kotlin) — via PurchaselyWrapper
 
-Source: `android/app/src/main/java/com/purchasely/shaker/ui/screen/home/HomeScreen.kt`
+Source: `android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt`
 
 ```kotlin
-Purchasely.fetchPresentation("filters") { presentation, error ->
-    if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-        presentation.display(activity) { result, plan ->
-            when (result) {
-                PLYProductViewResult.PURCHASED,
-                PLYProductViewResult.RESTORED -> premiumManager.refreshPremiumStatus()
-                else -> {}
-            }
-        }
-    }
+// Wrapper provides a suspend API returning type-safe FetchResult
+suspend fun loadPresentation(placementId: String, contentId: String? = null): FetchResult
+suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult
+```
+
+ViewModel usage:
+
+```kotlin
+// Prefetch in init
+viewModelScope.launch {
+    _filtersPresentation.value = purchaselyWrapper.loadPresentation("filters")
+}
+
+// Display when user taps
+val presentation = pendingPresentation ?: return
+val result = purchaselyWrapper.display(presentation, activity)
+when (result) {
+    is DisplayResult.Purchased, is DisplayResult.Restored -> premiumManager.refreshPremiumStatus()
+    else -> {}
 }
 ```
 
-### Android (Kotlin) — placement with `contentId`
+### iOS (Swift) — via PurchaselyWrapper
 
-Source: `android/app/src/main/java/com/purchasely/shaker/ui/screen/detail/DetailScreen.kt`
+Source: `ios/Shaker/Purchasely/PurchaselyWrapper.swift`
 
-```kotlin
-val properties = PLYPresentationProperties(contentId = cocktailId)
-Purchasely.fetchPresentation("recipe_detail", properties) { presentation, error ->
-    if (presentation != null && presentation.type != PLYPresentationType.DEACTIVATED) {
-        presentation.display(activity) { result, plan -> /* handle result */ }
-    }
+```swift
+// Wrapper provides async API with onResult callback for purchase events
+@MainActor
+func loadPresentation(placementId: String, contentId: String? = nil,
+                       onResult: @escaping @MainActor (DisplayResult) -> Void) async -> FetchResult
+func display(presentation: PLYPresentation, from viewController: UIViewController?)
+```
+
+ViewModel usage:
+
+```swift
+// Prefetch
+recipeFetchResult = await wrapper.loadPresentation(
+    placementId: "recipe_detail", contentId: cocktailId
+) { result in
+    if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
+    if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }
 }
-```
 
-### iOS (Swift) — basic placement
-
-Source: `ios/Shaker/Screens/Home/HomeScreen.swift`
-
-```swift
-Purchasely.fetchPresentation(
-    for: "filters",
-    fetchCompletion: { presentation, error in
-        guard let presentation = presentation, presentation.type != .deactivated else { return }
-        DispatchQueue.main.async {
-            presentation.display(from: viewController)
-        }
-    },
-    completion: { result, plan in
-        switch result {
-        case .purchased, .restored:
-            PremiumManager.shared.refreshPremiumStatus()
-        default: break
-        }
-    }
-)
-```
-
-### iOS (Swift) — placement with `contentId`
-
-Source: `ios/Shaker/Screens/Detail/DetailViewModel.swift`
-
-```swift
-Purchasely.fetchPresentation(
-    for: "recipe_detail",
-    contentId: cocktailId,
-    fetchCompletion: { presentation, error in
-        guard let presentation = presentation, presentation.type != .deactivated else { return }
-        DispatchQueue.main.async { presentation.display(from: vc) }
-    },
-    completion: { result, plan in
-        if result == .purchased || result == .restored {
-            PremiumManager.shared.refreshPremiumStatus()
-        }
-    }
-)
+// Display
+guard case .success(let presentation) = recipeFetchResult else { return }
+wrapper.display(presentation: presentation, from: viewController)
 ```
 
 ### Console Setup
@@ -173,90 +182,169 @@ Purchasely.fetchPresentation(
 
 ### Common Pitfalls
 
-- Always guard against `presentation.type == .deactivated` (or `PLYPresentationType.DEACTIVATED` on Android). This is the normal state when the placement has no active paywall — treat it as a no-op, not an error.
-- On iOS, `presentation.display(from:)` must be called on the **main thread**. Wrap it in `DispatchQueue.main.async` if `fetchCompletion` fires on a background thread.
-- On Android, pass an `Activity` (not a `Context`) to `presentation.display()`. Cast `LocalContext.current as? Activity` inside Composables.
+- Always handle `FetchResult.Deactivated` (no-op) and `FetchResult.Error` (log, don't crash).
+- On iOS, `presentation.display(from:)` must be called on the **main thread**.
+- On Android, pass an `Activity` (not a `Context`) to `display()`.
 
 ---
 
 ## 3. Paywall Actions Interceptor
 
-**What it does:** Intercepts specific button actions triggered from inside a paywall before they are processed. Use it to implement a custom login flow (`LOGIN` action) or to handle in-paywall navigation links (`NAVIGATE` action). Call `proceed(true)` to let the SDK handle the action, or `proceed(false)` to suppress the default behaviour.
+**What it does:** Intercepts specific button actions triggered from inside a paywall before they are processed. Use it to implement a custom login flow (`LOGIN` action) or to handle in-paywall navigation links (`NAVIGATE` action).
+
+**Architecture:** The interceptor is configured inside `PurchaselyWrapper.initialize()` — it is **not** exposed to ViewModels. The wrapper handles all actions internally.
 
 ### Android (Kotlin)
 
-Source: `android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt`
+Source: `android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt` — `handlePaywallAction()`
 
 ```kotlin
-Purchasely.setPaywallActionsInterceptor { info, action, parameters, proceed ->
+internal fun handlePaywallAction(info, action, parameters, processAction) {
     when (action) {
-        PLYPresentationAction.LOGIN -> {
-            // Dismiss paywall; user navigates to Settings to log in
-            proceed(false)
-        }
+        PLYPresentationAction.LOGIN -> processAction(false)
         PLYPresentationAction.NAVIGATE -> {
-            val url = parameters?.url
-            if (url != null) {
+            parameters?.url?.let { url ->
                 val intent = Intent(Intent.ACTION_VIEW, url)
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                startActivity(intent)
+                application?.startActivity(intent)
             }
-            proceed(false)
+            processAction(false)
         }
-        else -> proceed(true)
+        PLYPresentationAction.PURCHASE -> { /* Observer mode flow — see section 4 */ }
+        PLYPresentationAction.RESTORE -> { /* Observer mode flow — see section 4 */ }
+        else -> processAction(true)
     }
 }
 ```
 
 ### iOS (Swift)
 
-Source: `ios/Shaker/AppViewModel.swift`
+Source: `ios/Shaker/Purchasely/PurchaselyWrapper.swift` — `handlePaywallAction()`
 
 ```swift
-Purchasely.setPaywallActionsInterceptor { action, parameters, info, proceed in
+internal func handlePaywallAction(action, parameters, info, processAction) {
     switch action {
-    case .login:
-        proceed(false)
+    case .login: processAction(false)
     case .navigate:
         if let url = parameters?.url {
             DispatchQueue.main.async { UIApplication.shared.open(url) }
         }
-        proceed(false)
-    default:
-        proceed(true)
+        processAction(false)
+    case .purchase: /* Observer mode flow — see section 4 */
+    case .restore: /* Observer mode flow — see section 4 */
+    default: processAction(true)
     }
 }
 ```
 
-### Console Setup
-
-No special console configuration is required. Add **Login** or **Navigate** buttons to your paywall in the Screen Composer and assign the corresponding action. The interceptor fires automatically when the user taps them.
-
 ### Common Pitfalls
 
-- The interceptor is a global singleton — set it once during SDK initialization, not inside individual screens.
-- Always call `proceed` (either `true` or `false`). Forgetting to call it will leave the paywall in a frozen state.
+- Always call `processAction` (either `true` or `false`). Forgetting to call it will leave the paywall in a frozen state.
+- The interceptor is global — set it once during SDK initialization, not inside individual screens.
 
 ---
 
-## 4. User Authentication
+## 4. Observer Mode: Native Purchase Flow
 
-**What it does:** Associates the current app user with a Purchasely user ID so that subscriptions are correctly attributed and can be restored across devices. `userLogin()` optionally triggers a subscription refresh via the `refresh` callback. `userLogout()` clears the association.
+**What it does:** In Observer mode, the app handles purchases natively (Google Play Billing / StoreKit 2) while Purchasely only observes transactions for analytics and paywall display. Shaker uses a **reactive decoupling** pattern where `PurchaseManager` has zero Purchasely SDK imports.
+
+### Architecture
+
+```
+PurchaselyWrapper                          PurchaseManager
+    │                                           │
+    │ Interceptor receives PURCHASE              │
+    │   → stores processAction callback          │
+    │   → emits PurchaseRequest ──────────────►  │
+    │                                           │ Native billing
+    │   ◄────────────────────────────────────   │
+    │   TransactionResult                        │
+    │                                           │
+    │ synchronize()                              │
+    │ processAction(false)                       │
+    │ premiumManager.refreshPremiumStatus()      │
+```
+
+### Android (Kotlin)
+
+Source: `android/app/src/main/java/com/purchasely/shaker/data/purchase/`
+
+```kotlin
+// Types
+data class PurchaseRequest(val activity: Activity, val productId: String, val offerToken: String)
+data object RestoreRequest
+sealed class TransactionResult { Success, Cancelled, Error(message), Idle }
+
+// PurchaseManager observes SharedFlows (zero Purchasely imports)
+class PurchaseManager(
+    billingClientFactory: (PurchasesUpdatedListener) -> BillingClient,
+    purchaseRequests: SharedFlow<PurchaseRequest>,
+    restoreRequests: SharedFlow<RestoreRequest>,
+    scope: CoroutineScope
+) : PurchasesUpdatedListener {
+    val transactionResult: SharedFlow<TransactionResult>
+    // Collects requests → launches billing → emits results
+}
+
+// PurchaselyWrapper emits requests and observes results
+scope.launch {
+    purchaseRequests.emit(PurchaseRequest(activity, productId, offerToken))
+}
+// Collection starts in init{} and restarts on initialize()/restart():
+private fun startTransactionCollection() {
+    collectionJob?.cancel()
+    collectionJob = scope.launch { transactionResult.collect { handleTransactionResult(it) } }
+}
+```
+
+### iOS (Swift)
+
+Source: `ios/Shaker/Data/purchase/`, `ios/Shaker/Data/PurchaseManager.swift`
+
+```swift
+// Types
+struct PurchaseRequest { let productId: String }
+enum TransactionResult { case success, cancelled, error(String?), idle }
+
+// PurchaseManager uses Combine (zero Purchasely imports)
+class PurchaseManager {
+    var purchaseSubject = PassthroughSubject<PurchaseRequest, Never>()
+    var restoreSubject = PassthroughSubject<Void, Never>()
+    let resultSubject = PassthroughSubject<TransactionResult, Never>()
+    // Sinks requests → executes StoreKit 2 → sends results
+}
+
+// PurchaselyWrapper sends requests and sinks results
+PurchaseManager.shared.purchaseSubject.send(PurchaseRequest(productId: productId))
+// In init:
+PurchaseManager.shared.resultSubject.sink { result in handleTransactionResult(result) }
+```
+
+### Common Pitfalls
+
+- In Observer mode, `synchronize()` must be called after every successful purchase so Purchasely can track it. The wrapper handles this automatically on `TransactionResult.Success`.
+- The `processAction(false)` callback must be called for **every** outcome (success, cancel, error) — otherwise the paywall freezes.
+- `PurchaseManager` must never import or reference the Purchasely SDK — it uses injected closures for `anonymousUserId` and `signPromotionalOffer`.
+
+---
+
+## 5. User Authentication
+
+**What it does:** Associates the current app user with a Purchasely user ID so that subscriptions are correctly attributed and can be restored across devices.
 
 ### Android (Kotlin)
 
 Source: `android/app/src/main/java/com/purchasely/shaker/ui/screen/settings/SettingsViewModel.kt`
 
 ```kotlin
-// Login
-Purchasely.userLogin(userId) { refresh ->
-    if (refresh) {
-        premiumManager.refreshPremiumStatus()
-    }
+// Login — via PurchaselyWrapper
+purchaselyWrapper.userLogin(userId) { refresh ->
+    if (refresh) premiumManager.refreshPremiumStatus()
 }
+purchaselyWrapper.setUserAttribute("user_id", userId)
 
 // Logout
-Purchasely.userLogout()
+purchaselyWrapper.userLogout()
 premiumManager.refreshPremiumStatus()
 ```
 
@@ -265,32 +353,29 @@ premiumManager.refreshPremiumStatus()
 Source: `ios/Shaker/Screens/Settings/SettingsViewModel.swift`
 
 ```swift
-// Login
-Purchasely.userLogin(with: userId) { refresh in
-    if refresh {
-        PremiumManager.shared.refreshPremiumStatus()
-    }
+// Login — via PurchaselyWrapping protocol
+wrapper.userLogin(userId: userId) { refresh in
+    if refresh { PremiumManager.shared.refreshPremiumStatus() }
 }
+wrapper.setUserAttribute(userId, forKey: "user_id")
 
 // Logout
-Purchasely.userLogout()
+wrapper.userLogout()
 PremiumManager.shared.refreshPremiumStatus()
 ```
 
-### Console Setup
-
-No special console configuration is required. User IDs appear in the **Users** tab once `userLogin()` has been called at least once.
-
 ### Common Pitfalls
 
-- The `refresh` flag in the `userLogin` callback indicates that the SDK detected new subscription data for this user. Always call `refreshPremiumStatus()` when `refresh == true`.
-- Call `userLogout()` followed by `refreshPremiumStatus()` so that the local premium state reflects the anonymous (logged-out) state immediately.
+- The `refresh` flag indicates new subscription data — always call `refreshPremiumStatus()` when `refresh == true`.
+- Call `userLogout()` followed by `refreshPremiumStatus()` so the local state reflects the anonymous state.
 
 ---
 
-## 5. Subscription Status
+## 6. Subscription Status
 
-**What it does:** Queries the user's active subscriptions from Purchasely's server. Shaker uses `userSubscriptions()` to determine whether the user is premium, driving paywall gating throughout the app.
+**What it does:** Queries the user's active subscriptions from Purchasely's server. Shaker uses `userSubscriptions()` to determine whether the user is premium.
+
+**Note:** `PremiumManager` is the only class that calls the Purchasely SDK directly — it's already an abstraction layer for subscription status.
 
 ### Android (Kotlin)
 
@@ -304,14 +389,9 @@ Purchasely.userSubscriptions(false, object : SubscriptionsListener {
         }
         _isPremium.value = premium
     }
-
-    override fun onFailure(error: Throwable) {
-        Log.e(TAG, "Error checking premium: ${error.message}")
-    }
+    override fun onFailure(error: Throwable) { /* log error */ }
 })
 ```
-
-The first parameter (`false`) controls cache invalidation. Pass `true` to force a fresh server request.
 
 ### iOS (Swift)
 
@@ -322,20 +402,13 @@ Purchasely.userSubscriptions(
     success: { [weak self] subscriptions in
         let premium = subscriptions?.contains { subscription in
             switch subscription.status {
-            case .autoRenewing, .inGracePeriod, .autoRenewingCanceled, .onHold:
-                return true
-            default:
-                return false
+            case .autoRenewing, .inGracePeriod, .autoRenewingCanceled, .onHold: return true
+            default: return false
             }
         } ?? false
-
-        DispatchQueue.main.async {
-            self?.isPremium = premium
-        }
+        DispatchQueue.main.async { self?.isPremium = premium }
     },
-    failure: { error in
-        print("Error checking premium: \(error.localizedDescription)")
-    }
+    failure: { error in /* log error */ }
 )
 ```
 
@@ -351,53 +424,33 @@ Purchasely.userSubscriptions(
 | `deactivated`           | Expired or manually revoked                  | No       |
 | `revoked`               | Refunded by the store                        | No       |
 
-### Console Setup
-
-Subscription statuses are driven by receipt validation — no manual setup is needed. Ensure your in-app products are configured in the **Products** section of the console and mapped to a Purchasely plan.
-
 ### Common Pitfalls
 
-- On Android, `subscriptionStatus` is **nullable** and `isExpired()` is a **function** (not a property). Use `?.isExpired() == false` rather than `!isExpired`.
-- On iOS, do not treat `autoRenewingCanceled` as non-premium — the user still has access until the billing period ends.
+- On Android, `subscriptionStatus` is **nullable** and `isExpired()` is a **function**. Use `?.isExpired() == false`.
+- On iOS, do not treat `autoRenewingCanceled` as non-premium — the user still has access.
 
 ---
 
-## 6. User Attributes
+## 7. User Attributes
 
-**What it does:** Sends typed key-value attributes to Purchasely for use in audience segmentation, A/B test targeting, and personalisation. Shaker tracks search usage, cocktail view counts, theme preference, and favourite spirit.
+**What it does:** Sends typed key-value attributes to Purchasely for audience segmentation, A/B test targeting, and personalisation.
 
-### Android (Kotlin)
-
-Sources: `SettingsViewModel.kt`, `HomeViewModel.kt`, `DetailViewModel.kt`
+### Android (Kotlin) — via PurchaselyWrapper
 
 ```kotlin
-// String attribute
-Purchasely.setUserAttribute("user_id", userId)
-Purchasely.setUserAttribute("app_theme", "dark")
-Purchasely.setUserAttribute("favorite_spirit", "Rum")
-
-// Boolean attribute
-Purchasely.setUserAttribute("has_used_search", true)
-
-// Increment a counter
-Purchasely.incrementUserAttribute("cocktails_viewed")
+purchaselyWrapper.setUserAttribute("app_theme", "dark")
+purchaselyWrapper.setUserAttribute("has_used_search", true)
+purchaselyWrapper.incrementUserAttribute("cocktails_viewed")
+purchaselyWrapper.setUserAttribute("favorite_spirit", "Rum")
 ```
 
-### iOS (Swift)
-
-Sources: `SettingsViewModel.swift`, `HomeViewModel.swift`, `DetailViewModel.swift`
+### iOS (Swift) — via PurchaselyWrapping protocol
 
 ```swift
-// String attribute
-Purchasely.setUserAttribute(withStringValue: userId, forKey: "user_id")
-Purchasely.setUserAttribute(withStringValue: "dark", forKey: "app_theme")
-Purchasely.setUserAttribute(withStringValue: "Rum", forKey: "favorite_spirit")
-
-// Boolean attribute
-Purchasely.setUserAttribute(withBoolValue: true, forKey: "has_used_search")
-
-// Increment a counter
-Purchasely.incrementUserAttribute(withKey: "cocktails_viewed")
+wrapper.setUserAttribute("dark", forKey: "app_theme")
+wrapper.setUserAttribute(true, forKey: "has_used_search")
+wrapper.incrementUserAttribute(forKey: "cocktails_viewed")
+wrapper.setUserAttribute("Rum", forKey: "favorite_spirit")
 ```
 
 ### Attributes Tracked in Shaker
@@ -410,27 +463,24 @@ Purchasely.incrementUserAttribute(withKey: "cocktails_viewed")
 | `cocktails_viewed`   | Integer | User opens a recipe detail page           |
 | `favorite_spirit`    | String  | User opens a recipe (spirit of the recipe)|
 
-### Console Setup
-
-User attributes are available in **Audiences** for targeting and in the **A/B Test** configuration. No pre-registration is required — attributes are created automatically on first use.
-
 ### Common Pitfalls
 
-- On iOS, the method name varies by type: `withStringValue:`, `withBoolValue:`, `withIntValue:`. There is no single generic method.
-- `incrementUserAttribute` increments from the last known server value — it is not a local counter. Avoid calling it multiple times for the same event in a single session.
+- On iOS, the method name varies by type: `withStringValue:`, `withBoolValue:`, `withIntValue:`. The wrapper unifies this behind `setUserAttribute(_:forKey:)` overloads.
+- `incrementUserAttribute` increments from the last known server value — avoid calling it multiple times for the same event.
 
 ---
 
-## 7. Events & Analytics
+## 8. Events & Analytics
 
-**What it does:** The SDK emits named `PLYEvent` objects at key points in the subscription lifecycle (paywall shown, purchase started, purchase completed, etc.). Register a listener/delegate to log these events or forward them to your analytics stack.
+**What it does:** The SDK emits named `PLYEvent` objects at key points. The event listener/delegate is configured inside `PurchaselyWrapper.initialize()`.
 
 ### Android (Kotlin)
 
-Source: `android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt`
+Source: `android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt`
 
 ```kotlin
-Purchasely.eventListener = object : EventListener {
+// Inside initialize()
+eventListener = object : EventListener {
     override fun onEvent(event: PLYEvent) {
         Log.d(TAG, "Event: ${event.name} | Properties: ${event.properties}")
     }
@@ -439,122 +489,91 @@ Purchasely.eventListener = object : EventListener {
 
 ### iOS (Swift)
 
-Source: `ios/Shaker/AppViewModel.swift`
+Source: `ios/Shaker/Purchasely/PurchaselyWrapper.swift`
 
 ```swift
-// Register during SDK init
+// Inside initialize()
 Purchasely.setEventDelegate(self)
 
-// Implement PLYEventDelegate
-extension AppViewModel: PLYEventDelegate {
+// PurchaselyWrapper conforms to PLYEventDelegate
+extension PurchaselyWrapper: PLYEventDelegate {
     func eventTriggered(_ event: PLYEvent, properties: [String: Any]?) {
         print("Event: \(event.name) | Properties: \(properties ?? [:])")
     }
 }
 ```
 
-Note: the `properties` parameter is **optional** (`[String: Any]?`). Always handle the `nil` case.
-
-### Console Setup
-
-No console configuration is required to receive events. To forward events to third-party analytics tools (Amplitude, Mixpanel, etc.) automatically, configure **Integrations** in the Purchasely Console.
-
 ### Common Pitfalls
 
-- On Android, assign `eventListener` **after** calling `start()` but in the same initialization block — events fired during SDK startup may otherwise be missed.
+- Set the listener **after** `start()` but in the same initialization block.
 - On iOS, `properties` is nullable — do not force-unwrap it.
 
 ---
 
-## 8. Deeplinks
+## 9. Deeplinks
 
-**What it does:** Allows Purchasely paywalls to be opened directly from a URL (e.g. from a push notification, web link, or QR code). `readyToOpenDeeplink(true)` signals that the app is ready to handle deeplinks. `isDeeplinkHandled(deeplink:)` processes an incoming URL and returns `true` if the SDK consumed it.
+**What it does:** Allows Purchasely paywalls to be opened directly from a URL. `readyToOpenDeeplink(true)` is called inside `PurchaselyWrapper.initialize()`.
 
 ### Android (Kotlin)
 
-Source: `android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt`
+Source: `android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt`
 
 ```kotlin
-// During SDK init — enable deeplink handling
-Purchasely.Builder(this)
-    // ...
+// Inside initialize() — readyToOpenDeeplink is configured in the Builder
+Purchasely.Builder(application)
     .readyToOpenDeeplink(true)
-    .build()
-    .start { /* ... */ }
-```
+    // ...
 
-To handle an incoming intent in your Activity:
-
-```kotlin
-val uri: Uri? = intent.data
-if (uri != null) {
-    Purchasely.isDeeplinkHandled(uri)
-}
+// Handle incoming intent via wrapper
+fun isDeeplinkHandled(deeplink: Uri, activity: Activity?): Boolean
 ```
 
 ### iOS (Swift)
 
-Source: `ios/Shaker/ShakerApp.swift`
+Source: `ios/Shaker/Purchasely/PurchaselyWrapper.swift`
 
 ```swift
-// Enable deeplink readiness during SDK init (AppViewModel.swift)
+// Inside initialize()
 Purchasely.readyToOpenDeeplink(true)
 
-// Handle incoming URLs at the app entry point
-WindowGroup {
-    ContentView()
-        .onOpenURL { url in
-            _ = Purchasely.isDeeplinkHandled(deeplink: url)
-        }
-}
+// Handle incoming URL
+@discardableResult
+func isDeeplinkHandled(deeplink: URL) -> Bool
 ```
-
-### Console Setup
-
-1. Go to **Campaigns** or **Push Notifications** and generate a deeplink URL pointing to a specific placement or paywall.
-2. Configure your app's URL scheme (iOS: add it to `Info.plist`; Android: add an `<intent-filter>` in `AndroidManifest.xml`).
 
 ### Common Pitfalls
 
-- `readyToOpenDeeplink(true)` must be called **after** `start()` fires (or at least after the SDK starts initializing). In Shaker it is called in the same `initPurchasely()` block immediately after `start()`.
-- `isDeeplinkHandled` returns a `Bool` — check it if you need to apply your own fallback routing for URLs the SDK did not recognise.
+- `readyToOpenDeeplink(true)` must be called **after** `start()` fires.
+- `isDeeplinkHandled` returns a `Bool` — check it for fallback routing.
 
 ---
 
-## 9. GDPR & Privacy
+## 10. GDPR & Privacy
 
-**What it does:** `revokeDataProcessingConsent(for:)` tells the SDK which data processing purposes the user has opted out of. The SDK stops the corresponding data flows immediately. Shaker exposes five toggles in Settings, one per purpose, persisted to `UserDefaults` / `SharedPreferences`.
+**What it does:** `revokeDataProcessingConsent(for:)` tells the SDK which data processing purposes the user has opted out of. Shaker exposes five toggles in Settings.
 
-### Android (Kotlin)
+### Android (Kotlin) — via PurchaselyWrapper
 
 Source: `android/app/src/main/java/com/purchasely/shaker/ui/screen/settings/SettingsViewModel.kt`
 
 ```kotlin
-private fun applyConsentPreferences() {
-    val revoked = mutableSetOf<PLYDataProcessingPurpose>()
-    if (!analyticsConsent.value)           revoked.add(PLYDataProcessingPurpose.Analytics)
-    if (!identifiedAnalyticsConsent.value) revoked.add(PLYDataProcessingPurpose.IdentifiedAnalytics)
-    if (!personalizationConsent.value)     revoked.add(PLYDataProcessingPurpose.Personalization)
-    if (!campaignsConsent.value)           revoked.add(PLYDataProcessingPurpose.Campaigns)
-    if (!thirdPartyConsent.value)          revoked.add(PLYDataProcessingPurpose.ThirdPartyIntegrations)
-    Purchasely.revokeDataProcessingConsent(revoked)
-}
+val revoked = mutableSetOf<PLYDataProcessingPurpose>()
+if (!analyticsConsent.value) revoked.add(PLYDataProcessingPurpose.Analytics)
+if (!personalizationConsent.value) revoked.add(PLYDataProcessingPurpose.Personalization)
+// ...
+purchaselyWrapper.revokeDataProcessingConsent(revoked)
 ```
 
-### iOS (Swift)
+### iOS (Swift) — via PurchaselyWrapping protocol
 
 Source: `ios/Shaker/Screens/Settings/SettingsViewModel.swift`
 
 ```swift
-private func applyConsentPreferences() {
-    var revoked = Set<PLYDataProcessingPurpose>()
-    if !analyticsConsent           { revoked.insert(.analytics) }
-    if !identifiedAnalyticsConsent { revoked.insert(.identifiedAnalytics) }
-    if !personalizationConsent     { revoked.insert(.personalization) }
-    if !campaignsConsent           { revoked.insert(.campaigns) }
-    if !thirdPartyConsent          { revoked.insert(.thirdPartyIntegrations) }
-    Purchasely.revokeDataProcessingConsent(for: revoked)
-}
+var revoked = Set<PLYDataProcessingPurpose>()
+if !analyticsConsent { revoked.insert(.analytics) }
+if !personalizationConsent { revoked.insert(.personalization) }
+// ...
+wrapper.revokeDataProcessingConsent(for: revoked)
 ```
 
 ### Data Processing Purposes
@@ -567,27 +586,23 @@ private func applyConsentPreferences() {
 | `Campaigns`               | Win-back and retention campaigns                  |
 | `ThirdPartyIntegrations`  | Data forwarding to third-party tools              |
 
-### Console Setup
-
-No console configuration is required. If your app is subject to GDPR or other privacy regulations, surface these toggles to users in your Settings / Privacy screen.
-
 ### Common Pitfalls
 
-- `applyConsentPreferences()` is called both in `init` (to restore persisted consent) and whenever a toggle changes. Do not forget the `init` call, or revoked consents will be silently reset on every app launch.
-- Pass the **revoked** set (purposes the user has opted out of), not the granted set.
+- Pass the **revoked** set (opted-out purposes), not the granted set.
+- Call `applyConsentPreferences()` both on init and on toggle changes.
 
 ---
 
-## 10. Restore Purchases
+## 11. Restore Purchases
 
-**What it does:** Triggers a server-side restore of all purchases associated with the current App Store / Google Play account. On success, refreshes the local premium status. Use this to handle the case where a user reinstalls the app or logs in on a new device.
+**What it does:** Triggers a server-side restore of all purchases. In Full mode, goes through the wrapper. In Observer mode, the reactive flow handles it automatically via `PurchaseManager`.
 
-### Android (Kotlin)
+### Android (Kotlin) — Full mode via PurchaselyWrapper
 
 Source: `android/app/src/main/java/com/purchasely/shaker/ui/screen/settings/SettingsViewModel.kt`
 
 ```kotlin
-Purchasely.restoreAllProducts(
+purchaselyWrapper.restoreAllProducts(
     onSuccess = { plan ->
         premiumManager.refreshPremiumStatus()
         _restoreMessage.value = "Purchases restored successfully!"
@@ -598,31 +613,27 @@ Purchasely.restoreAllProducts(
 )
 ```
 
-### iOS (Swift)
+### iOS (Swift) — Full mode via PurchaselyWrapping protocol
 
 Source: `ios/Shaker/Screens/Settings/SettingsViewModel.swift`
 
 ```swift
-Purchasely.restoreAllProducts(
+wrapper.restoreAllProducts(
     success: { [weak self] in
         PremiumManager.shared.refreshPremiumStatus()
-        DispatchQueue.main.async {
-            self?.restoreMessage = "Purchases restored successfully!"
-        }
+        DispatchQueue.main.async { self?.restoreMessage = "Purchases restored successfully!" }
     },
     failure: { [weak self] error in
-        DispatchQueue.main.async {
-            self?.restoreMessage = error.localizedDescription
-        }
+        DispatchQueue.main.async { self?.restoreMessage = error.localizedDescription }
     }
 )
 ```
 
-### Console Setup
+### Observer mode
 
-No special console configuration is required. Apple and Google impose their own UX requirements: on iOS, Apple requires an accessible **Restore Purchases** button, typically placed in Settings or on the paywall itself.
+In Observer mode, restore from the paywall interceptor flows through the reactive architecture (Section 4): the wrapper emits `RestoreRequest`, `PurchaseManager` queries native transactions, and `TransactionResult` flows back for `synchronize()` + `processAction()`.
 
 ### Common Pitfalls
 
-- On iOS, the `success` closure does **not** receive a `plan` parameter (unlike Android). Both platforms use separate `success`/`failure` closures — not a single completion handler.
-- Always call `refreshPremiumStatus()` inside the success handler so that gated UI updates immediately without requiring a screen refresh.
+- On iOS, the `success` closure does **not** receive a `plan` parameter (unlike Android).
+- Always call `refreshPremiumStatus()` inside the success handler.

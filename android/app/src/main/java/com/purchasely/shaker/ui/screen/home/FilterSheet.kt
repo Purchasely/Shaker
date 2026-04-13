@@ -17,7 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -29,9 +29,9 @@ fun FilterSheet(
     viewModel: HomeViewModel,
     onDismiss: () -> Unit
 ) {
-    val selectedSpirits by viewModel.selectedSpirits.collectAsState()
-    val selectedCategories by viewModel.selectedCategories.collectAsState()
-    val selectedDifficulty by viewModel.selectedDifficulty.collectAsState()
+    val selectedSpirits by viewModel.selectedSpirits.collectAsStateWithLifecycle()
+    val selectedCategories by viewModel.selectedCategories.collectAsStateWithLifecycle()
+    val selectedDifficulty by viewModel.selectedDifficulty.collectAsStateWithLifecycle()
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
