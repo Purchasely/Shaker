@@ -200,6 +200,21 @@ private fun prefetchPresentations() {
 3. If fetch failed or is still loading, nothing is displayed (no crash, no empty space)
 4. Use `FetchResult.Success.height` (pixels, convert to dp) for the view height
 
+**Prefetch cache (iOS):** `PurchaselyWrapper.loadPresentation` consults `PresentationCache` (in-memory, keyed by `placementId[/contentId]`). First call fetches over the network, subsequent calls return the cached `FetchResult` instantly. This prevents:
+- Duplicate network calls when SwiftUI `.onAppear` fires repeatedly (nav back, sheet dismiss, etc.)
+- Accumulation of stale `flowSteps` entries in the SDK's `FlowsManager` for flow placements — a known SDK issue where each fetch appends a new entry and dismissing the only visible step leaves a stuck `PLYWindow`.
+
+**Cache invalidation triggers** (iOS):
+- `PLYUserAttributeDelegate.onUserAttributeSet` / `onUserAttributeRemoved` — any attribute change can alter audience targeting
+- Successful `Purchasely.synchronize()` — subscription state may have changed
+- `wrapper.restart()` — SDK mode change (Full ↔ Observer) resets the session
+
+> **Note:** Invalidation is coarse-grained (`invalidateAll`) because the SDK doesn't expose attribute→audience dependencies. This is the simplest correct approach; native placement-level caching is expected in Purchasely SDK 6.x and the app-side cache should be removed then.
+
+> **Note on `onResult` binding:** The `onResult` closure is captured by the SDK at first fetch. On cache hits, the original binding is reused — subsequent callers' `onResult` closures are ignored. For Shaker this is safe because all closures perform the same work (refresh premium on purchased/restored).
+
+**Android:** Same cache concept applies. The Android SDK doesn't (yet) expose a user-attribute delegate as public API — invalidation is currently tied to explicit `wrapper.synchronize()` and `wrapper.restart()` calls only. When Android gets a delegate (SDK 6.x), wire it up the same way.
+
 ---
 
 ## 6. EmbeddedScreenBanner: Reusable Inline Paywall

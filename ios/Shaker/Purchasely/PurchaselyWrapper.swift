@@ -90,12 +90,19 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
         Purchasely.setEventDelegate(self)
 
+        // PURCHASELY: Observe user attribute changes to invalidate cached presentations
+        // Audience targeting depends on attributes, so cached paywalls become stale
+        // when any attribute changes. Docs: https://docs.purchasely.com/docs/listener-delegate
+        Purchasely.setUserAttributeDelegate(self)
+
         Purchasely.setPaywallActionsInterceptor { [weak self] action, parameters, info, proceed in
             self?.handlePaywallAction(action: action, parameters: parameters, info: info, processAction: proceed)
         }
     }
 
     func restart() {
+        // SDK mode change invalidates any cached presentations (different session)
+        PresentationCache.shared.invalidateAll()
         closeDisplayedPresentation()
         let storedUserId = UserDefaults.standard.string(forKey: "user_id")
         initialize(apiKey: apiKey, appUserId: storedUserId, logLevel: logLevel) { _, _ in }
@@ -203,7 +210,15 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         contentId: String? = nil,
         onResult: @escaping @MainActor (DisplayResult) -> Void
     ) async -> FetchResult {
-        await withCheckedContinuation { continuation in
+        // Cache hit — skip the network fetch. The `onResult` closure is bound
+        // at first fetch time (SDK-internal); subsequent callers share that
+        // binding. For Shaker, all `onResult` closures are equivalent (refresh
+        // premium on purchased/restored), so this is safe.
+        if let cached = PresentationCache.shared.get(placementId: placementId, contentId: contentId) {
+            return cached
+        }
+
+        let result: FetchResult = await withCheckedContinuation { continuation in
             Purchasely.fetchPresentation(
                 for: placementId,
                 contentId: contentId,
@@ -237,6 +252,12 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                 }
             )
         }
+
+        // Cache everything except errors (errors should be retried on next call)
+        if case .error = result { /* skip */ } else {
+            PresentationCache.shared.set(result, placementId: placementId, contentId: contentId)
+        }
+        return result
     }
 
     // MARK: - Modal Display
@@ -301,7 +322,12 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     // MARK: - Observer Mode
 
     func synchronize() {
-        Purchasely.synchronize(success: {}, failure: { _ in })
+        // Server-side sync can change subscription state & therefore targeting.
+        // Invalidate cached presentations on success so the next fetch reflects
+        // the fresh state.
+        Purchasely.synchronize(success: {
+            PresentationCache.shared.invalidateAll()
+        }, failure: { _ in })
     }
 
     func signPromotionalOffer(
@@ -329,6 +355,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     var sdkVersion: String {
         Purchasely.getSDKVersion() ?? ""
     }
+
 }
 
 // MARK: - Event Delegate
@@ -336,5 +363,30 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 extension PurchaselyWrapper: PLYEventDelegate {
     func eventTriggered(_ event: PLYEvent, properties: [String: Any]?) {
         print("[Shaker] Event: \(event.name) | Properties: \(properties ?? [:])")
+    }
+}
+
+// MARK: - User Attribute Delegate
+
+extension PurchaselyWrapper: PLYUserAttributeDelegate {
+
+    // PURCHASELY: Invalidate the presentation cache whenever a user attribute
+    // changes. Audience targeting depends on attributes, so any change can
+    // alter which paywall a placement resolves to. We invalidate for every
+    // source (app-driven AND SDK-internal) for simplicity — a future SDK 6.x
+    // is expected to handle this natively at the placement level.
+    // Docs: https://docs.purchasely.com/docs/listener-delegate#implementation-1
+
+    func onUserAttributeSet(key: String,
+                            type: PLYUserAttributeType,
+                            value: Any?,
+                            source: PLYUserAttributeSource) {
+        print("[Shaker] User attribute set: \(key)=\(value ?? "nil") (source: \(source))")
+        PresentationCache.shared.invalidateAll()
+    }
+
+    func onUserAttributeRemoved(key: String, source: PLYUserAttributeSource) {
+        print("[Shaker] User attribute removed: \(key) (source: \(source))")
+        PresentationCache.shared.invalidateAll()
     }
 }

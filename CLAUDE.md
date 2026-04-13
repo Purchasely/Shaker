@@ -27,8 +27,7 @@ Shaker/
     │   ├── Model/           # Cocktail, Ingredient
     │   ├── Purchasely/      # PurchaselyWrapper, EmbeddedScreenBanner, FetchResult, DisplayResult
     │   └── Screens/         # Home, Detail, Favorites, Settings, Onboarding
-    ├── project.yml          # XcodeGen spec
-    └── Podfile
+    └── project.yml          # XcodeGen spec (declares SPM dependency on Purchasely)
 ```
 
 ## Build Commands
@@ -46,16 +45,16 @@ cd android
 
 ```bash
 cd ios
-pod install
 xcodegen generate
-pod install
-open Shaker.xcworkspace
+open Shaker.xcodeproj
 # Build with Xcode (Cmd+B)
 ```
 
+**Dependencies**: Purchasely SDK is integrated via Swift Package Manager (declared in `project.yml`). Xcode resolves packages automatically on first open.
+
 **API key setup**: Copy `Config.xcconfig.example` to `Config.xcconfig` and set `PURCHASELY_API_KEY=YOUR_KEY`.
 
-**Important**: After adding/removing Swift files, run `xcodegen generate && pod install` to regenerate the Xcode project.
+**Important**: After adding/removing Swift files, run `xcodegen generate` to regenerate the Xcode project.
 
 ## Purchasely SDK Documentation
 
@@ -124,7 +123,7 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 ## Gotchas
 
 - `settings.gradle.kts`: Use `dependencyResolutionManagement` (not `dependencyResolution`)
-- XcodeGen + CocoaPods: Don't use `configFiles` at target level - causes "no parent for object" error with `pod install`
+- XcodeGen + SPM: declare packages under top-level `packages:` and reference them in target `dependencies: - package: Purchasely` — Xcode resolves automatically
 - iOS `onChange(of:)` with `{ _, newValue }` requires iOS 17 - use `{ newValue }` for iOS 16 compat
 - SVGs in iOS asset catalog can fail - use native `CocktailImage` view instead
 - iOS `Purchasely.synchronize()` requires `success:` and `failure:` closures — Android version is parameterless
