@@ -1,6 +1,7 @@
 package com.purchasely.shaker.ui.screen.settings
 
 import android.app.Activity
+import android.content.ClipData
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -36,15 +37,16 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.ClipboardManager
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.data.PurchaselySdkMode
+import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -65,7 +67,8 @@ fun SettingsScreen(
     val runningMode by viewModel.runningMode.collectAsStateWithLifecycle()
     val anonymousId by viewModel.anonymousId.collectAsStateWithLifecycle()
     val displayMode by viewModel.displayMode.collectAsStateWithLifecycle()
-    val clipboardManager: ClipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val clipboardScope = rememberCoroutineScope()
     val context = LocalContext.current
     var loginInput by remember { mutableStateOf("") }
 
@@ -174,7 +177,11 @@ fun SettingsScreen(
                 )
             }
             IconButton(onClick = {
-                clipboardManager.setText(AnnotatedString(anonymousId))
+                clipboardScope.launch {
+                    clipboard.setClipEntry(
+                        ClipEntry(ClipData.newPlainText("anonymousId", anonymousId))
+                    )
+                }
                 Toast.makeText(context, "Copied!", Toast.LENGTH_SHORT).show()
             }) {
                 Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(18.dp))
