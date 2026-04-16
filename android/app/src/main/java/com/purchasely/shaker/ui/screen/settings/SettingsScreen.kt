@@ -50,8 +50,11 @@ import com.purchasely.shaker.R
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.domain.model.DisplayMode
 import com.purchasely.shaker.domain.model.ThemeMode
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @Composable
 fun SettingsScreen(
@@ -74,6 +77,7 @@ fun SettingsScreen(
     val clipboard = LocalClipboard.current
     val clipboardScope = rememberCoroutineScope()
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
     var loginInput by remember { mutableStateOf("") }
 
     // Show restore toast
@@ -86,9 +90,13 @@ fun SettingsScreen(
 
     // Collect paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect {
+        viewModel.requestPaywallDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingPaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPurchaseCompleted()
+                else -> {}
+            }
         }
     }
 

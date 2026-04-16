@@ -1,6 +1,5 @@
 package com.purchasely.shaker.ui.screen.settings
 
-import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -10,7 +9,6 @@ import com.purchasely.shaker.domain.model.ThemeMode
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.SettingsRepository
-import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
@@ -74,9 +72,8 @@ class SettingsViewModel(
     val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
     // Signal Screen to display onboarding paywall
-    private var pendingOnboardingPresentation: PresentationHandle? = null
-    private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
-    val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
+    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
 
     val sdkVersion: String get() = purchaselyWrapper.sdkVersion
 
@@ -150,8 +147,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
                 is FetchResult.Success -> {
-                    pendingOnboardingPresentation = result.handle
-                    _requestPaywallDisplay.emit(Unit)
+                    _requestPaywallDisplay.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding placement — build custom UI here")
@@ -163,19 +159,6 @@ class SettingsViewModel(
                     Log.d(TAG, "[Shaker] Onboarding presentation not available: ${result.message}")
                 }
             }
-        }
-    }
-
-    suspend fun displayPendingPaywall(activity: Activity) {
-        val handle = pendingOnboardingPresentation ?: return
-        pendingOnboardingPresentation = null
-        val result = purchaselyWrapper.display(handle, activity)
-        when (result) {
-            is DisplayResult.Purchased, is DisplayResult.Restored -> {
-                Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")
-                onPurchaseCompleted()
-            }
-            else -> {}
         }
     }
 

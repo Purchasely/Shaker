@@ -1,6 +1,5 @@
 package com.purchasely.shaker.ui.screen.detail
 
-import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +7,6 @@ import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.FavoritesRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
-import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
@@ -36,14 +34,12 @@ class DetailViewModel(
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
 
     // Signal Screen to display recipe paywall
-    private var pendingRecipePresentation: PresentationHandle? = null
-    private val _requestRecipePaywall = MutableSharedFlow<Unit>()
-    val requestRecipePaywall: SharedFlow<Unit> = _requestRecipePaywall.asSharedFlow()
+    private val _requestRecipePaywall = MutableSharedFlow<PresentationHandle>()
+    val requestRecipePaywall: SharedFlow<PresentationHandle> = _requestRecipePaywall.asSharedFlow()
 
     // Signal Screen to display favorites paywall
-    private var pendingFavoritesPresentation: PresentationHandle? = null
-    private val _requestFavoritesPaywall = MutableSharedFlow<Unit>()
-    val requestFavoritesPaywall: SharedFlow<Unit> = _requestFavoritesPaywall.asSharedFlow()
+    private val _requestFavoritesPaywall = MutableSharedFlow<PresentationHandle>()
+    val requestFavoritesPaywall: SharedFlow<PresentationHandle> = _requestFavoritesPaywall.asSharedFlow()
 
     init {
         _cocktail.value = repository.getCocktail(cocktailId)
@@ -76,8 +72,7 @@ class DetailViewModel(
             )
             when (result) {
                 is FetchResult.Success -> {
-                    pendingRecipePresentation = result.handle
-                    _requestRecipePaywall.emit(Unit)
+                    _requestRecipePaywall.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
@@ -87,51 +82,18 @@ class DetailViewModel(
         }
     }
 
-    suspend fun displayPendingRecipePaywall(activity: Activity) {
-        val handle = pendingRecipePresentation ?: return
-        pendingRecipePresentation = null
-        val result = purchaselyWrapper.display(handle, activity)
-        when (result) {
-            is DisplayResult.Purchased -> {
-                Log.d("DetailViewModel", "[Shaker] Purchased: ${result.planName}")
-                onPaywallDismissed()
-            }
-            is DisplayResult.Restored -> {
-                Log.d("DetailViewModel", "[Shaker] Restored: ${result.planName}")
-                onPaywallDismissed()
-            }
-            is DisplayResult.Cancelled -> {
-                Log.d("DetailViewModel", "[Shaker] Cancelled")
-            }
-        }
-    }
-
     fun showFavoritesPaywall() {
         viewModelScope.launch {
             val result = purchaselyWrapper.loadPresentation(placementId = "favorites")
             when (result) {
                 is FetchResult.Success -> {
-                    pendingFavoritesPresentation = result.handle
-                    _requestFavoritesPaywall.emit(Unit)
+                    _requestFavoritesPaywall.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
                 }
                 else -> {}
             }
-        }
-    }
-
-    suspend fun displayPendingFavoritesPaywall(activity: Activity) {
-        val handle = pendingFavoritesPresentation ?: return
-        pendingFavoritesPresentation = null
-        val result = purchaselyWrapper.display(handle, activity)
-        when (result) {
-            is DisplayResult.Purchased, is DisplayResult.Restored -> {
-                Log.d("DetailViewModel", "[Shaker] Purchased/Restored from favorites: ${(result as? DisplayResult.Purchased)?.planName ?: (result as? DisplayResult.Restored)?.planName}")
-                onPaywallDismissed()
-            }
-            else -> {}
         }
     }
 

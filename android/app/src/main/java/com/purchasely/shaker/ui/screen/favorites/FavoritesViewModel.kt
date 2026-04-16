@@ -1,6 +1,5 @@
 package com.purchasely.shaker.ui.screen.favorites
 
-import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -8,7 +7,6 @@ import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.FavoritesRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
-import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
@@ -34,9 +32,8 @@ class FavoritesViewModel(
     val favorites: StateFlow<List<Cocktail>> = _favorites.asStateFlow()
 
     // Signal Screen to display favorites paywall
-    private var pendingPresentation: PresentationHandle? = null
-    private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
-    val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
+    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -54,8 +51,7 @@ class FavoritesViewModel(
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("favorites")) {
                 is FetchResult.Success -> {
-                    pendingPresentation = result.handle
-                    _requestPaywallDisplay.emit(Unit)
+                    _requestPaywallDisplay.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d(TAG, "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
@@ -67,19 +63,6 @@ class FavoritesViewModel(
                     Log.e(TAG, "[Shaker] Error fetching favorites: ${result.message}")
                 }
             }
-        }
-    }
-
-    suspend fun displayPendingPaywall(activity: Activity) {
-        val handle = pendingPresentation ?: return
-        pendingPresentation = null
-        val result = purchaselyWrapper.display(handle, activity)
-        when (result) {
-            is DisplayResult.Purchased, is DisplayResult.Restored -> {
-                Log.d(TAG, "[Shaker] Purchased/Restored from favorites")
-                onPaywallDismissed()
-            }
-            else -> {}
         }
     }
 

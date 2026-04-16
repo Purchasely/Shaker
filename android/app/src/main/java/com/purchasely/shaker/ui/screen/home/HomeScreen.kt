@@ -51,10 +51,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.R
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,13 +72,18 @@ fun HomeScreen(
     val hasActiveFilters by viewModel.hasActiveFilters.collectAsStateWithLifecycle()
     val inlinePresentation by viewModel.inlinePresentation.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
     var showFilterSheet by remember { mutableStateOf(false) }
 
     // Collect paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect {
+        viewModel.requestPaywallDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingPaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 

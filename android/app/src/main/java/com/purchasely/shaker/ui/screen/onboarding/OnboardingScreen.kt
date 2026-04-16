@@ -22,8 +22,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.purchasely.shaker.R
+import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @Composable
 fun OnboardingScreen(
@@ -32,6 +35,7 @@ fun OnboardingScreen(
     viewModel: OnboardingViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     LaunchedEffect(Unit) {
         if (!showOnboarding) {
@@ -45,9 +49,13 @@ fun OnboardingScreen(
             return@LaunchedEffect
         }
 
-        when (viewModel.loadOnboarding()) {
+        when (val fetchResult = viewModel.loadOnboarding()) {
             is FetchResult.Success -> {
-                viewModel.displayOnboarding(activity)
+                val displayResult = purchaselyWrapper.display(fetchResult.handle, activity)
+                when (displayResult) {
+                    is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPurchaseCompleted()
+                    else -> {}
+                }
                 onComplete()
             }
             else -> onComplete()

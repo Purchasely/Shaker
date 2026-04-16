@@ -46,8 +46,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.R
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,6 +65,7 @@ fun DetailScreen(
     val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val isFavorite = favoriteIds.contains(cocktailId)
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     // Force light (white) status bar icons over the hero image
     val view = LocalView.current
@@ -77,17 +81,25 @@ fun DetailScreen(
 
     // Collect recipe paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestRecipePaywall.collect {
+        viewModel.requestRecipePaywall.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingRecipePaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 
     // Collect favorites paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestFavoritesPaywall.collect {
+        viewModel.requestFavoritesPaywall.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingFavoritesPaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 

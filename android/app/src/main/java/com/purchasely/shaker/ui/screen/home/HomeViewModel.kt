@@ -1,13 +1,10 @@
 package com.purchasely.shaker.ui.screen.home
 
-import android.app.Activity
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
-import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
@@ -68,9 +65,8 @@ class HomeViewModel(
     val isFiltersLoading: StateFlow<Boolean> = _isFiltersLoading.asStateFlow()
 
     // Signal Screen to display filters paywall
-    private var pendingFiltersPresentation: PresentationHandle? = null
-    private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
-    val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
+    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
 
     init {
         _cocktails.value = repository.loadCocktails()
@@ -101,21 +97,7 @@ class HomeViewModel(
         if (isPremium.value) return
         val result = _filtersPresentation.value
         if (result is FetchResult.Success) {
-            pendingFiltersPresentation = result.handle
-            viewModelScope.launch { _requestPaywallDisplay.emit(Unit) }
-        }
-    }
-
-    suspend fun displayPendingPaywall(activity: Activity) {
-        val handle = pendingFiltersPresentation ?: return
-        pendingFiltersPresentation = null
-        val result = purchaselyWrapper.display(handle, activity)
-        when (result) {
-            is DisplayResult.Purchased, is DisplayResult.Restored -> {
-                Log.d("HomeViewModel", "[Shaker] Purchased/Restored from filters")
-                onPaywallDismissed()
-            }
-            else -> {}
+            viewModelScope.launch { _requestPaywallDisplay.emit(result.handle) }
         }
     }
 
