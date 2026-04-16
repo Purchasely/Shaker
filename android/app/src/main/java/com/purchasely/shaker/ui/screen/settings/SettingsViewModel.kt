@@ -12,7 +12,7 @@ import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.PLYDataProcessingPurpose
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -59,11 +59,6 @@ class SettingsViewModel(
 
     private val _thirdPartyConsent = MutableStateFlow(settingsRepo.thirdPartyConsent)
     val thirdPartyConsent: StateFlow<Boolean> = _thirdPartyConsent.asStateFlow()
-
-    private val _runningMode = MutableStateFlow(
-        if (runningModeRepo.isObserverMode) "observer" else "full"
-    )
-    val runningMode: StateFlow<String> = _runningMode.asStateFlow()
 
     private val _anonymousId = MutableStateFlow(purchaselyWrapper.anonymousUserId)
     val anonymousId: StateFlow<String> = _anonymousId.asStateFlow()
@@ -123,14 +118,14 @@ class SettingsViewModel(
         // Required by App Store / Play Store guidelines; call on explicit user request only
         // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/restore-purchases
         purchaselyWrapper.restoreAllProducts(
-            onSuccess = { plan ->
+            onSuccess = { planName ->
                 premiumRepository.refreshPremiumStatus()
                 _restoreMessage.value = "Purchases restored successfully!"
-                Log.d(TAG, "[Shaker] Restore success: ${plan?.name}")
+                Log.d(TAG, "[Shaker] Restore success: $planName")
             },
-            onError = { error ->
-                _restoreMessage.value = error?.message ?: "No purchases to restore"
-                Log.e(TAG, "[Shaker] Restore error: ${error?.message}")
+            onError = { errorMessage ->
+                _restoreMessage.value = errorMessage ?: "No purchases to restore"
+                Log.e(TAG, "[Shaker] Restore error: $errorMessage")
             }
         )
     }
@@ -220,12 +215,12 @@ class SettingsViewModel(
     }
 
     private fun applyConsentPreferences() {
-        val revoked = mutableSetOf<PLYDataProcessingPurpose>()
-        if (!_analyticsConsent.value) revoked.add(PLYDataProcessingPurpose.Analytics)
-        if (!_identifiedAnalyticsConsent.value) revoked.add(PLYDataProcessingPurpose.IdentifiedAnalytics)
-        if (!_personalizationConsent.value) revoked.add(PLYDataProcessingPurpose.Personalization)
-        if (!_campaignsConsent.value) revoked.add(PLYDataProcessingPurpose.Campaigns)
-        if (!_thirdPartyConsent.value) revoked.add(PLYDataProcessingPurpose.ThirdPartyIntegrations)
+        val revoked = mutableSetOf<ConsentPurpose>()
+        if (!_analyticsConsent.value) revoked.add(ConsentPurpose.ANALYTICS)
+        if (!_identifiedAnalyticsConsent.value) revoked.add(ConsentPurpose.IDENTIFIED_ANALYTICS)
+        if (!_personalizationConsent.value) revoked.add(ConsentPurpose.PERSONALIZATION)
+        if (!_campaignsConsent.value) revoked.add(ConsentPurpose.CAMPAIGNS)
+        if (!_thirdPartyConsent.value) revoked.add(ConsentPurpose.THIRD_PARTY_INTEGRATIONS)
         // PURCHASELY: Revoke GDPR data-processing consent for specific purposes
         // Pass the set of revoked purposes; an empty set re-grants all consent
         // Docs: https://docs.purchasely.com/advanced-features/gdpr

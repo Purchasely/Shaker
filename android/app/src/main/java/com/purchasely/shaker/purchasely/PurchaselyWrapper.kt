@@ -8,6 +8,7 @@ import android.net.Uri
 import android.util.Log
 import android.view.View
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
 import com.purchasely.shaker.data.purchase.TransactionResult
@@ -19,6 +20,7 @@ import io.purchasely.ext.PLYPresentationInfo
 import io.purchasely.ext.PLYPresentationProperties
 import io.purchasely.ext.PLYPresentationType
 import io.purchasely.ext.SubscriptionsListener
+import io.purchasely.ext.PLYDataProcessingPurpose
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.fetchPresentation
@@ -46,6 +48,7 @@ class PurchaselyWrapper(
     private var application: Application? = null
     private var apiKey: String = ""
     private var logLevel: LogLevel = LogLevel.DEBUG
+    private var onConfiguredCallback: (() -> Unit)? = null
     private var pendingProcessAction: ((Boolean) -> Unit)? = null
     private var collectionJob: Job? = null
 
@@ -73,6 +76,7 @@ class PurchaselyWrapper(
         this.application = application
         this.apiKey = apiKey
         this.logLevel = logLevel
+        this.onConfiguredCallback = onConfigured
 
         val mode = runningModeRepo.runningMode
 
@@ -109,7 +113,7 @@ class PurchaselyWrapper(
     fun restart() {
         close()
         val app = application ?: return
-        initialize(app, apiKey, logLevel)
+        initialize(app, apiKey, logLevel, onConfiguredCallback)
     }
 
     fun close() {
@@ -331,10 +335,13 @@ class PurchaselyWrapper(
     // MARK: - Restore
 
     fun restoreAllProducts(
-        onSuccess: (PLYPlan?) -> Unit,
-        onError: (PLYError?) -> Unit
+        onSuccess: (String?) -> Unit,
+        onError: (String?) -> Unit
     ) {
-        Purchasely.restoreAllProducts(onSuccess, onError)
+        Purchasely.restoreAllProducts(
+            { plan -> onSuccess(plan?.name) },
+            { error -> onError(error?.message) }
+        )
     }
 
     // MARK: - Observer Mode
@@ -345,8 +352,17 @@ class PurchaselyWrapper(
 
     // MARK: - GDPR Consent
 
-    fun revokeDataProcessingConsent(purposes: Set<io.purchasely.ext.PLYDataProcessingPurpose>) {
-        Purchasely.revokeDataProcessingConsent(purposes)
+    fun revokeDataProcessingConsent(purposes: Set<ConsentPurpose>) {
+        val sdkPurposes = purposes.mapTo(mutableSetOf()) { purpose ->
+            when (purpose) {
+                ConsentPurpose.ANALYTICS -> PLYDataProcessingPurpose.Analytics
+                ConsentPurpose.IDENTIFIED_ANALYTICS -> PLYDataProcessingPurpose.IdentifiedAnalytics
+                ConsentPurpose.PERSONALIZATION -> PLYDataProcessingPurpose.Personalization
+                ConsentPurpose.CAMPAIGNS -> PLYDataProcessingPurpose.Campaigns
+                ConsentPurpose.THIRD_PARTY_INTEGRATIONS -> PLYDataProcessingPurpose.ThirdPartyIntegrations
+            }
+        }
+        Purchasely.revokeDataProcessingConsent(sdkPurposes)
     }
 
     // MARK: - SDK Info

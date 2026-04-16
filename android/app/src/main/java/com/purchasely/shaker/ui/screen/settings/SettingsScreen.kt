@@ -71,7 +71,6 @@ fun SettingsScreen(
     val personalizationConsent by viewModel.personalizationConsent.collectAsStateWithLifecycle()
     val campaignsConsent by viewModel.campaignsConsent.collectAsStateWithLifecycle()
     val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsStateWithLifecycle()
-    val runningMode by viewModel.runningMode.collectAsStateWithLifecycle()
     val anonymousId by viewModel.anonymousId.collectAsStateWithLifecycle()
     val displayMode by viewModel.displayMode.collectAsStateWithLifecycle()
     val clipboard = LocalClipboard.current

@@ -15,9 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import io.purchasely.ext.PLYDataProcessingPurpose
-import io.purchasely.models.PLYError
-import io.purchasely.models.PLYPlan
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -140,9 +138,9 @@ class SettingsViewModelTest {
 
     @Test
     fun `restorePurchases success updates message`() {
-        val successSlot = slot<(PLYPlan?) -> Unit>()
+        val successSlot = slot<(String?) -> Unit>()
         every { wrapper.restoreAllProducts(capture(successSlot), any()) } answers {
-            successSlot.captured(null)
+            successSlot.captured("Premium Plan")
         }
         val vm = createViewModel()
         vm.restorePurchases()
@@ -152,9 +150,9 @@ class SettingsViewModelTest {
 
     @Test
     fun `restorePurchases error updates message`() {
-        val errorSlot = slot<(PLYError?) -> Unit>()
+        val errorSlot = slot<(String?) -> Unit>()
         every { wrapper.restoreAllProducts(any(), capture(errorSlot)) } answers {
-            errorSlot.captured(mockk { every { message } returns "No purchases found" })
+            errorSlot.captured("No purchases found")
         }
         val vm = createViewModel()
         vm.restorePurchases()
@@ -216,7 +214,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setAnalyticsConsent(false)
         assertFalse(vm.analyticsConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.Analytics) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.ANALYTICS) }) }
     }
 
     @Test
@@ -224,7 +222,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setIdentifiedAnalyticsConsent(false)
         assertFalse(vm.identifiedAnalyticsConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.IdentifiedAnalytics) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.IDENTIFIED_ANALYTICS) }) }
     }
 
     @Test
@@ -232,7 +230,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setPersonalizationConsent(false)
         assertFalse(vm.personalizationConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.Personalization) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.PERSONALIZATION) }) }
     }
 
     @Test
@@ -240,7 +238,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setCampaignsConsent(false)
         assertFalse(vm.campaignsConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.Campaigns) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.CAMPAIGNS) }) }
     }
 
     @Test
@@ -248,7 +246,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setThirdPartyConsent(false)
         assertFalse(vm.thirdPartyConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.ThirdPartyIntegrations) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.THIRD_PARTY_INTEGRATIONS) }) }
     }
 
     @Test
@@ -265,8 +263,8 @@ class SettingsViewModelTest {
         vm.setPersonalizationConsent(false)
         verify {
             wrapper.revokeDataProcessingConsent(match {
-                it.contains(PLYDataProcessingPurpose.Analytics) &&
-                it.contains(PLYDataProcessingPurpose.Personalization)
+                it.contains(ConsentPurpose.ANALYTICS) &&
+                it.contains(ConsentPurpose.PERSONALIZATION)
             })
         }
     }
@@ -289,19 +287,6 @@ class SettingsViewModelTest {
     fun `isPremium exposes premiumManager state`() {
         val vm = createViewModel()
         assertFalse(vm.isPremium.value)
-    }
-
-    @Test
-    fun `initial runningMode reads from repository`() {
-        val vm = createViewModel()
-        assertEquals("full", vm.runningMode.value)
-    }
-
-    @Test
-    fun `initial runningMode is observer when repo says so`() {
-        every { runningModeRepo.isObserverMode } returns true
-        val vm = createViewModel()
-        assertEquals("observer", vm.runningMode.value)
     }
 
     @Test
