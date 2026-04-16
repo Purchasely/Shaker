@@ -22,14 +22,13 @@ import androidx.compose.ui.Modifier
 import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
-import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
+import androidx.navigation.toRoute
 import com.purchasely.shaker.domain.repository.OnboardingRepository
 import com.purchasely.shaker.ui.screen.detail.DetailScreen
 import com.purchasely.shaker.ui.screen.favorites.FavoritesScreen
@@ -37,28 +36,25 @@ import com.purchasely.shaker.ui.screen.home.HomeScreen
 import com.purchasely.shaker.R
 import com.purchasely.shaker.ui.screen.onboarding.OnboardingScreen
 import com.purchasely.shaker.ui.screen.settings.SettingsScreen
+import kotlinx.serialization.Serializable
 import org.koin.compose.koinInject
 
-sealed class Screen(val route: String) {
-    data object Home : Screen("home")
-    data object Favorites : Screen("favorites")
-    data object Settings : Screen("settings")
-    data object Detail : Screen("detail/{cocktailId}") {
-        fun createRoute(cocktailId: String) = "detail/$cocktailId"
-    }
-}
+@Serializable data object Home
+@Serializable data object Favorites
+@Serializable data object Settings
+@Serializable data class Detail(val cocktailId: String)
 
 data class BottomNavItem(
-    val screen: Screen,
+    val route: Any,
     @StringRes val labelRes: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 )
 
 val bottomNavItems = listOf(
-    BottomNavItem(Screen.Home, R.string.home, Icons.Filled.Home, Icons.Outlined.Home),
-    BottomNavItem(Screen.Favorites, R.string.favorites, Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
-    BottomNavItem(Screen.Settings, R.string.settings, Icons.Filled.Settings, Icons.Outlined.Settings),
+    BottomNavItem(Home, R.string.home, Icons.Filled.Home, Icons.Outlined.Home),
+    BottomNavItem(Favorites, R.string.favorites, Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
+    BottomNavItem(Settings, R.string.settings, Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
 @Composable
@@ -81,14 +77,16 @@ fun ShakerNavHost() {
         return
     }
 
-    val showBottomBar = bottomNavItems.any { it.screen.route == currentDestination?.route }
+    val showBottomBar = currentDestination?.let { dest ->
+        bottomNavItems.any { dest.hasRoute(it.route::class) }
+    } ?: false
 
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
                 NavigationBar {
                     bottomNavItems.forEach { item ->
-                        val selected = currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
+                        val selected = currentDestination?.hasRoute(item.route::class) == true
                         val label = stringResource(item.labelRes)
                         NavigationBarItem(
                             icon = {
@@ -100,7 +98,7 @@ fun ShakerNavHost() {
                             label = { Text(label) },
                             selected = selected,
                             onClick = {
-                                navController.navigate(item.screen.route) {
+                                navController.navigate(item.route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
@@ -116,33 +114,30 @@ fun ShakerNavHost() {
     ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = Screen.Home.route,
+            startDestination = Home,
             modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         ) {
-            composable(Screen.Home.route) {
+            composable<Home> {
                 HomeScreen(
                     onCocktailClick = { cocktailId ->
-                        navController.navigate(Screen.Detail.createRoute(cocktailId))
+                        navController.navigate(Detail(cocktailId))
                     }
                 )
             }
-            composable(Screen.Favorites.route) {
+            composable<Favorites> {
                 FavoritesScreen(
                     onCocktailClick = { cocktailId ->
-                        navController.navigate(Screen.Detail.createRoute(cocktailId))
+                        navController.navigate(Detail(cocktailId))
                     }
                 )
             }
-            composable(Screen.Settings.route) {
+            composable<Settings> {
                 SettingsScreen()
             }
-            composable(
-                route = Screen.Detail.route,
-                arguments = listOf(navArgument("cocktailId") { type = NavType.StringType })
-            ) { backStackEntry ->
-                val cocktailId = backStackEntry.arguments?.getString("cocktailId") ?: return@composable
+            composable<Detail> { backStackEntry ->
+                val detail: Detail = backStackEntry.toRoute()
                 DetailScreen(
-                    cocktailId = cocktailId,
+                    cocktailId = detail.cocktailId,
                     onBack = { navController.popBackStack() }
                 )
             }
