@@ -1,22 +1,18 @@
 package com.purchasely.shaker.data
 
-import android.content.Context
-import android.content.SharedPreferences
+import com.purchasely.shaker.data.storage.KeyValueStore
 import io.purchasely.ext.PLYRunningMode
 
-class RunningModeRepository(context: Context) {
-
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("shaker_settings", Context.MODE_PRIVATE)
+class RunningModeRepository(private val store: KeyValueStore) {
 
     var runningMode: PLYRunningMode
         get() {
-            val stored = prefs.getString(KEY_RUNNING_MODE, "full")
+            val stored = store.getString(KEY_RUNNING_MODE, "full")
             return if (stored == "observer") PLYRunningMode.PaywallObserver else PLYRunningMode.Full
         }
         set(value) {
             val str = if (value == PLYRunningMode.PaywallObserver) "observer" else "full"
-            prefs.edit().putString(KEY_RUNNING_MODE, str).apply()
+            store.putString(KEY_RUNNING_MODE, str)
         }
 
     val isObserverMode: Boolean

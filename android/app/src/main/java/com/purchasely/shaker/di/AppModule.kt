@@ -1,5 +1,6 @@
 package com.purchasely.shaker.di
 
+import android.content.Context
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.PendingPurchasesParams
 import com.purchasely.shaker.data.CocktailRepository
@@ -10,6 +11,8 @@ import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
+import com.purchasely.shaker.data.storage.KeyValueStore
+import com.purchasely.shaker.data.storage.SharedPreferencesKeyValueStore
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
@@ -26,9 +29,24 @@ import org.koin.dsl.module
 
 val appModule = module {
     single { CocktailRepository(androidContext()) }
-    single { FavoritesRepository(androidContext()) }
-    single { OnboardingRepository(androidContext()) }
-    single { RunningModeRepository(androidContext()) }
+    single(named("favorites")) {
+        SharedPreferencesKeyValueStore(
+            androidContext().getSharedPreferences("shaker_favorites", Context.MODE_PRIVATE)
+        ) as KeyValueStore
+    }
+    single(named("onboarding")) {
+        SharedPreferencesKeyValueStore(
+            androidContext().getSharedPreferences("shaker_onboarding", Context.MODE_PRIVATE)
+        ) as KeyValueStore
+    }
+    single(named("settings")) {
+        SharedPreferencesKeyValueStore(
+            androidContext().getSharedPreferences("shaker_settings", Context.MODE_PRIVATE)
+        ) as KeyValueStore
+    }
+    single { FavoritesRepository(get(named("favorites"))) }
+    single { OnboardingRepository(get(named("onboarding"))) }
+    single { RunningModeRepository(get(named("settings"))) }
     // Reactive flows for purchase orchestration
     single(named("purchaseRequests")) { MutableSharedFlow<PurchaseRequest>() }
     single(named("restoreRequests")) { MutableSharedFlow<RestoreRequest>() }

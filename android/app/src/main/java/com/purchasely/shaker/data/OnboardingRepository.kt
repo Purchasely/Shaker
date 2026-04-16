@@ -1,16 +1,12 @@
 package com.purchasely.shaker.data
 
-import android.content.Context
-import android.content.SharedPreferences
+import com.purchasely.shaker.data.storage.KeyValueStore
 
-class OnboardingRepository(context: Context) {
-
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("shaker_onboarding", Context.MODE_PRIVATE)
+class OnboardingRepository(private val store: KeyValueStore) {
 
     var isOnboardingCompleted: Boolean
-        get() = prefs.getBoolean(KEY_COMPLETED, false)
-        set(value) { prefs.edit().putBoolean(KEY_COMPLETED, value).apply() }
+        get() = store.getBoolean(KEY_COMPLETED)
+        set(value) { store.putBoolean(KEY_COMPLETED, value) }
 
     companion object {
         private const val KEY_COMPLETED = "onboarding_completed"

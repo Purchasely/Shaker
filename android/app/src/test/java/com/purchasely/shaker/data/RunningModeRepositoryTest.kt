@@ -1,10 +1,6 @@
 package com.purchasely.shaker.data
 
-import android.content.Context
-import android.content.SharedPreferences
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import com.purchasely.shaker.data.storage.InMemoryKeyValueStore
 import io.purchasely.ext.PLYRunningMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -14,68 +10,52 @@ import org.junit.Test
 
 class RunningModeRepositoryTest {
 
-    private lateinit var prefs: SharedPreferences
-    private lateinit var editor: SharedPreferences.Editor
-    private lateinit var context: Context
-    private var storedString: String? = "full"
+    private lateinit var store: InMemoryKeyValueStore
 
     @Before
     fun setUp() {
-        storedString = "full"
-        editor = mockk(relaxed = true) {
-            every { putString(any(), any()) } answers {
-                storedString = secondArg()
-                this@mockk
-            }
-        }
-        prefs = mockk {
-            every { getString(any(), any()) } answers { storedString ?: secondArg() }
-            every { edit() } returns editor
-        }
-        context = mockk {
-            every { getSharedPreferences(any(), any()) } returns prefs
-        }
+        store = InMemoryKeyValueStore()
     }
 
     @Test
     fun `default mode is Full`() {
-        val repo = RunningModeRepository(context)
+        val repo = RunningModeRepository(store)
         assertEquals(PLYRunningMode.Full, repo.runningMode)
     }
 
     @Test
     fun `isObserverMode is false when Full`() {
-        val repo = RunningModeRepository(context)
+        val repo = RunningModeRepository(store)
         assertFalse(repo.isObserverMode)
     }
 
     @Test
     fun `setting to PaywallObserver persists observer string`() {
-        val repo = RunningModeRepository(context)
+        val repo = RunningModeRepository(store)
         repo.runningMode = PLYRunningMode.PaywallObserver
-        verify { editor.putString("running_mode", "observer") }
+        assertEquals("observer", store.getString("running_mode"))
     }
 
     @Test
     fun `reading PaywallObserver from storage`() {
-        storedString = "observer"
-        val repo = RunningModeRepository(context)
+        store.putString("running_mode", "observer")
+        val repo = RunningModeRepository(store)
         assertEquals(PLYRunningMode.PaywallObserver, repo.runningMode)
         assertTrue(repo.isObserverMode)
     }
 
     @Test
     fun `setting to Full persists full string`() {
-        storedString = "observer"
-        val repo = RunningModeRepository(context)
+        store.putString("running_mode", "observer")
+        val repo = RunningModeRepository(store)
         repo.runningMode = PLYRunningMode.Full
-        verify { editor.putString("running_mode", "full") }
+        assertEquals("full", store.getString("running_mode"))
     }
 
     @Test
     fun `unknown stored value defaults to Full`() {
-        storedString = "unknown"
-        val repo = RunningModeRepository(context)
+        store.putString("running_mode", "unknown")
+        val repo = RunningModeRepository(store)
         assertEquals(PLYRunningMode.Full, repo.runningMode)
     }
 }
