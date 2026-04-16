@@ -1,6 +1,8 @@
 package com.purchasely.shaker.ui.screen.settings
 
 import com.purchasely.shaker.data.PurchaselySdkMode
+import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.domain.model.ThemeMode
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.SettingsRepository
@@ -169,24 +171,24 @@ class SettingsViewModelTest {
     @Test
     fun `setThemeMode persists and sets user attribute`() {
         val vm = createViewModel()
-        vm.setThemeMode("dark")
-        assertEquals("dark", vm.themeMode.value)
-        assertEquals("dark", settingsRepo.themeMode)
+        vm.setThemeMode(ThemeMode.DARK)
+        assertEquals(ThemeMode.DARK, vm.themeMode.value)
+        assertEquals(ThemeMode.DARK, settingsRepo.themeMode)
         verify { wrapper.setUserAttribute("app_theme", "dark") }
     }
 
     @Test
-    fun `initial themeMode defaults to system`() {
+    fun `initial themeMode defaults to SYSTEM`() {
         val vm = createViewModel()
-        assertEquals("system", vm.themeMode.value)
+        assertEquals(ThemeMode.SYSTEM, vm.themeMode.value)
     }
 
     @Test
     fun `setDisplayMode persists value`() {
         val vm = createViewModel()
-        vm.setDisplayMode("embedded")
-        assertEquals("embedded", vm.displayMode.value)
-        assertEquals("embedded", settingsRepo.displayMode)
+        vm.setDisplayMode(DisplayMode.MODAL)
+        assertEquals(DisplayMode.MODAL, vm.displayMode.value)
+        assertEquals(DisplayMode.MODAL, settingsRepo.displayMode)
     }
 
     @Test

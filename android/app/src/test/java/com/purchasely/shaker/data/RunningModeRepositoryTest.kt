@@ -18,26 +18,34 @@ class RunningModeRepositoryTest {
     }
 
     @Test
-    fun `default mode is Full`() {
+    fun `default mode is PaywallObserver (PurchaselySdkMode DEFAULT)`() {
         val repo = RunningModeRepository(store)
-        assertEquals(PLYRunningMode.Full, repo.runningMode)
+        assertEquals(PLYRunningMode.PaywallObserver, repo.runningMode)
     }
 
     @Test
-    fun `isObserverMode is false when Full`() {
+    fun `isObserverMode is true by default`() {
         val repo = RunningModeRepository(store)
-        assertFalse(repo.isObserverMode)
+        assertTrue(repo.isObserverMode)
     }
 
     @Test
-    fun `setting to PaywallObserver persists observer string`() {
+    fun `setting to PaywallObserver persists paywallObserver string`() {
         val repo = RunningModeRepository(store)
         repo.runningMode = PLYRunningMode.PaywallObserver
-        assertEquals("observer", store.getString("running_mode"))
+        assertEquals("paywallObserver", store.getString("running_mode"))
     }
 
     @Test
-    fun `reading PaywallObserver from storage`() {
+    fun `reading paywallObserver from storage`() {
+        store.putString("running_mode", "paywallObserver")
+        val repo = RunningModeRepository(store)
+        assertEquals(PLYRunningMode.PaywallObserver, repo.runningMode)
+        assertTrue(repo.isObserverMode)
+    }
+
+    @Test
+    fun `legacy observer value migrates to PaywallObserver`() {
         store.putString("running_mode", "observer")
         val repo = RunningModeRepository(store)
         assertEquals(PLYRunningMode.PaywallObserver, repo.runningMode)
@@ -46,16 +54,24 @@ class RunningModeRepositoryTest {
 
     @Test
     fun `setting to Full persists full string`() {
-        store.putString("running_mode", "observer")
+        store.putString("running_mode", "paywallObserver")
         val repo = RunningModeRepository(store)
         repo.runningMode = PLYRunningMode.Full
         assertEquals("full", store.getString("running_mode"))
     }
 
     @Test
-    fun `unknown stored value defaults to Full`() {
-        store.putString("running_mode", "unknown")
+    fun `reading Full from storage`() {
+        store.putString("running_mode", "full")
         val repo = RunningModeRepository(store)
         assertEquals(PLYRunningMode.Full, repo.runningMode)
+        assertFalse(repo.isObserverMode)
+    }
+
+    @Test
+    fun `unknown stored value defaults to PaywallObserver`() {
+        store.putString("running_mode", "unknown")
+        val repo = RunningModeRepository(store)
+        assertEquals(PLYRunningMode.PaywallObserver, repo.runningMode)
     }
 }

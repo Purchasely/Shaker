@@ -48,6 +48,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.purchasely.shaker.R
 import com.purchasely.shaker.data.PurchaselySdkMode
+import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.domain.model.ThemeMode
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -309,8 +311,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        val themes = listOf("light", "dark", "system")
-        val labels = listOf(stringResource(R.string.light), stringResource(R.string.dark), stringResource(R.string.system))
+        val themes = ThemeMode.entries
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             themes.forEachIndexed { index, mode ->
                 SegmentedButton(
@@ -318,7 +319,7 @@ fun SettingsScreen(
                     onClick = { viewModel.setThemeMode(mode) },
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = themes.size)
                 ) {
-                    Text(labels[index])
+                    Text(mode.label)
                 }
             }
         }
@@ -341,8 +342,7 @@ fun SettingsScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
 
-        val displayModes = listOf("fullscreen", "modal", "drawer", "popin")
-        val displayLabels = listOf(stringResource(R.string.full), stringResource(R.string.modal), stringResource(R.string.drawer), stringResource(R.string.popin))
+        val displayModes = DisplayMode.entries
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             displayModes.forEachIndexed { index, mode ->
                 SegmentedButton(
@@ -350,7 +350,7 @@ fun SettingsScreen(
                     onClick = { viewModel.setDisplayMode(mode) },
                     shape = SegmentedButtonDefaults.itemShape(index = index, count = displayModes.size)
                 ) {
-                    Text(displayLabels[index], style = MaterialTheme.typography.labelSmall)
+                    Text(mode.label, style = MaterialTheme.typography.labelSmall)
                 }
             }
         }

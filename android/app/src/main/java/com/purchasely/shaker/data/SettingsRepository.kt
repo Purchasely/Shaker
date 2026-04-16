@@ -1,6 +1,8 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.KeyValueStore
+import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.domain.model.ThemeMode
 
 class SettingsRepository(private val store: KeyValueStore) {
 
@@ -10,13 +12,13 @@ class SettingsRepository(private val store: KeyValueStore) {
             if (value != null) store.putString(KEY_USER_ID, value) else store.remove(KEY_USER_ID)
         }
 
-    var themeMode: String
-        get() = store.getString(KEY_THEME, "system") ?: "system"
-        set(value) = store.putString(KEY_THEME, value)
+    var themeMode: ThemeMode
+        get() = ThemeMode.fromStorage(store.getString(KEY_THEME))
+        set(value) = store.putString(KEY_THEME, value.storageValue)
 
-    var displayMode: String
-        get() = store.getString(KEY_DISPLAY_MODE, "fullscreen") ?: "fullscreen"
-        set(value) = store.putString(KEY_DISPLAY_MODE, value)
+    var displayMode: DisplayMode
+        get() = DisplayMode.fromStorage(store.getString(KEY_DISPLAY_MODE))
+        set(value) = store.putString(KEY_DISPLAY_MODE, value.storageValue)
 
     var sdkModeStorage: String
         get() = store.getString(PurchaselySdkMode.KEY, PurchaselySdkMode.DEFAULT.storageValue)

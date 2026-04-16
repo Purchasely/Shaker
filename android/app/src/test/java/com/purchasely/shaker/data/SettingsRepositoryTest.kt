@@ -1,6 +1,8 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.InMemoryKeyValueStore
+import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.domain.model.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -39,25 +41,49 @@ class SettingsRepositoryTest {
     }
 
     @Test
-    fun `themeMode defaults to system`() {
-        assertEquals("system", repo.themeMode)
+    fun `themeMode defaults to SYSTEM`() {
+        assertEquals(ThemeMode.SYSTEM, repo.themeMode)
     }
 
     @Test
     fun `themeMode round-trips`() {
-        repo.themeMode = "dark"
-        assertEquals("dark", repo.themeMode)
+        repo.themeMode = ThemeMode.DARK
+        assertEquals(ThemeMode.DARK, repo.themeMode)
     }
 
     @Test
-    fun `displayMode defaults to fullscreen`() {
-        assertEquals("fullscreen", repo.displayMode)
+    fun `themeMode stores raw string value`() {
+        repo.themeMode = ThemeMode.LIGHT
+        assertEquals("light", store.getString("theme_mode"))
+    }
+
+    @Test
+    fun `themeMode falls back to SYSTEM for unknown value`() {
+        store.putString("theme_mode", "unknown")
+        assertEquals(ThemeMode.SYSTEM, repo.themeMode)
+    }
+
+    @Test
+    fun `displayMode defaults to FULLSCREEN`() {
+        assertEquals(DisplayMode.FULLSCREEN, repo.displayMode)
     }
 
     @Test
     fun `displayMode round-trips`() {
-        repo.displayMode = "embedded"
-        assertEquals("embedded", repo.displayMode)
+        repo.displayMode = DisplayMode.MODAL
+        assertEquals(DisplayMode.MODAL, repo.displayMode)
+    }
+
+    @Test
+    fun `displayMode stores raw string value`() {
+        repo.displayMode = DisplayMode.DRAWER
+        assertEquals("drawer", store.getString("display_mode"))
+    }
+
+    @Test
+    fun `displayMode falls back to FULLSCREEN for unknown value`() {
+        store.putString("display_mode", "unknown")
+        assertEquals(DisplayMode.FULLSCREEN, repo.displayMode)
     }
 
     @Test

@@ -5,6 +5,8 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.data.PurchaselySdkMode
+import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.domain.model.ThemeMode
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.SettingsRepository
@@ -37,7 +39,7 @@ class SettingsViewModel(
     val restoreMessage: StateFlow<String?> = _restoreMessage.asStateFlow()
 
     private val _themeMode = MutableStateFlow(settingsRepo.themeMode)
-    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     private val _sdkMode = MutableStateFlow(
         PurchaselySdkMode.fromStorage(settingsRepo.sdkModeStorage)
@@ -69,7 +71,7 @@ class SettingsViewModel(
     val anonymousId: StateFlow<String> = _anonymousId.asStateFlow()
 
     private val _displayMode = MutableStateFlow(settingsRepo.displayMode)
-    val displayMode: StateFlow<String> = _displayMode.asStateFlow()
+    val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
     // Signal Screen to display onboarding paywall
     private var pendingOnboardingPresentation: PresentationHandle? = null
@@ -177,18 +179,18 @@ class SettingsViewModel(
         }
     }
 
-    fun setDisplayMode(mode: String) {
+    fun setDisplayMode(mode: DisplayMode) {
         _displayMode.value = mode
         settingsRepo.displayMode = mode
-        Log.d(TAG, "[Shaker] Display mode changed to: $mode")
+        Log.d(TAG, "[Shaker] Display mode changed to: ${mode.storageValue}")
     }
 
-    fun setThemeMode(mode: String) {
+    fun setThemeMode(mode: ThemeMode) {
         _themeMode.value = mode
         settingsRepo.themeMode = mode
         // PURCHASELY: Track the user's preferred theme as a custom attribute for audience segmentation
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
-        purchaselyWrapper.setUserAttribute("app_theme", mode)
+        purchaselyWrapper.setUserAttribute("app_theme", mode.storageValue)
     }
 
     fun setSdkMode(mode: PurchaselySdkMode) {
