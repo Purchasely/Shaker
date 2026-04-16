@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class FavoritesViewModel(
@@ -29,14 +30,20 @@ class FavoritesViewModel(
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
     val isPremium: StateFlow<Boolean> = premiumManager.isPremium
 
+    private val _favorites = MutableStateFlow<List<Cocktail>>(emptyList())
+    val favorites: StateFlow<List<Cocktail>> = _favorites.asStateFlow()
+
     // Signal Screen to display favorites paywall
     private var pendingPresentation: PresentationHandle? = null
     private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
     val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
 
-    fun getFavoriteCocktails(): List<Cocktail> {
-        val ids = favoriteIds.value
-        return cocktailRepository.loadCocktails().filter { it.id in ids }
+    init {
+        viewModelScope.launch {
+            favoritesRepository.favoriteIds.collect { ids ->
+                _favorites.value = cocktailRepository.loadCocktails().filter { it.id in ids }
+            }
+        }
     }
 
     fun removeFavorite(cocktailId: String) {

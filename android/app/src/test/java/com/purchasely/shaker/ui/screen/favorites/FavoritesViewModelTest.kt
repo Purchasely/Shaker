@@ -67,19 +67,19 @@ class FavoritesViewModelTest {
         FavoritesViewModel(cocktailRepository, favoritesRepository, premiumManager, wrapper)
 
     @Test
-    fun `getFavoriteCocktails returns matching cocktails`() {
+    fun `favorites returns matching cocktails reactively`() {
         val vm = createViewModel()
-        val favorites = vm.getFavoriteCocktails()
+        val favorites = vm.favorites.value
         assertEquals(2, favorites.size)
         assertEquals("Mojito", favorites[0].name)
         assertEquals("Negroni", favorites[1].name)
     }
 
     @Test
-    fun `getFavoriteCocktails returns empty when no favorites`() {
+    fun `favorites returns empty when no favorites`() {
         every { favoritesRepository.favoriteIds } returns MutableStateFlow(emptySet())
         val vm = createViewModel()
-        assertTrue(vm.getFavoriteCocktails().isEmpty())
+        assertTrue(vm.favorites.value.isEmpty())
     }
 
     @Test

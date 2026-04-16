@@ -47,10 +47,14 @@ class HomeViewModel(
     val availableCategories: List<String> get() = repository.getCategories()
     val availableDifficulties: List<String> get() = repository.getDifficulties()
 
-    val hasActiveFilters: Boolean
-        get() = _selectedSpirits.value.isNotEmpty() ||
+    private val _hasActiveFilters = MutableStateFlow(false)
+    val hasActiveFilters: StateFlow<Boolean> = _hasActiveFilters.asStateFlow()
+
+    private fun updateHasActiveFilters() {
+        _hasActiveFilters.value = _selectedSpirits.value.isNotEmpty() ||
                 _selectedCategories.value.isNotEmpty() ||
                 _selectedDifficulty.value != null
+    }
 
     // Prefetched inline presentation
     private val _inlinePresentation = MutableStateFlow<FetchResult?>(null)
@@ -120,6 +124,7 @@ class HomeViewModel(
         if (current.contains(spirit)) current.remove(spirit) else current.add(spirit)
         _selectedSpirits.value = current
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun toggleCategory(category: String) {
@@ -127,11 +132,13 @@ class HomeViewModel(
         if (current.contains(category)) current.remove(category) else current.add(category)
         _selectedCategories.value = current
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun selectDifficulty(difficulty: String?) {
         _selectedDifficulty.value = if (_selectedDifficulty.value == difficulty) null else difficulty
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun clearFilters() {
@@ -139,6 +146,7 @@ class HomeViewModel(
         _selectedCategories.value = emptySet()
         _selectedDifficulty.value = null
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun onPaywallDismissed() {

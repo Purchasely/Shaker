@@ -45,9 +45,8 @@ fun FavoritesScreen(
     onCocktailClick: (String) -> Unit,
     viewModel: FavoritesViewModel = koinViewModel()
 ) {
-    val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
-    val favorites = viewModel.getFavoriteCocktails()
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Collect paywall display requests from ViewModel

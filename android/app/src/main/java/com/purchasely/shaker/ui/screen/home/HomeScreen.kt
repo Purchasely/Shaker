@@ -64,6 +64,7 @@ fun HomeScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
     val isFiltersLoading by viewModel.isFiltersLoading.collectAsStateWithLifecycle()
+    val hasActiveFilters by viewModel.hasActiveFilters.collectAsStateWithLifecycle()
     val inlinePresentation by viewModel.inlinePresentation.collectAsStateWithLifecycle()
     val context = LocalContext.current
     var showFilterSheet by remember { mutableStateOf(false) }
@@ -106,7 +107,7 @@ fun HomeScreen(
                                     viewModel.onFilterClick()
                                 }
                             }) {
-                                if (viewModel.hasActiveFilters) {
+                                if (hasActiveFilters) {
                                     BadgedBox(badge = { Badge() }) {
                                         Icon(Icons.Default.Tune, contentDescription = "Filters")
                                     }

@@ -216,28 +216,28 @@ class HomeViewModelTest {
     @Test
     fun `hasActiveFilters is false initially`() {
         val vm = createViewModel()
-        assertFalse(vm.hasActiveFilters)
+        assertFalse(vm.hasActiveFilters.value)
     }
 
     @Test
     fun `hasActiveFilters is true with spirit filter`() {
         val vm = createViewModel()
         vm.toggleSpirit("Rum")
-        assertTrue(vm.hasActiveFilters)
+        assertTrue(vm.hasActiveFilters.value)
     }
 
     @Test
     fun `hasActiveFilters is true with category filter`() {
         val vm = createViewModel()
         vm.toggleCategory("Classic")
-        assertTrue(vm.hasActiveFilters)
+        assertTrue(vm.hasActiveFilters.value)
     }
 
     @Test
     fun `hasActiveFilters is true with difficulty filter`() {
         val vm = createViewModel()
         vm.selectDifficulty("Easy")
-        assertTrue(vm.hasActiveFilters)
+        assertTrue(vm.hasActiveFilters.value)
     }
 
     @Test

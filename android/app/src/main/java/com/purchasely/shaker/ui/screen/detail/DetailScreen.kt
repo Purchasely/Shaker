@@ -64,7 +64,8 @@ fun DetailScreen(
     // Force light (white) status bar icons over the hero image
     val view = LocalView.current
     DisposableEffect(Unit) {
-        val window = (context as Activity).window
+        val activity = context as? Activity ?: return@DisposableEffect onDispose {}
+        val window = activity.window
         val controller = WindowCompat.getInsetsController(window, view)
         controller.isAppearanceLightStatusBars = false // white icons
         onDispose {
