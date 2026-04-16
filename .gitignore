@@ -5,6 +5,9 @@
 
 # Android
 local.properties
+android/.agents/
+android/.claude/
+android/skills-lock.json
 android/.gradle/
 android/build/
 android/app/build/
