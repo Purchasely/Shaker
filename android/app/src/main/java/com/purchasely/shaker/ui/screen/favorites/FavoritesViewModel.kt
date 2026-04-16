@@ -10,8 +10,8 @@ import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.PLYPresentation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -30,7 +30,7 @@ class FavoritesViewModel(
     val isPremium: StateFlow<Boolean> = premiumManager.isPremium
 
     // Signal Screen to display favorites paywall
-    private var pendingPresentation: PLYPresentation? = null
+    private var pendingPresentation: PresentationHandle? = null
     private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
     val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
 
@@ -47,7 +47,7 @@ class FavoritesViewModel(
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("favorites")) {
                 is FetchResult.Success -> {
-                    pendingPresentation = result.presentation
+                    pendingPresentation = result.handle
                     _requestPaywallDisplay.emit(Unit)
                 }
                 is FetchResult.Client -> {
@@ -57,16 +57,16 @@ class FavoritesViewModel(
                     Log.d(TAG, "[Shaker] Favorites placement is deactivated")
                 }
                 is FetchResult.Error -> {
-                    Log.e(TAG, "[Shaker] Error fetching favorites: ${result.error?.message}")
+                    Log.e(TAG, "[Shaker] Error fetching favorites: ${result.message}")
                 }
             }
         }
     }
 
     suspend fun displayPendingPaywall(activity: Activity) {
-        val presentation = pendingPresentation ?: return
+        val handle = pendingPresentation ?: return
         pendingPresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
+        val result = purchaselyWrapper.display(handle, activity)
         when (result) {
             is DisplayResult.Purchased, is DisplayResult.Restored -> {
                 Log.d(TAG, "[Shaker] Purchased/Restored from favorites")

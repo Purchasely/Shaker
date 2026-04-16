@@ -10,8 +10,8 @@ import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.PLYPresentation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -36,12 +36,12 @@ class DetailViewModel(
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
 
     // Signal Screen to display recipe paywall
-    private var pendingRecipePresentation: PLYPresentation? = null
+    private var pendingRecipePresentation: PresentationHandle? = null
     private val _requestRecipePaywall = MutableSharedFlow<Unit>()
     val requestRecipePaywall: SharedFlow<Unit> = _requestRecipePaywall.asSharedFlow()
 
     // Signal Screen to display favorites paywall
-    private var pendingFavoritesPresentation: PLYPresentation? = null
+    private var pendingFavoritesPresentation: PresentationHandle? = null
     private val _requestFavoritesPaywall = MutableSharedFlow<Unit>()
     val requestFavoritesPaywall: SharedFlow<Unit> = _requestFavoritesPaywall.asSharedFlow()
 
@@ -76,7 +76,7 @@ class DetailViewModel(
             )
             when (result) {
                 is FetchResult.Success -> {
-                    pendingRecipePresentation = result.presentation
+                    pendingRecipePresentation = result.handle
                     _requestRecipePaywall.emit(Unit)
                 }
                 is FetchResult.Client -> {
@@ -88,9 +88,9 @@ class DetailViewModel(
     }
 
     suspend fun displayPendingRecipePaywall(activity: Activity) {
-        val presentation = pendingRecipePresentation ?: return
+        val handle = pendingRecipePresentation ?: return
         pendingRecipePresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
+        val result = purchaselyWrapper.display(handle, activity)
         when (result) {
             is DisplayResult.Purchased -> {
                 Log.d("DetailViewModel", "[Shaker] Purchased: ${result.planName}")
@@ -111,7 +111,7 @@ class DetailViewModel(
             val result = purchaselyWrapper.loadPresentation(placementId = "favorites")
             when (result) {
                 is FetchResult.Success -> {
-                    pendingFavoritesPresentation = result.presentation
+                    pendingFavoritesPresentation = result.handle
                     _requestFavoritesPaywall.emit(Unit)
                 }
                 is FetchResult.Client -> {
@@ -123,9 +123,9 @@ class DetailViewModel(
     }
 
     suspend fun displayPendingFavoritesPaywall(activity: Activity) {
-        val presentation = pendingFavoritesPresentation ?: return
+        val handle = pendingFavoritesPresentation ?: return
         pendingFavoritesPresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
+        val result = purchaselyWrapper.display(handle, activity)
         when (result) {
             is DisplayResult.Purchased, is DisplayResult.Restored -> {
                 Log.d("DetailViewModel", "[Shaker] Purchased/Restored from favorites: ${(result as? DisplayResult.Purchased)?.planName ?: (result as? DisplayResult.Restored)?.planName}")

@@ -11,9 +11,9 @@ import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import io.purchasely.ext.PLYDataProcessingPurpose
-import io.purchasely.ext.PLYPresentation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -78,7 +78,7 @@ class SettingsViewModel(
     val displayMode: StateFlow<String> = _displayMode.asStateFlow()
 
     // Signal Screen to display onboarding paywall
-    private var pendingOnboardingPresentation: PLYPresentation? = null
+    private var pendingOnboardingPresentation: PresentationHandle? = null
     private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
     val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
 
@@ -156,7 +156,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
                 is FetchResult.Success -> {
-                    pendingOnboardingPresentation = result.presentation
+                    pendingOnboardingPresentation = result.handle
                     _requestPaywallDisplay.emit(Unit)
                 }
                 is FetchResult.Client -> {
@@ -166,16 +166,16 @@ class SettingsViewModel(
                     Log.d(TAG, "[Shaker] Onboarding presentation is deactivated")
                 }
                 is FetchResult.Error -> {
-                    Log.d(TAG, "[Shaker] Onboarding presentation not available: ${result.error?.message}")
+                    Log.d(TAG, "[Shaker] Onboarding presentation not available: ${result.message}")
                 }
             }
         }
     }
 
     suspend fun displayPendingPaywall(activity: Activity) {
-        val presentation = pendingOnboardingPresentation ?: return
+        val handle = pendingOnboardingPresentation ?: return
         pendingOnboardingPresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
+        val result = purchaselyWrapper.display(handle, activity)
         when (result) {
             is DisplayResult.Purchased, is DisplayResult.Restored -> {
                 Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")

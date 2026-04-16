@@ -17,7 +17,7 @@ fun EmbeddedScreenBanner(
     AndroidView(
         factory = { context ->
             wrapper.getView(
-                presentation = fetchResult.presentation,
+                handle = fetchResult.handle,
                 context = context,
                 onResult = onResult
             ) ?: FrameLayout(context)

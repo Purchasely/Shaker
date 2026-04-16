@@ -208,17 +208,17 @@ class PurchaselyWrapperTest {
     fun `loadPresentation returns FetchResult via mocked wrapper`() = runTest {
         val mockedWrapper = mockk<PurchaselyWrapper>(relaxed = true)
         val mockPresentation = mockk<PLYPresentation>()
-        io.mockk.coEvery { mockedWrapper.loadPresentation("filters", null) } returns FetchResult.Success(mockPresentation)
+        val handle = PresentationHandle(mockPresentation)
+        io.mockk.coEvery { mockedWrapper.loadPresentation("filters", null) } returns FetchResult.Success(handle, 300)
         val result = mockedWrapper.loadPresentation("filters")
         assertTrue(result is FetchResult.Success)
     }
 
     @Test
     fun `FetchResult Success exposes height`() {
-        val presentation = mockk<PLYPresentation> {
-            every { height } returns 400
-        }
-        val result = FetchResult.Success(presentation)
+        val presentation = mockk<PLYPresentation>()
+        val handle = PresentationHandle(presentation)
+        val result = FetchResult.Success(handle, 400)
         assertEquals(400, result.height)
     }
 

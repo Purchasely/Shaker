@@ -14,7 +14,6 @@ import com.purchasely.shaker.data.purchase.RestoreRequest
 import com.purchasely.shaker.data.purchase.TransactionResult
 import io.purchasely.ext.EventListener
 import io.purchasely.ext.LogLevel
-import io.purchasely.ext.PLYPresentation
 import io.purchasely.ext.PLYPresentationAction
 import io.purchasely.ext.PLYPresentationActionParameters
 import io.purchasely.ext.PLYPresentationInfo
@@ -241,23 +240,24 @@ class PurchaselyWrapper(
             } else {
                 Purchasely.fetchPresentation(placementId = placementId)
             }
+            val handle = PresentationHandle(presentation)
             when (presentation.type) {
                 PLYPresentationType.DEACTIVATED -> FetchResult.Deactivated
-                PLYPresentationType.CLIENT -> FetchResult.Client(presentation)
-                else -> FetchResult.Success(presentation)
+                PLYPresentationType.CLIENT -> FetchResult.Client(handle)
+                else -> FetchResult.Success(handle, presentation.height)
             }
         } catch (e: Exception) {
-            FetchResult.Error(e as? PLYError)
+            FetchResult.Error(e.message)
         }
     }
 
     // MARK: - Modal Display
 
     suspend fun display(
-        presentation: PLYPresentation,
+        handle: PresentationHandle,
         activity: Activity
     ): DisplayResult = suspendCoroutine { continuation ->
-        presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
+        handle.presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
             when (result) {
                 PLYProductViewResult.PURCHASED -> continuation.resume(DisplayResult.Purchased(plan?.name))
                 PLYProductViewResult.RESTORED -> continuation.resume(DisplayResult.Restored(plan?.name))
@@ -269,11 +269,11 @@ class PurchaselyWrapper(
     // MARK: - Embedded View
 
     fun getView(
-        presentation: PLYPresentation,
+        handle: PresentationHandle,
         context: Context,
         onResult: (DisplayResult) -> Unit
     ): View? {
-        return presentation.buildView(
+        return handle.presentation.buildView(
             context = context,
             callback = { result: PLYProductViewResult, plan: PLYPlan? ->
                 when (result) {

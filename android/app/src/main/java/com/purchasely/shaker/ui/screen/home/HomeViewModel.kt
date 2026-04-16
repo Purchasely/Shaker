@@ -9,8 +9,8 @@ import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.PLYPresentation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -64,7 +64,7 @@ class HomeViewModel(
     val isFiltersLoading: StateFlow<Boolean> = _isFiltersLoading.asStateFlow()
 
     // Signal Screen to display filters paywall
-    private var pendingFiltersPresentation: PLYPresentation? = null
+    private var pendingFiltersPresentation: PresentationHandle? = null
     private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
     val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
 
@@ -97,15 +97,15 @@ class HomeViewModel(
         if (isPremium.value) return
         val result = _filtersPresentation.value
         if (result is FetchResult.Success) {
-            pendingFiltersPresentation = result.presentation
+            pendingFiltersPresentation = result.handle
             viewModelScope.launch { _requestPaywallDisplay.emit(Unit) }
         }
     }
 
     suspend fun displayPendingPaywall(activity: Activity) {
-        val presentation = pendingFiltersPresentation ?: return
+        val handle = pendingFiltersPresentation ?: return
         pendingFiltersPresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
+        val result = purchaselyWrapper.display(handle, activity)
         when (result) {
             is DisplayResult.Purchased, is DisplayResult.Restored -> {
                 Log.d("HomeViewModel", "[Shaker] Purchased/Restored from filters")

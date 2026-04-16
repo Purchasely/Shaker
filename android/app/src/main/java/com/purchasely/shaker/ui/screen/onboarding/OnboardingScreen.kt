@@ -50,7 +50,7 @@ fun OnboardingScreen(
 
         when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
             is FetchResult.Success -> {
-                val displayResult = purchaselyWrapper.display(result.presentation, activity)
+                val displayResult = purchaselyWrapper.display(result.handle, activity)
                 when (displayResult) {
                     is DisplayResult.Purchased,
                     is DisplayResult.Restored -> {
@@ -72,7 +72,7 @@ fun OnboardingScreen(
                 onComplete()
             }
             is FetchResult.Error -> {
-                Log.e(TAG, "[Shaker] Error fetching onboarding: ${result.error?.message}")
+                Log.e(TAG, "[Shaker] Error fetching onboarding: ${result.message}")
                 onComplete()
             }
         }
