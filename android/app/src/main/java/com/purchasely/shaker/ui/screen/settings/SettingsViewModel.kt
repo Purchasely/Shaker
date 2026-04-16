@@ -1,14 +1,13 @@
 package com.purchasely.shaker.ui.screen.settings
 
 import android.app.Activity
-import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
@@ -23,16 +22,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
-    private val context: Context,
+    private val settingsRepo: SettingsRepository,
     private val premiumManager: PremiumManager,
     private val runningModeRepo: RunningModeRepository,
     private val purchaselyWrapper: PurchaselyWrapper
 ) : ViewModel() {
 
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences(PurchaselySdkMode.PREFERENCES_NAME, Context.MODE_PRIVATE)
-
-    private val _userId = MutableStateFlow(prefs.getString(KEY_USER_ID, null))
+    private val _userId = MutableStateFlow(settingsRepo.userId)
     val userId: StateFlow<String?> = _userId.asStateFlow()
 
     val isPremium: StateFlow<Boolean> = premiumManager.isPremium
@@ -40,30 +36,28 @@ class SettingsViewModel(
     private val _restoreMessage = MutableStateFlow<String?>(null)
     val restoreMessage: StateFlow<String?> = _restoreMessage.asStateFlow()
 
-    private val _themeMode = MutableStateFlow(prefs.getString(KEY_THEME, "system") ?: "system")
+    private val _themeMode = MutableStateFlow(settingsRepo.themeMode)
     val themeMode: StateFlow<String> = _themeMode.asStateFlow()
 
     private val _sdkMode = MutableStateFlow(
-        PurchaselySdkMode.fromStorage(
-            prefs.getString(PurchaselySdkMode.KEY, PurchaselySdkMode.DEFAULT.storageValue)
-        )
+        PurchaselySdkMode.fromStorage(settingsRepo.sdkModeStorage)
     )
     val sdkMode: StateFlow<PurchaselySdkMode> = _sdkMode.asStateFlow()
 
     // Data privacy consent toggles (default: true = consent given)
-    private val _analyticsConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_ANALYTICS, true))
+    private val _analyticsConsent = MutableStateFlow(settingsRepo.analyticsConsent)
     val analyticsConsent: StateFlow<Boolean> = _analyticsConsent.asStateFlow()
 
-    private val _identifiedAnalyticsConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_IDENTIFIED_ANALYTICS, true))
+    private val _identifiedAnalyticsConsent = MutableStateFlow(settingsRepo.identifiedAnalyticsConsent)
     val identifiedAnalyticsConsent: StateFlow<Boolean> = _identifiedAnalyticsConsent.asStateFlow()
 
-    private val _personalizationConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_PERSONALIZATION, true))
+    private val _personalizationConsent = MutableStateFlow(settingsRepo.personalizationConsent)
     val personalizationConsent: StateFlow<Boolean> = _personalizationConsent.asStateFlow()
 
-    private val _campaignsConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_CAMPAIGNS, true))
+    private val _campaignsConsent = MutableStateFlow(settingsRepo.campaignsConsent)
     val campaignsConsent: StateFlow<Boolean> = _campaignsConsent.asStateFlow()
 
-    private val _thirdPartyConsent = MutableStateFlow(prefs.getBoolean(KEY_CONSENT_THIRD_PARTY, true))
+    private val _thirdPartyConsent = MutableStateFlow(settingsRepo.thirdPartyConsent)
     val thirdPartyConsent: StateFlow<Boolean> = _thirdPartyConsent.asStateFlow()
 
     private val _runningMode = MutableStateFlow(
@@ -74,7 +68,7 @@ class SettingsViewModel(
     private val _anonymousId = MutableStateFlow(purchaselyWrapper.anonymousUserId)
     val anonymousId: StateFlow<String> = _anonymousId.asStateFlow()
 
-    private val _displayMode = MutableStateFlow(prefs.getString(KEY_DISPLAY_MODE, "fullscreen") ?: "fullscreen")
+    private val _displayMode = MutableStateFlow(settingsRepo.displayMode)
     val displayMode: StateFlow<String> = _displayMode.asStateFlow()
 
     // Signal Screen to display onboarding paywall
@@ -85,9 +79,7 @@ class SettingsViewModel(
     val sdkVersion: String get() = purchaselyWrapper.sdkVersion
 
     init {
-        if (!prefs.contains(PurchaselySdkMode.KEY)) {
-            prefs.edit().putString(PurchaselySdkMode.KEY, PurchaselySdkMode.DEFAULT.storageValue).apply()
-        }
+        settingsRepo.initSdkModeIfNeeded()
         applyConsentPreferences()
     }
 
@@ -109,7 +101,7 @@ class SettingsViewModel(
         }
 
         _userId.value = userId
-        prefs.edit().putString(KEY_USER_ID, userId).apply()
+        settingsRepo.userId = userId
 
         // PURCHASELY: Store the user ID as a custom attribute for paywall targeting/personalization
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
@@ -121,7 +113,7 @@ class SettingsViewModel(
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         purchaselyWrapper.userLogout()
         _userId.value = null
-        prefs.edit().remove(KEY_USER_ID).apply()
+        settingsRepo.userId = null
         premiumManager.refreshPremiumStatus()
         Log.d(TAG, "[Shaker] Logged out")
     }
@@ -187,13 +179,13 @@ class SettingsViewModel(
 
     fun setDisplayMode(mode: String) {
         _displayMode.value = mode
-        prefs.edit().putString(KEY_DISPLAY_MODE, mode).apply()
+        settingsRepo.displayMode = mode
         Log.d(TAG, "[Shaker] Display mode changed to: $mode")
     }
 
     fun setThemeMode(mode: String) {
         _themeMode.value = mode
-        prefs.edit().putString(KEY_THEME, mode).apply()
+        settingsRepo.themeMode = mode
         // PURCHASELY: Track the user's preferred theme as a custom attribute for audience segmentation
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         purchaselyWrapper.setUserAttribute("app_theme", mode)
@@ -203,37 +195,37 @@ class SettingsViewModel(
         if (_sdkMode.value == mode) return
 
         _sdkMode.value = mode
-        prefs.edit().putString(PurchaselySdkMode.KEY, mode.storageValue).apply()
+        settingsRepo.sdkModeStorage = mode.storageValue
         restartPurchaselySdk(mode)
     }
 
     fun setAnalyticsConsent(enabled: Boolean) {
         _analyticsConsent.value = enabled
-        prefs.edit().putBoolean(KEY_CONSENT_ANALYTICS, enabled).apply()
+        settingsRepo.analyticsConsent = enabled
         applyConsentPreferences()
     }
 
     fun setIdentifiedAnalyticsConsent(enabled: Boolean) {
         _identifiedAnalyticsConsent.value = enabled
-        prefs.edit().putBoolean(KEY_CONSENT_IDENTIFIED_ANALYTICS, enabled).apply()
+        settingsRepo.identifiedAnalyticsConsent = enabled
         applyConsentPreferences()
     }
 
     fun setPersonalizationConsent(enabled: Boolean) {
         _personalizationConsent.value = enabled
-        prefs.edit().putBoolean(KEY_CONSENT_PERSONALIZATION, enabled).apply()
+        settingsRepo.personalizationConsent = enabled
         applyConsentPreferences()
     }
 
     fun setCampaignsConsent(enabled: Boolean) {
         _campaignsConsent.value = enabled
-        prefs.edit().putBoolean(KEY_CONSENT_CAMPAIGNS, enabled).apply()
+        settingsRepo.campaignsConsent = enabled
         applyConsentPreferences()
     }
 
     fun setThirdPartyConsent(enabled: Boolean) {
         _thirdPartyConsent.value = enabled
-        prefs.edit().putBoolean(KEY_CONSENT_THIRD_PARTY, enabled).apply()
+        settingsRepo.thirdPartyConsent = enabled
         applyConsentPreferences()
     }
 
@@ -258,13 +250,5 @@ class SettingsViewModel(
 
     companion object {
         private const val TAG = "SettingsViewModel"
-        private const val KEY_USER_ID = "user_id"
-        private const val KEY_THEME = "theme_mode"
-        private const val KEY_CONSENT_ANALYTICS = "consent_analytics"
-        private const val KEY_CONSENT_IDENTIFIED_ANALYTICS = "consent_identified_analytics"
-        private const val KEY_CONSENT_PERSONALIZATION = "consent_personalization"
-        private const val KEY_CONSENT_CAMPAIGNS = "consent_campaigns"
-        private const val KEY_CONSENT_THIRD_PARTY = "consent_third_party"
-        private const val KEY_DISPLAY_MODE = "display_mode"
     }
 }

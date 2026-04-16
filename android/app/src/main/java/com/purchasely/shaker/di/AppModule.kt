@@ -8,6 +8,7 @@ import com.purchasely.shaker.data.FavoritesRepository
 import com.purchasely.shaker.data.OnboardingRepository
 import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -47,6 +48,7 @@ val appModule = module {
     single { FavoritesRepository(get(named("favorites"))) }
     single { OnboardingRepository(get(named("onboarding"))) }
     single { RunningModeRepository(get(named("settings"))) }
+    single { SettingsRepository(get(named("settings"))) }
     // Reactive flows for purchase orchestration
     single(named("purchaseRequests")) { MutableSharedFlow<PurchaseRequest>() }
     single(named("restoreRequests")) { MutableSharedFlow<RestoreRequest>() }
@@ -85,5 +87,5 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(androidContext(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get<SettingsRepository>(), get(), get(), get()) }
 }
