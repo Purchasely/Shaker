@@ -1,7 +1,6 @@
 package com.purchasely.shaker.purchasely
 
 import android.app.Activity
-import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -37,7 +36,7 @@ class PurchaselyWrapperTest {
     private val testDispatcher = UnconfinedTestDispatcher()
     private val testScope = TestScope(testDispatcher)
 
-    private lateinit var premiumManager: PremiumManager
+    private lateinit var onTransactionCompletedCallback: (() -> Unit)
     private lateinit var runningModeRepo: RunningModeRepository
     private lateinit var purchaseRequests: MutableSharedFlow<PurchaseRequest>
     private lateinit var restoreRequests: MutableSharedFlow<RestoreRequest>
@@ -47,7 +46,7 @@ class PurchaselyWrapperTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
-        premiumManager = mockk(relaxed = true)
+        onTransactionCompletedCallback = mockk(relaxed = true)
         runningModeRepo = mockk {
             every { runningMode } returns PLYRunningMode.PaywallObserver
             every { isObserverMode } returns true
@@ -56,13 +55,14 @@ class PurchaselyWrapperTest {
         restoreRequests = MutableSharedFlow()
         transactionResult = MutableSharedFlow()
         wrapper = PurchaselyWrapper(
-            premiumManager = premiumManager,
             runningModeRepo = runningModeRepo,
             purchaseRequests = purchaseRequests,
             restoreRequests = restoreRequests,
             transactionResult = transactionResult,
             scope = testScope
-        )
+        ).also {
+            it.onTransactionCompleted = onTransactionCompletedCallback
+        }
     }
 
     @After
@@ -159,11 +159,11 @@ class PurchaselyWrapperTest {
     // --- TransactionResult observation ---
 
     @Test
-    fun `TransactionResult Success triggers premium refresh`() = runTest {
+    fun `TransactionResult Success triggers onTransactionCompleted callback`() = runTest {
         wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) {}
         transactionResult.emit(TransactionResult.Success)
         testScope.testScheduler.advanceUntilIdle()
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { onTransactionCompletedCallback.invoke() }
     }
 
     @Test

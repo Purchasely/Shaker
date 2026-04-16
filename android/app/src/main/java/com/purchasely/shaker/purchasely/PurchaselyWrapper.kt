@@ -7,7 +7,6 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.view.View
-import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -19,6 +18,7 @@ import io.purchasely.ext.PLYPresentationActionParameters
 import io.purchasely.ext.PLYPresentationInfo
 import io.purchasely.ext.PLYPresentationProperties
 import io.purchasely.ext.PLYPresentationType
+import io.purchasely.ext.SubscriptionsListener
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.fetchPresentation
@@ -34,13 +34,14 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class PurchaselyWrapper(
-    private val premiumManager: PremiumManager,
     private val runningModeRepo: RunningModeRepository,
     private val purchaseRequests: MutableSharedFlow<PurchaseRequest>,
     private val restoreRequests: MutableSharedFlow<RestoreRequest>,
     private val transactionResult: SharedFlow<TransactionResult>,
     private val scope: CoroutineScope
 ) {
+
+    var onTransactionCompleted: (() -> Unit)? = null
 
     private var application: Application? = null
     private var apiKey: String = ""
@@ -66,7 +67,8 @@ class PurchaselyWrapper(
     fun initialize(
         application: Application,
         apiKey: String,
-        logLevel: LogLevel = LogLevel.DEBUG
+        logLevel: LogLevel = LogLevel.DEBUG,
+        onConfigured: (() -> Unit)? = null
     ) {
         this.application = application
         this.apiKey = apiKey
@@ -84,7 +86,7 @@ class PurchaselyWrapper(
             .start { isConfigured, error ->
                 if (isConfigured) {
                     Log.d(TAG, "[Shaker] Purchasely SDK configured successfully")
-                    premiumManager.refreshPremiumStatus()
+                    onConfigured?.invoke()
                 }
                 error?.let {
                     Log.e(TAG, "[Shaker] Purchasely configuration error: ${it.message}")
@@ -185,7 +187,7 @@ class PurchaselyWrapper(
                 synchronize()
                 pendingProcessAction?.invoke(false)
                 pendingProcessAction = null
-                premiumManager.refreshPremiumStatus()
+                onTransactionCompleted?.invoke()
                 Log.d(TAG, "[Shaker] Transaction success — synchronized and refreshed")
             }
             is TransactionResult.Cancelled -> {
@@ -318,6 +320,12 @@ class PurchaselyWrapper(
 
     fun incrementUserAttribute(key: String) {
         Purchasely.incrementUserAttribute(key)
+    }
+
+    // MARK: - Subscriptions
+
+    fun userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener) {
+        Purchasely.userSubscriptions(invalidateCache, listener)
     }
 
     // MARK: - Restore

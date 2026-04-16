@@ -29,7 +29,6 @@ val appModule = module {
     single { FavoritesRepository(androidContext()) }
     single { OnboardingRepository(androidContext()) }
     single { RunningModeRepository(androidContext()) }
-    single { PremiumManager() }
     // Reactive flows for purchase orchestration
     single(named("purchaseRequests")) { MutableSharedFlow<PurchaseRequest>() }
     single(named("restoreRequests")) { MutableSharedFlow<RestoreRequest>() }
@@ -53,13 +52,17 @@ val appModule = module {
     }
     single {
         PurchaselyWrapper(
-            premiumManager = get(),
             runningModeRepo = get(),
             purchaseRequests = get(named("purchaseRequests")),
             restoreRequests = get(named("restoreRequests")),
             transactionResult = get<PurchaseManager>().transactionResult,
             scope = get(named("appScope"))
         )
+    }
+    single {
+        PremiumManager(wrapper = get()).also { pm ->
+            get<PurchaselyWrapper>().onTransactionCompleted = { pm.refreshPremiumStatus() }
+        }
     }
     viewModel { HomeViewModel(get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }
