@@ -35,7 +35,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
@@ -72,13 +74,13 @@ fun FavoritesScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "No favorites yet",
+                    text = stringResource(R.string.no_favorites_yet),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Tap the heart icon on a cocktail to save it here.",
+                    text = stringResource(R.string.favorites_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
@@ -92,7 +94,7 @@ fun FavoritesScreen(
                         )
                     ) {
                         Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                        Text("Unlock Favorites")
+                        Text(stringResource(R.string.unlock_favorites))
                     }
                 }
             }

@@ -44,7 +44,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 import com.purchasely.shaker.data.PurchaselySdkMode
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
@@ -97,7 +99,7 @@ fun SettingsScreen(
     ) {
         // Account section
         Text(
-            text = "Account",
+            text = stringResource(R.string.account),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
@@ -110,7 +112,7 @@ fun SettingsScreen(
                 Spacer(modifier = Modifier.width(8.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Logged in as",
+                        text = stringResource(R.string.logged_in_as),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -121,7 +123,7 @@ fun SettingsScreen(
                 }
                 TextButton(onClick = { viewModel.logout() }) {
                     Text(
-                        "Logout",
+                        stringResource(R.string.logout),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.error
                     )
@@ -136,8 +138,8 @@ fun SettingsScreen(
                 OutlinedTextField(
                     value = loginInput,
                     onValueChange = { loginInput = it },
-                    label = { Text("User ID") },
-                    placeholder = { Text("Enter any user ID") },
+                    label = { Text(stringResource(R.string.user_id)) },
+                    placeholder = { Text(stringResource(R.string.enter_user_id)) },
                     singleLine = true,
                     modifier = Modifier.weight(1f)
                 )
@@ -149,7 +151,7 @@ fun SettingsScreen(
                     },
                     enabled = loginInput.isNotBlank()
                 ) {
-                    Text("Login")
+                    Text(stringResource(R.string.login))
                 }
             }
         }
@@ -158,10 +160,10 @@ fun SettingsScreen(
 
         // Premium status
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Premium Status", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.premium_status), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.weight(1f))
             Text(
-                text = if (isPremium) "Active" else "Free",
+                text = if (isPremium) stringResource(R.string.active) else stringResource(R.string.free),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (isPremium) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -169,7 +171,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Anonymous ID", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.anonymous_id), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
                     text = anonymousId,
                     style = MaterialTheme.typography.bodySmall,
@@ -182,9 +184,9 @@ fun SettingsScreen(
                         ClipEntry(ClipData.newPlainText("anonymousId", anonymousId))
                     )
                 }
-                Toast.makeText(context, "Copied!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
             }) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.copy), modifier = Modifier.size(18.dp))
             }
         }
 
@@ -194,7 +196,7 @@ fun SettingsScreen(
 
         // Purchases section
         Text(
-            text = "Purchases",
+            text = stringResource(R.string.purchases),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
@@ -203,14 +205,14 @@ fun SettingsScreen(
             onClick = { viewModel.restorePurchases() },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Restore Purchases")
+            Text(stringResource(R.string.restore_purchases))
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
             onClick = { viewModel.showOnboardingPaywall() },
             modifier = Modifier.fillMaxWidth()
         ) {
-            Text("Show Onboarding")
+            Text(stringResource(R.string.show_onboarding))
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -219,7 +221,7 @@ fun SettingsScreen(
 
         // Purchasely SDK section
         Text(
-            text = "Purchasely SDK",
+            text = stringResource(R.string.purchasely_sdk),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
@@ -240,7 +242,7 @@ fun SettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Default mode is Paywall Observer.",
+            text = stringResource(R.string.default_mode_hint),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -251,46 +253,46 @@ fun SettingsScreen(
 
         // Data Privacy section
         Text(
-            text = "Data Privacy",
+            text = stringResource(R.string.data_privacy),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(12.dp))
 
         ConsentToggleRow(
-            label = "Analytics",
-            description = "Anonymous audience measurement",
+            label = stringResource(R.string.analytics),
+            description = stringResource(R.string.analytics_desc),
             checked = analyticsConsent,
             onCheckedChange = { viewModel.setAnalyticsConsent(it) }
         )
         ConsentToggleRow(
-            label = "Identified Analytics",
-            description = "User-identified analytics",
+            label = stringResource(R.string.identified_analytics),
+            description = stringResource(R.string.identified_analytics_desc),
             checked = identifiedAnalyticsConsent,
             onCheckedChange = { viewModel.setIdentifiedAnalyticsConsent(it) }
         )
         ConsentToggleRow(
-            label = "Personalization",
-            description = "Personalized content & offers",
+            label = stringResource(R.string.personalization),
+            description = stringResource(R.string.personalization_desc),
             checked = personalizationConsent,
             onCheckedChange = { viewModel.setPersonalizationConsent(it) }
         )
         ConsentToggleRow(
-            label = "Campaigns",
-            description = "Promotional campaigns",
+            label = stringResource(R.string.campaigns),
+            description = stringResource(R.string.campaigns_desc),
             checked = campaignsConsent,
             onCheckedChange = { viewModel.setCampaignsConsent(it) }
         )
         ConsentToggleRow(
-            label = "Third-party Integrations",
-            description = "External analytics & integrations",
+            label = stringResource(R.string.third_party),
+            description = stringResource(R.string.third_party_desc),
             checked = thirdPartyConsent,
             onCheckedChange = { viewModel.setThirdPartyConsent(it) }
         )
 
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Technical processing required for app operation cannot be disabled.",
+            text = stringResource(R.string.technical_processing_note),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -301,14 +303,14 @@ fun SettingsScreen(
 
         // Appearance section
         Text(
-            text = "Appearance",
+            text = stringResource(R.string.appearance),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(12.dp))
 
         val themes = listOf("light", "dark", "system")
-        val labels = listOf("Light", "Dark", "System")
+        val labels = listOf(stringResource(R.string.light), stringResource(R.string.dark), stringResource(R.string.system))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             themes.forEachIndexed { index, mode ->
                 SegmentedButton(
@@ -327,20 +329,20 @@ fun SettingsScreen(
 
         // Display Mode section
         Text(
-            text = "Screen Display Mode",
+            text = stringResource(R.string.screen_display_mode),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "How paywalls are presented on screen",
+            text = stringResource(R.string.display_mode_desc),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Spacer(modifier = Modifier.height(12.dp))
 
         val displayModes = listOf("fullscreen", "modal", "drawer", "popin")
-        val displayLabels = listOf("Full", "Modal", "Drawer", "Popin")
+        val displayLabels = listOf(stringResource(R.string.full), stringResource(R.string.modal), stringResource(R.string.drawer), stringResource(R.string.popin))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
             displayModes.forEachIndexed { index, mode ->
                 SegmentedButton(
@@ -359,14 +361,14 @@ fun SettingsScreen(
 
         // About section
         Text(
-            text = "About",
+            text = stringResource(R.string.about),
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(12.dp))
 
         Row {
-            Text("Version", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.version), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = "1.0.0",
@@ -376,7 +378,7 @@ fun SettingsScreen(
         }
         Spacer(modifier = Modifier.height(8.dp))
         Row {
-            Text("Purchasely SDK", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.purchasely_sdk), style = MaterialTheme.typography.bodyMedium)
             Spacer(modifier = Modifier.weight(1f))
             Text(
                 text = viewModel.sdkVersion,
@@ -387,7 +389,7 @@ fun SettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "Powered by Purchasely",
+            text = stringResource(R.string.powered_by_purchasely),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

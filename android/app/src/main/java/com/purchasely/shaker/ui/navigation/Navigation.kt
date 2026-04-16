@@ -19,7 +19,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.annotation.StringRes
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.NavType
@@ -32,6 +34,7 @@ import com.purchasely.shaker.data.OnboardingRepository
 import com.purchasely.shaker.ui.screen.detail.DetailScreen
 import com.purchasely.shaker.ui.screen.favorites.FavoritesScreen
 import com.purchasely.shaker.ui.screen.home.HomeScreen
+import com.purchasely.shaker.R
 import com.purchasely.shaker.ui.screen.onboarding.OnboardingScreen
 import com.purchasely.shaker.ui.screen.settings.SettingsScreen
 import org.koin.compose.koinInject
@@ -47,15 +50,15 @@ sealed class Screen(val route: String) {
 
 data class BottomNavItem(
     val screen: Screen,
-    val label: String,
+    @StringRes val labelRes: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector
 )
 
 val bottomNavItems = listOf(
-    BottomNavItem(Screen.Home, "Home", Icons.Filled.Home, Icons.Outlined.Home),
-    BottomNavItem(Screen.Favorites, "Favorites", Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
-    BottomNavItem(Screen.Settings, "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
+    BottomNavItem(Screen.Home, R.string.home, Icons.Filled.Home, Icons.Outlined.Home),
+    BottomNavItem(Screen.Favorites, R.string.favorites, Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
+    BottomNavItem(Screen.Settings, R.string.settings, Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
 @Composable
@@ -86,14 +89,15 @@ fun ShakerNavHost() {
                 NavigationBar {
                     bottomNavItems.forEach { item ->
                         val selected = currentDestination?.hierarchy?.any { it.route == item.screen.route } == true
+                        val label = stringResource(item.labelRes)
                         NavigationBarItem(
                             icon = {
                                 Icon(
                                     imageVector = if (selected) item.selectedIcon else item.unselectedIcon,
-                                    contentDescription = item.label
+                                    contentDescription = label
                                 )
                             },
-                            label = { Text(item.label) },
+                            label = { Text(label) },
                             selected = selected,
                             onClick = {
                                 navController.navigate(item.screen.route) {

@@ -1,4 +1,98 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Shaker</string>
+
+    <!-- Home -->
+    <string name="search_cocktails">Search cocktails…</string>
+    <string name="search">Search</string>
+    <string name="filters">Filters</string>
+    <string name="no_cocktails_found">No cocktails found</string>
+    <string name="try_different_search">Try a different search or filter.</string>
+
+    <!-- Detail -->
+    <string name="ingredients">Ingredients</string>
+    <string name="instructions">Instructions</string>
+    <string name="unlock_full_recipe">Unlock Full Recipe</string>
+    <string name="back">Back</string>
+    <string name="add_to_favorites">Add to favorites</string>
+    <string name="remove_from_favorites">Remove from favorites</string>
+
+    <!-- Favorites -->
+    <string name="no_favorites_yet">No favorites yet</string>
+    <string name="favorites_hint">Tap the heart icon on a cocktail to save it here.</string>
+    <string name="unlock_favorites">Unlock Favorites</string>
+
+    <!-- Settings: Account -->
+    <string name="account">Account</string>
+    <string name="logged_in_as">Logged in as</string>
+    <string name="logout">Logout</string>
+    <string name="user_id">User ID</string>
+    <string name="enter_user_id">Enter any user ID</string>
+    <string name="login">Login</string>
+    <string name="premium_status">Premium Status</string>
+    <string name="active">Active</string>
+    <string name="free">Free</string>
+    <string name="anonymous_id">Anonymous ID</string>
+    <string name="copied">Copied!</string>
+    <string name="copy">Copy</string>
+
+    <!-- Settings: Purchases -->
+    <string name="purchases">Purchases</string>
+    <string name="restore_purchases">Restore Purchases</string>
+    <string name="show_onboarding">Show Onboarding</string>
+
+    <!-- Settings: Purchasely SDK -->
+    <string name="purchasely_sdk">Purchasely SDK</string>
+    <string name="default_mode_hint">Default mode is Paywall Observer.</string>
+
+    <!-- Settings: Data Privacy -->
+    <string name="data_privacy">Data Privacy</string>
+    <string name="analytics">Analytics</string>
+    <string name="analytics_desc">Anonymous audience measurement</string>
+    <string name="identified_analytics">Identified Analytics</string>
+    <string name="identified_analytics_desc">User-identified analytics</string>
+    <string name="personalization">Personalization</string>
+    <string name="personalization_desc">Personalized content &amp; offers</string>
+    <string name="campaigns">Campaigns</string>
+    <string name="campaigns_desc">Promotional campaigns</string>
+    <string name="third_party">Third-party Integrations</string>
+    <string name="third_party_desc">External analytics &amp; integrations</string>
+    <string name="technical_processing_note">Technical processing required for app operation cannot be disabled.</string>
+
+    <!-- Settings: Appearance -->
+    <string name="appearance">Appearance</string>
+    <string name="light">Light</string>
+    <string name="dark">Dark</string>
+    <string name="system">System</string>
+
+    <!-- Settings: Display Mode -->
+    <string name="screen_display_mode">Screen Display Mode</string>
+    <string name="display_mode_desc">How paywalls are presented on screen</string>
+    <string name="full">Full</string>
+    <string name="modal">Modal</string>
+    <string name="drawer">Drawer</string>
+    <string name="popin">Popin</string>
+
+    <!-- Settings: About -->
+    <string name="about">About</string>
+    <string name="version">Version</string>
+    <string name="powered_by_purchasely">Powered by Purchasely</string>
+
+    <!-- Settings: Restore messages (used in ViewModel) -->
+    <string name="purchases_restored">Purchases restored successfully!</string>
+    <string name="no_purchases_to_restore">No purchases to restore</string>
+
+    <!-- Onboarding -->
+    <string name="discover_cocktails">Discover cocktails</string>
+
+    <!-- Navigation -->
+    <string name="home">Home</string>
+    <string name="favorites">Favorites</string>
+    <string name="settings">Settings</string>
+
+    <!-- Filters -->
+    <string name="spirit">Spirit</string>
+    <string name="category">Category</string>
+    <string name="difficulty">Difficulty</string>
+    <string name="clear_all">Clear all</string>
 </resources>

@@ -46,8 +46,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
 import com.purchasely.shaker.purchasely.FetchResult
@@ -86,8 +88,8 @@ fun HomeScreen(
                     onSearch = {},
                     expanded = false,
                     onExpandedChange = {},
-                    placeholder = { Text("Search cocktails...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    placeholder = { Text(stringResource(R.string.search_cocktails)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search)) },
                     trailingIcon = {
                         if (!isPremium && isFiltersLoading) {
                             Box(
@@ -109,10 +111,10 @@ fun HomeScreen(
                             }) {
                                 if (hasActiveFilters) {
                                     BadgedBox(badge = { Badge() }) {
-                                        Icon(Icons.Default.Tune, contentDescription = "Filters")
+                                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.filters))
                                     }
                                 } else {
-                                    Icon(Icons.Default.Tune, contentDescription = "Filters")
+                                    Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.filters))
                                 }
                             }
                         }
@@ -140,13 +142,13 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "No cocktails found",
+                        text = stringResource(R.string.no_cocktails_found),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Try a different search or filter.",
+                        text = stringResource(R.string.try_different_search),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )

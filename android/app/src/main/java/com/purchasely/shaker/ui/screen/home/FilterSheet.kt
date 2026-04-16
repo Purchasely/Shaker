@@ -21,7 +21,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -49,11 +51,11 @@ fun FilterSheet(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Filters",
+                    text = stringResource(R.string.filters),
                     style = MaterialTheme.typography.titleLarge
                 )
                 TextButton(onClick = { viewModel.clearFilters() }) {
-                    Text("Clear all")
+                    Text(stringResource(R.string.clear_all))
                 }
             }
 
@@ -61,7 +63,7 @@ fun FilterSheet(
 
             // Spirit (multi-select)
             Text(
-                text = "Spirit",
+                text = stringResource(R.string.spirit),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -80,7 +82,7 @@ fun FilterSheet(
 
             // Category (multi-select)
             Text(
-                text = "Category",
+                text = stringResource(R.string.category),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -99,7 +101,7 @@ fun FilterSheet(
 
             // Difficulty (single-select)
             Text(
-                text = "Difficulty",
+                text = stringResource(R.string.difficulty),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

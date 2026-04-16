@@ -42,8 +42,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
 import org.koin.core.parameter.parametersOf
@@ -153,7 +155,7 @@ fun DetailScreen(
                     // Ingredients
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = "Ingredients",
+                        text = stringResource(R.string.ingredients),
                         style = MaterialTheme.typography.titleLarge
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -183,7 +185,7 @@ fun DetailScreen(
                     // Instructions
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = "Instructions",
+                        text = stringResource(R.string.instructions),
                         style = MaterialTheme.typography.titleLarge
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -237,7 +239,7 @@ fun DetailScreen(
                                         contentDescription = null,
                                         modifier = Modifier.padding(end = 8.dp)
                                     )
-                                    Text("Unlock Full Recipe")
+                                    Text(stringResource(R.string.unlock_full_recipe))
                                 }
                             }
                         }
@@ -255,7 +257,7 @@ fun DetailScreen(
                 IconButton(onClick = onBack) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.back),
                         tint = Color.White
                     )
                 }
@@ -270,7 +272,7 @@ fun DetailScreen(
                 }) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        contentDescription = if (isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
                         tint = if (isFavorite) Color.Red else Color.White
                     )
                 }
