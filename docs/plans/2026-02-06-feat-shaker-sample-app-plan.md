@@ -207,7 +207,7 @@ Handle in `Application.onCreate` / `App.onOpenURL` → pass to `Purchasely.isDee
 2. Source 25 royalty-free cocktail images (webp, ~400x600px), place in `shared-assets/images/`
 3. Scaffold Android project:
    - `android/` with Gradle 8.x, Kotlin 2.2, Compose, Material 3
-   - Dependencies: `io.purchasely:core`, `io.purchasely:google-play` from Maven (`https://maven.purchasely.io`)
+   - Dependencies: `io.purchasely:core`, `io.purchasely:google-play` from Maven Central
    - API key via `local.properties` (`purchasely.apiKey=...`)
    - Create `local.properties.example` with placeholder
    - Package: `com.purchasely.shaker`
@@ -416,7 +416,7 @@ Based on patterns from `Android_SDK/samplev2/`:
 - **SDK init** in `Application.onCreate()` via `Purchasely.Builder(context).apiKey(...).stores(listOf(GoogleStore())).build().start {...}`
 - **Paywall display**: `Purchasely.fetchPresentation(...)` then `presentation.display(activity)` (required to support Purchasely flows)
 - **Manual close handling** required after purchase (Android does not auto-close)
-- **Dependencies**: `io.purchasely:core:5.7.3`, `io.purchasely:google-play:5.7.3` from `https://maven.purchasely.io`
+- **Dependencies**: `io.purchasely:core:5.7.3`, `io.purchasely:google-play:5.7.3` from Maven Central
 - **Gradle config**: Compose enabled, Kotlin 2.2, Java target 11, min SDK 26, compile SDK 35
 - **DI**: Koin (lightweight, matches existing sample pattern)
 - **Serialization**: `kotlinx.serialization.json` for `cocktails.json` parsing

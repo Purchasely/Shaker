@@ -14,7 +14,6 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
-        maven { url = uri("https://maven.purchasely.io") }
     }
     versionCatalogs {
         create("libs") {

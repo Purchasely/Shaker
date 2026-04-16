@@ -117,7 +117,6 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 - Placements: `onboarding`, `recipe_detail`, `favorites`, `filters`
 - Shared data in `shared-assets/` - copied to platform asset dirs
 - API keys via local config files (never committed)
-- Purchasely Maven repo: `https://maven.purchasely.io`
 - **Purchasely best practices**: All SDK integration changes must follow `docs/purchasely-best-practices.md`. Update the doc when patterns change.
 
 ## Gotchas
