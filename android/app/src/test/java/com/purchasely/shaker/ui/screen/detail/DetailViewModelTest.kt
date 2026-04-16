@@ -3,6 +3,7 @@ package com.purchasely.shaker.ui.screen.detail
 import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.FavoritesRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
+import com.purchasely.shaker.domain.usecase.ToggleFavoriteUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.testCocktail
@@ -38,6 +39,7 @@ class DetailViewModelTest {
     private lateinit var premiumRepository: PremiumRepository
     private lateinit var favoritesRepository: FavoritesRepository
     private lateinit var wrapper: PurchaselyWrapper
+    private lateinit var toggleFavoriteUseCase: ToggleFavoriteUseCase
 
     @Before
     fun setUp() {
@@ -58,6 +60,7 @@ class DetailViewModelTest {
         wrapper = mockk(relaxed = true) {
             coEvery { loadPresentation(any(), any()) } returns FetchResult.Deactivated
         }
+        toggleFavoriteUseCase = ToggleFavoriteUseCase(favoritesRepository)
     }
 
     @After
@@ -66,7 +69,7 @@ class DetailViewModelTest {
     }
 
     private fun createViewModel(cocktailId: String = "mojito") =
-        DetailViewModel(repository, premiumRepository, favoritesRepository, wrapper, cocktailId)
+        DetailViewModel(repository, premiumRepository, favoritesRepository, wrapper, toggleFavoriteUseCase, cocktailId)
 
     @Test
     fun `loads cocktail by id on init`() {

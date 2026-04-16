@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
@@ -19,7 +20,8 @@ import kotlinx.coroutines.launch
 class HomeViewModel(
     private val repository: CocktailRepository,
     private val premiumRepository: PremiumRepository,
-    private val purchaselyWrapper: PurchaselyWrapper
+    private val purchaselyWrapper: PurchaselyWrapper,
+    private val getFilteredCocktails: GetFilteredCocktailsUseCase
 ) : ViewModel() {
 
     private val _cocktails = MutableStateFlow<List<Cocktail>>(emptyList())
@@ -69,7 +71,7 @@ class HomeViewModel(
     val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
 
     init {
-        _cocktails.value = repository.loadCocktails()
+        _cocktails.value = getFilteredCocktails()
         prefetchPresentations()
     }
 
@@ -136,17 +138,11 @@ class HomeViewModel(
     }
 
     private fun applyFilters() {
-        val query = _searchQuery.value
-        val spirits = _selectedSpirits.value
-        val categories = _selectedCategories.value
-        val difficulty = _selectedDifficulty.value
-
-        _cocktails.value = repository.loadCocktails().filter { cocktail ->
-            val matchesQuery = query.isBlank() || cocktail.name.contains(query, ignoreCase = true)
-            val matchesSpirit = spirits.isEmpty() || spirits.contains(cocktail.spirit)
-            val matchesCategory = categories.isEmpty() || categories.contains(cocktail.category)
-            val matchesDifficulty = difficulty == null || cocktail.difficulty == difficulty
-            matchesQuery && matchesSpirit && matchesCategory && matchesDifficulty
-        }
+        _cocktails.value = getFilteredCocktails(
+            query = _searchQuery.value,
+            spirits = _selectedSpirits.value,
+            categories = _selectedCategories.value,
+            difficulty = _selectedDifficulty.value
+        )
     }
 }

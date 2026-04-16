@@ -7,6 +7,7 @@ import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.FavoritesRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.domain.usecase.ToggleFavoriteUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
@@ -23,6 +24,7 @@ class DetailViewModel(
     private val premiumRepository: PremiumRepository,
     private val favoritesRepository: FavoritesRepository,
     private val purchaselyWrapper: PurchaselyWrapper,
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val cocktailId: String
 ) : ViewModel() {
 
@@ -61,7 +63,7 @@ class DetailViewModel(
     fun isFavorite(): Boolean = favoritesRepository.isFavorite(cocktailId)
 
     fun toggleFavorite() {
-        favoritesRepository.toggleFavorite(cocktailId)
+        toggleFavoriteUseCase(cocktailId)
     }
 
     fun showRecipePaywall() {

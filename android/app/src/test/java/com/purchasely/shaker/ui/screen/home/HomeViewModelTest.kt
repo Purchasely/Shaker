@@ -2,6 +2,7 @@ package com.purchasely.shaker.ui.screen.home
 
 import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
+import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.testCocktail
@@ -39,6 +40,7 @@ class HomeViewModelTest {
     private lateinit var repository: CocktailRepository
     private lateinit var premiumRepository: PremiumRepository
     private lateinit var wrapper: PurchaselyWrapper
+    private lateinit var getFilteredCocktails: GetFilteredCocktailsUseCase
 
     @Before
     fun setUp() {
@@ -56,6 +58,7 @@ class HomeViewModelTest {
         wrapper = mockk(relaxed = true) {
             coEvery { loadPresentation(any(), any()) } returns FetchResult.Deactivated
         }
+        getFilteredCocktails = GetFilteredCocktailsUseCase(repository)
     }
 
     @After
@@ -63,7 +66,7 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = HomeViewModel(repository, premiumRepository, wrapper)
+    private fun createViewModel() = HomeViewModel(repository, premiumRepository, wrapper, getFilteredCocktails)
 
     @Test
     fun `initial cocktails are loaded from repository`() {

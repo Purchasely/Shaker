@@ -13,6 +13,8 @@ import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.FavoritesRepository
 import com.purchasely.shaker.domain.repository.OnboardingRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
+import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
+import com.purchasely.shaker.domain.usecase.ToggleFavoriteUseCase
 import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -89,9 +91,11 @@ val appModule = module {
             get<PurchaselyWrapper>().onTransactionCompleted = { pm.refreshPremiumStatus() }
         }
     }
+    factory { GetFilteredCocktailsUseCase(get()) }
+    factory { ToggleFavoriteUseCase(get()) }
     viewModel { OnboardingViewModel(get(), get()) }
-    viewModel { HomeViewModel(get(), get(), get()) }
-    viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }
+    viewModel { HomeViewModel(get(), get(), get(), get()) }
+    viewModel { params -> DetailViewModel(get(), get(), get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get(), get()) }
     viewModel { SettingsViewModel(get<SettingsRepository>(), get(), get(), get()) }
 }
