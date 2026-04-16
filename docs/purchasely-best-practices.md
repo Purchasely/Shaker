@@ -9,8 +9,6 @@ All changes to the Purchasely integration must follow and update this document.
 
 **Rule: Never call the Purchasely SDK directly. All calls go through `PurchaselyWrapper`.**
 
-The only exception is `PremiumManager`, which directly calls `userSubscriptions` — it's already an abstraction layer for subscription status.
-
 **Why:**
 - Single point of control for all SDK interactions — easy to swap with a stub for removal
 - Screens have zero `io.purchasely` / `import Purchasely` imports — clean separation
@@ -32,7 +30,9 @@ The only exception is `PremiumManager`, which directly calls `userSubscriptions`
 | **Consent** | `revokeDataProcessingConsent()` |
 | **Info** | `sdkVersion`, `isDeeplinkHandled()` |
 
-**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `PLYPresentationInfo`, `PLYPresentationActionParameters`, `PLYPresentation`, `PLYPresentationViewController`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature`, `LogLevel`/`PLYLogger.PLYLogLevel` — these are enums/types needed for configuration, interceptor logic, and presentation handling. They are not SDK call points.
+**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `PLYPresentationInfo`, `PLYPresentationActionParameters`, `PLYPresentationViewController`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature`, `LogLevel`/`PLYLogger.PLYLogLevel` — these are enums/types needed for configuration, interceptor logic, and presentation handling. They are not SDK call points.
+
+> **Android note:** `PLYPresentation` is wrapped in the opaque `PresentationHandle` value class. ViewModels and Screens never import `PLYPresentation` directly — they use `PresentationHandle` exclusively.
 
 ---
 
@@ -54,7 +54,7 @@ PurchaselyWrapper                          PurchaseManager
     │                                           │
     │ synchronize()                              │
     │ processAction(false)                       │
-    │ premiumManager.refreshPremiumStatus()      │
+    │ onTransactionCompleted?.invoke()           │
 ```
 
 **Android (Kotlin):**
@@ -100,7 +100,7 @@ enum TransactionResult { case success, cancelled, error(String?), idle }
 
 | Result | Wrapper actions |
 |--------|----------------|
-| Success | synchronize() → processAction(false) → premiumManager.refreshPremiumStatus() |
+| Success | synchronize() → processAction(false) → onTransactionCompleted?.invoke() |
 | Cancelled | processAction(false) |
 | Error | processAction(false) |
 | Idle | ignore |
@@ -147,12 +147,12 @@ suspend fun loadPresentation(placementId: String): FetchResult {
 }
 
 // For modal display
-suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult
-func display(presentation: PLYPresentation, from viewController: UIViewController?)  // iOS
+suspend fun display(handle: PresentationHandle, activity: Activity): DisplayResult  // Android
+func display(presentation: PLYPresentation, from viewController: UIViewController?) // iOS
 
 // For inline/embedded display
-fun getView(presentation: PLYPresentation, context: Context, onResult): View?                // Android
-func getController(presentation: PLYPresentation) -> PLYPresentationViewController?          // iOS
+fun getView(handle: PresentationHandle, context: Context, onResult): View?          // Android
+func getController(presentation: PLYPresentation) -> PLYPresentationViewController? // iOS
 ```
 
 ---
@@ -179,20 +179,21 @@ private fun prefetchPresentations() {
 }
 ```
 
-**Modal paywall flow (e.g., filters):**
+**Modal paywall flow — Android (e.g., filters):**
 1. ViewModel prefetches the presentation on init, exposes `filtersPresentation: StateFlow<FetchResult?>` and `isFiltersLoading: StateFlow<Boolean>`
 2. Screen shows a loader on the icon while loading, the regular icon once ready
 3. User taps icon → ViewModel checks if presentation is ready (`FetchResult.Success`)
-4. If ready, ViewModel stores it and emits an event via `SharedFlow<Unit>`
-5. Screen collects the event, gets the Activity, calls `viewModel.displayPendingPaywall(activity)`
-6. ViewModel calls `wrapper.display(presentation, activity)` and handles the result
+4. If ready, ViewModel emits the `PresentationHandle` via `SharedFlow<PresentationHandle>`
+5. Screen collects the handle, resolves `Activity` from `LocalContext`, calls `wrapper.display(handle, activity)` directly
+6. Screen reports the result back to the ViewModel via `viewModel.onPaywallDismissed()`
 7. If presentation is still loading or failed, the tap is ignored (loader is visible)
 
-**Why the Activity passes through the ViewModel:**
-- The SDK requires an `Activity` to display modal paywalls
+**Why the Screen handles display (not the ViewModel):**
+- The SDK requires an `Activity` to display modal paywalls — a framework concern
 - The ViewModel cannot hold an Activity reference (lifecycle leak)
-- The Screen provides the Activity on-demand when the ViewModel signals readiness
-- This is a standard Android MVVM compromise for SDK interactions
+- The ViewModel emits a `PresentationHandle` (opaque, SDK-free) via `SharedFlow`
+- The Screen — which already has `LocalContext` — resolves the Activity and calls `wrapper.display()`
+- `PurchaselyWrapper` is injected in the Screen via `koinInject()` for this purpose
 
 **Embedded paywall flow (e.g., inline banner):**
 1. ViewModel prefetches the presentation on init, exposes `inlinePresentation: StateFlow<FetchResult?>`
@@ -319,6 +320,8 @@ Always handle all `FetchResult` variants:
 - **Android:** Constructor takes `billingClientFactory: (PurchasesUpdatedListener) -> BillingClient` — tests inject a mock BillingClient
 - **iOS:** Uses injected closures (`anonymousUserIdProvider`, `signPromotionalOfferProvider`) instead of direct wrapper access
 
+**Repository testability (Android):** `FavoritesRepository`, `OnboardingRepository`, `RunningModeRepository`, `SettingsRepository` accept a `KeyValueStore` interface instead of `Context`/`SharedPreferences`. Tests use `InMemoryKeyValueStore` — no Android framework needed.
+
 **Repository testability (iOS):** `FavoritesRepository`, `OnboardingRepository` accept custom `UserDefaults` for test isolation. `CocktailRepository` accepts a `[Cocktail]` array for test data.
 
 ---
@@ -327,11 +330,14 @@ Always handle all `FetchResult` variants:
 
 ### Android (Kotlin / Jetpack Compose)
 
-- `PurchaselyWrapper` is a Koin singleton with DI constructor: `PurchaselyWrapper(premiumManager, runningModeRepo, purchaseRequests, restoreRequests, transactionResult, scope)`
-- `ShakerApp.onCreate()` calls `wrapper.initialize(application, apiKey, logLevel)` — nothing else
-- ViewModels inject it via constructor: `class HomeViewModel(..., private val purchaselyWrapper: PurchaselyWrapper)`
+- `PurchaselyWrapper` is a Koin singleton with DI constructor: `PurchaselyWrapper(runningModeRepo, purchaseRequests, restoreRequests, transactionResult, scope)`
+- `ShakerApp.onCreate()` calls `wrapper.initialize(application, apiKey, logLevel, onConfigured)` — nothing else. `onConfigured` triggers `premiumRepository.refreshPremiumStatus()`.
+- `PremiumManagerImpl` implements `PremiumRepository` interface and injects `PurchaselyWrapper` (no direct SDK calls). Wired via `onTransactionCompleted` callback in AppModule.
+- `PLYPresentation` is wrapped in `PresentationHandle` (`@JvmInline value class`). ViewModels emit `SharedFlow<PresentationHandle>` for modal paywalls; Screens resolve Activity and call `wrapper.display(handle, activity)`.
+- Repositories (`FavoritesRepository`, `OnboardingRepository`, `RunningModeRepository`, `SettingsRepository`) accept `KeyValueStore` interface — no `Context` dependency. Koin injects `SharedPreferencesKeyValueStore` in production, `InMemoryKeyValueStore` in tests.
+- Domain layer (`domain/repository/`) defines interfaces; `data/` contains `*Impl` implementations.
+- ViewModels inject repository interfaces, not concrete classes.
 - `EmbeddedScreenBanner` uses `koinInject()` for DI in Composables
-- `display()` requires an `Activity` — passed from Screen to ViewModel on-demand
 - `buildView()` returns `PLYPresentationView?` (extends `FrameLayout`)
 
 ### iOS (SwiftUI)
@@ -352,13 +358,14 @@ Always handle all `FetchResult` variants:
 
 ## Checklist for New Purchasely Integrations
 
-- [ ] All SDK calls go through `PurchaselyWrapper` (exception: `PremiumManager`)
+- [ ] All SDK calls go through `PurchaselyWrapper`
 - [ ] Screen has zero `io.purchasely` / `import Purchasely` imports
 - [ ] Uses `loadPresentation()` + `display()`/`getView()`/`getController()`, never `presentationView()` or `presentationController()`
 - [ ] Presentations are prefetched by the ViewModel (Android: `init`, iOS: `onAppear`)
 - [ ] Handles all `FetchResult` variants (success, client, deactivated, error)
 - [ ] User attributes set from ViewModel, not Screen
-- [ ] Modal paywalls: ViewModel prefetches, shows loader while loading, Screen provides Activity/ViewController on display
+- [ ] Modal paywalls (Android): ViewModel prefetches, emits `SharedFlow<PresentationHandle>`, Screen resolves Activity and calls `wrapper.display(handle, activity)`
+- [ ] Modal paywalls (iOS): ViewModel prefetches, shows loader while loading, Screen provides ViewController on display
 - [ ] Embedded paywalls: ViewModel prefetches, Screen uses `EmbeddedScreenBanner` with prefetched result/controller
 - [ ] Uses `presentation.height` (dp/points) for embedded view sizing
 - [ ] No crashes on SDK errors — nothing shown if fetch fails

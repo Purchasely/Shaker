@@ -13,10 +13,10 @@ Shaker/
 │   └── images/              # Placeholder SVG images
 ├── android/                 # Android app (Kotlin/Jetpack Compose)
 │   ├── app/src/main/java/com/purchasely/shaker/
-│   │   ├── data/            # CocktailRepository, FavoritesRepository, PremiumManager, OnboardingRepository
-│   │   ├── di/              # Koin DI modules
-│   │   ├── domain/model/    # Data models (Cocktail, Ingredient)
-│   │   ├── purchasely/      # PurchaselyWrapper, EmbeddedScreenBanner, result types
+│   │   ├── data/            # *Impl repositories, PremiumManagerImpl, storage/KeyValueStore
+│   │   ├── di/              # Koin DI modules (AppModule)
+│   │   ├── domain/          # model/ (Cocktail, Ingredient), repository/ (interfaces), usecase/
+│   │   ├── purchasely/      # PurchaselyWrapper, PresentationHandle, EmbeddedScreenBanner, result types
 │   │   └── ui/              # Compose UI (screens, navigation, theme, components)
 │   ├── build.gradle.kts
 │   └── settings.gradle.kts
@@ -87,7 +87,7 @@ open Shaker.xcodeproj
 
 ## Architecture
 
-- **Android**: MVVM + Koin DI + Jetpack Compose + NavHost + kotlinx.serialization
+- **Android**: Clean Architecture (domain/data/ui) + MVVM + Koin DI + Jetpack Compose + NavHost (@Serializable routes) + kotlinx.serialization
 - **iOS**: MVVM + SwiftUI + NavigationStack + Codable
 
 ### Data Flow
@@ -101,11 +101,16 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 ### Key Components
 
 - **PurchaselyWrapper**: Koin singleton wrapping all Purchasely SDK calls. ViewModels use this exclusively — Screens never import `io.purchasely`. See `docs/purchasely-best-practices.md`.
+- **PresentationHandle** (Android): `@JvmInline value class` wrapping `PLYPresentation`. ViewModels hold this handle and emit it via `SharedFlow<PresentationHandle>` — SDK type never leaks to the UI layer.
 - **EmbeddedScreenBanner**: Reusable Composable for inline paywall display. Uses PurchaselyWrapper internally.
-- **PremiumManager**: Singleton checking subscription status via `userSubscriptions`. Used by ViewModels to gate features.
-- **CocktailRepository**: Loads `cocktails.json` from bundled assets. Single source of truth for cocktail data.
-- **FavoritesRepository**: UserDefaults/SharedPreferences backed. Premium-gated feature.
-- **OnboardingRepository**: Tracks whether onboarding has been shown (UserDefaults/SharedPreferences).
+- **PremiumManager** / **PremiumManagerImpl** (Android): Implements `PremiumRepository` interface. Injects `PurchaselyWrapper` (no direct SDK calls). Wired to `onTransactionCompleted` callback in AppModule.
+- **CocktailRepository** / **CocktailRepositoryImpl**: Loads `cocktails.json` from bundled assets. Single source of truth for cocktail data.
+- **FavoritesRepository** / **FavoritesRepositoryImpl**: Backed by `KeyValueStore` (Android) / UserDefaults (iOS). Premium-gated feature.
+- **OnboardingRepository** / **OnboardingRepositoryImpl**: Tracks whether onboarding has been shown. Backed by `KeyValueStore` / UserDefaults.
+- **SettingsRepository** (Android): Extracts all persistent settings (userId, theme, displayMode, consent) from `SettingsViewModel` into a repository backed by `KeyValueStore`.
+- **KeyValueStore** (Android): Interface abstracting SharedPreferences. `SharedPreferencesKeyValueStore` in production, `InMemoryKeyValueStore` in tests — no Android framework needed in unit tests.
+- **OnboardingViewModel** (Android): Owns onboarding paywall logic (fetch + display). `OnboardingScreen` is a thin UI shell.
+- **GetFilteredCocktailsUseCase / ToggleFavoriteUseCase** (Android): Domain-layer UseCases — filtering and favorites logic extracted from ViewModels, independently testable.
 - **CocktailImage**: Native placeholder image component (spirit-based colors). No external image loading library needed.
 - **RunningModeRepository**: Persists Full/Observer mode choice. Toggle in Settings re-initializes SDK.
 - **PurchaseManager**: Native purchase handling (StoreKit 2 / Google Play Billing) used only in Observer mode. Calls `synchronize()` after every transaction.
