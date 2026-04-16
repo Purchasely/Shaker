@@ -18,6 +18,7 @@ import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
 import com.purchasely.shaker.ui.screen.favorites.FavoritesViewModel
+import com.purchasely.shaker.ui.screen.onboarding.OnboardingViewModel
 import com.purchasely.shaker.ui.screen.settings.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -84,6 +85,7 @@ val appModule = module {
             get<PurchaselyWrapper>().onTransactionCompleted = { pm.refreshPremiumStatus() }
         }
     }
+    viewModel { OnboardingViewModel(get(), get()) }
     viewModel { HomeViewModel(get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get(), get()) }

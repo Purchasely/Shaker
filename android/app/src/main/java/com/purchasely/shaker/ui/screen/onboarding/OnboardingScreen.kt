@@ -1,7 +1,6 @@
 package com.purchasely.shaker.ui.screen.onboarding
 
 import android.app.Activity
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,20 +20,16 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.purchasely.shaker.data.PremiumManager
-import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
-import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import org.koin.compose.koinInject
+import org.koin.androidx.compose.koinViewModel
 
 @Composable
 fun OnboardingScreen(
     showOnboarding: Boolean,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    viewModel: OnboardingViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val premiumManager: PremiumManager = koinInject()
-    val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     LaunchedEffect(Unit) {
         if (!showOnboarding) {
@@ -48,33 +43,12 @@ fun OnboardingScreen(
             return@LaunchedEffect
         }
 
-        when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
+        when (viewModel.loadOnboarding()) {
             is FetchResult.Success -> {
-                val displayResult = purchaselyWrapper.display(result.handle, activity)
-                when (displayResult) {
-                    is DisplayResult.Purchased,
-                    is DisplayResult.Restored -> {
-                        Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")
-                        premiumManager.refreshPremiumStatus()
-                    }
-                    is DisplayResult.Cancelled -> {
-                        Log.d(TAG, "[Shaker] Onboarding paywall cancelled")
-                    }
-                }
+                viewModel.displayOnboarding(activity)
                 onComplete()
             }
-            is FetchResult.Client -> {
-                Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding — build custom UI here")
-                onComplete()
-            }
-            is FetchResult.Deactivated -> {
-                Log.d(TAG, "[Shaker] Onboarding placement is deactivated")
-                onComplete()
-            }
-            is FetchResult.Error -> {
-                Log.e(TAG, "[Shaker] Error fetching onboarding: ${result.message}")
-                onComplete()
-            }
+            else -> onComplete()
         }
     }
 
@@ -119,5 +93,3 @@ private fun SplashContent() {
         }
     }
 }
-
-private const val TAG = "OnboardingScreen"
