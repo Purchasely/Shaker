@@ -4,8 +4,8 @@ import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
@@ -21,7 +21,7 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val repository: CocktailRepository,
-    private val premiumManager: PremiumManager,
+    private val premiumRepository: PremiumRepository,
     private val purchaselyWrapper: PurchaselyWrapper
 ) : ViewModel() {
 
@@ -31,7 +31,7 @@ class HomeViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val isPremium: StateFlow<Boolean> = premiumManager.isPremium
+    val isPremium: StateFlow<Boolean> = premiumRepository.isPremium
 
     // Filter state
     private val _selectedSpirits = MutableStateFlow<Set<String>>(emptySet())
@@ -150,7 +150,7 @@ class HomeViewModel(
     }
 
     fun onPaywallDismissed() {
-        premiumManager.refreshPremiumStatus()
+        premiumRepository.refreshPremiumStatus()
     }
 
     private fun applyFilters() {

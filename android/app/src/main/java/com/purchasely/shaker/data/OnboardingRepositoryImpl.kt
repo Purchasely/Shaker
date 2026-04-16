@@ -1,10 +1,11 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.KeyValueStore
+import com.purchasely.shaker.domain.repository.OnboardingRepository
 
-class OnboardingRepository(private val store: KeyValueStore) {
+class OnboardingRepositoryImpl(private val store: KeyValueStore) : OnboardingRepository {
 
-    var isOnboardingCompleted: Boolean
+    override var isOnboardingCompleted: Boolean
         get() = store.getBoolean(KEY_COMPLETED)
         set(value) { store.putBoolean(KEY_COMPLETED, value) }
 

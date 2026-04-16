@@ -3,7 +3,7 @@ package com.purchasely.shaker.ui.screen.onboarding
 import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
@@ -11,7 +11,7 @@ import com.purchasely.shaker.purchasely.PurchaselyWrapper
 
 class OnboardingViewModel(
     private val purchaselyWrapper: PurchaselyWrapper,
-    private val premiumManager: PremiumManager
+    private val premiumRepository: PremiumRepository
 ) : ViewModel() {
 
     private var pendingPresentation: PresentationHandle? = null
@@ -31,7 +31,7 @@ class OnboardingViewModel(
         when (result) {
             is DisplayResult.Purchased, is DisplayResult.Restored -> {
                 Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")
-                premiumManager.refreshPremiumStatus()
+                premiumRepository.refreshPremiumStatus()
             }
             is DisplayResult.Cancelled -> {
                 Log.d(TAG, "[Shaker] Onboarding paywall cancelled")

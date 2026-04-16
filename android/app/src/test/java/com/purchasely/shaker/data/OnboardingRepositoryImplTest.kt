@@ -6,7 +6,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-class OnboardingRepositoryTest {
+class OnboardingRepositoryImplTest {
 
     private lateinit var store: InMemoryKeyValueStore
 
@@ -17,13 +17,13 @@ class OnboardingRepositoryTest {
 
     @Test
     fun `initial state is false`() {
-        val repo = OnboardingRepository(store)
+        val repo = OnboardingRepositoryImpl(store)
         assertFalse(repo.isOnboardingCompleted)
     }
 
     @Test
     fun `setting to true persists`() {
-        val repo = OnboardingRepository(store)
+        val repo = OnboardingRepositoryImpl(store)
         repo.isOnboardingCompleted = true
         assertTrue(repo.isOnboardingCompleted)
         assertTrue(store.getBoolean("onboarding_completed"))
@@ -32,7 +32,7 @@ class OnboardingRepositoryTest {
     @Test
     fun `setting to false persists`() {
         store.putBoolean("onboarding_completed", true)
-        val repo = OnboardingRepository(store)
+        val repo = OnboardingRepositoryImpl(store)
         repo.isOnboardingCompleted = false
         assertFalse(repo.isOnboardingCompleted)
         assertFalse(store.getBoolean("onboarding_completed"))
@@ -41,7 +41,7 @@ class OnboardingRepositoryTest {
     @Test
     fun `reads stored value on creation`() {
         store.putBoolean("onboarding_completed", true)
-        val repo = OnboardingRepository(store)
+        val repo = OnboardingRepositoryImpl(store)
         assertTrue(repo.isOnboardingCompleted)
     }
 }

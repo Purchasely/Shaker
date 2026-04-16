@@ -7,7 +7,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-class FavoritesRepositoryTest {
+class FavoritesRepositoryImplTest {
 
     private lateinit var store: InMemoryKeyValueStore
 
@@ -16,7 +16,7 @@ class FavoritesRepositoryTest {
         store = InMemoryKeyValueStore()
     }
 
-    private fun createRepository(): FavoritesRepository = FavoritesRepository(store)
+    private fun createRepository(): FavoritesRepositoryImpl = FavoritesRepositoryImpl(store)
 
     @Test
     fun `initial state is empty when no stored favorites`() {

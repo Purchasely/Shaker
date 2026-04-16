@@ -1,22 +1,23 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.KeyValueStore
+import com.purchasely.shaker.domain.repository.FavoritesRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class FavoritesRepository(private val store: KeyValueStore) {
+class FavoritesRepositoryImpl(private val store: KeyValueStore) : FavoritesRepository {
 
     private val _favoriteIds = MutableStateFlow<Set<String>>(emptySet())
-    val favoriteIds: StateFlow<Set<String>> = _favoriteIds.asStateFlow()
+    override val favoriteIds: StateFlow<Set<String>> = _favoriteIds.asStateFlow()
 
     init {
         _favoriteIds.value = store.getStringSet(KEY_FAVORITES)
     }
 
-    fun isFavorite(cocktailId: String): Boolean = _favoriteIds.value.contains(cocktailId)
+    override fun isFavorite(cocktailId: String): Boolean = _favoriteIds.value.contains(cocktailId)
 
-    fun toggleFavorite(cocktailId: String) {
+    override fun toggleFavorite(cocktailId: String) {
         val current = _favoriteIds.value.toMutableSet()
         if (current.contains(cocktailId)) {
             current.remove(cocktailId)
@@ -27,14 +28,14 @@ class FavoritesRepository(private val store: KeyValueStore) {
         store.putStringSet(KEY_FAVORITES, current)
     }
 
-    fun addFavorite(cocktailId: String) {
+    override fun addFavorite(cocktailId: String) {
         val current = _favoriteIds.value.toMutableSet()
         current.add(cocktailId)
         _favoriteIds.value = current
         store.putStringSet(KEY_FAVORITES, current)
     }
 
-    fun removeFavorite(cocktailId: String) {
+    override fun removeFavorite(cocktailId: String) {
         val current = _favoriteIds.value.toMutableSet()
         current.remove(cocktailId)
         _favoriteIds.value = current

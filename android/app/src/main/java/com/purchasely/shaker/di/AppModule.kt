@@ -3,12 +3,16 @@ package com.purchasely.shaker.di
 import android.content.Context
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.PendingPurchasesParams
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.FavoritesRepository
-import com.purchasely.shaker.data.OnboardingRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.data.CocktailRepositoryImpl
+import com.purchasely.shaker.data.FavoritesRepositoryImpl
+import com.purchasely.shaker.data.OnboardingRepositoryImpl
+import com.purchasely.shaker.data.PremiumManagerImpl
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.SettingsRepository
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.FavoritesRepository
+import com.purchasely.shaker.domain.repository.OnboardingRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -30,7 +34,7 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
-    single { CocktailRepository(androidContext()) }
+    single<CocktailRepository> { CocktailRepositoryImpl(androidContext()) }
     single(named("favorites")) {
         SharedPreferencesKeyValueStore(
             androidContext().getSharedPreferences("shaker_favorites", Context.MODE_PRIVATE)
@@ -46,8 +50,8 @@ val appModule = module {
             androidContext().getSharedPreferences("shaker_settings", Context.MODE_PRIVATE)
         ) as KeyValueStore
     }
-    single { FavoritesRepository(get(named("favorites"))) }
-    single { OnboardingRepository(get(named("onboarding"))) }
+    single<FavoritesRepository> { FavoritesRepositoryImpl(get(named("favorites"))) }
+    single<OnboardingRepository> { OnboardingRepositoryImpl(get(named("onboarding"))) }
     single { RunningModeRepository(get(named("settings"))) }
     single { SettingsRepository(get(named("settings"))) }
     // Reactive flows for purchase orchestration
@@ -80,8 +84,8 @@ val appModule = module {
             scope = get(named("appScope"))
         )
     }
-    single {
-        PremiumManager(wrapper = get()).also { pm ->
+    single<PremiumRepository> {
+        PremiumManagerImpl(wrapper = get()).also { pm ->
             get<PurchaselyWrapper>().onTransactionCompleted = { pm.refreshPremiumStatus() }
         }
     }

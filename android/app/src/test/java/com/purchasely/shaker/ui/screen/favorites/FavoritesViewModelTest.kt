@@ -1,8 +1,8 @@
 package com.purchasely.shaker.ui.screen.favorites
 
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.FavoritesRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.FavoritesRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.testCocktail
@@ -37,7 +37,7 @@ class FavoritesViewModelTest {
 
     private lateinit var cocktailRepository: CocktailRepository
     private lateinit var favoritesRepository: FavoritesRepository
-    private lateinit var premiumManager: PremiumManager
+    private lateinit var premiumRepository: PremiumRepository
     private lateinit var wrapper: PurchaselyWrapper
 
     @Before
@@ -49,7 +49,7 @@ class FavoritesViewModelTest {
         favoritesRepository = mockk(relaxed = true) {
             every { favoriteIds } returns MutableStateFlow(setOf("1", "3"))
         }
-        premiumManager = mockk {
+        premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
         }
@@ -64,7 +64,7 @@ class FavoritesViewModelTest {
     }
 
     private fun createViewModel() =
-        FavoritesViewModel(cocktailRepository, favoritesRepository, premiumManager, wrapper)
+        FavoritesViewModel(cocktailRepository, favoritesRepository, premiumRepository, wrapper)
 
     @Test
     fun `favorites returns matching cocktails reactively`() {
@@ -100,7 +100,7 @@ class FavoritesViewModelTest {
     fun `onPaywallDismissed refreshes premium status`() {
         val vm = createViewModel()
         vm.onPaywallDismissed()
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test

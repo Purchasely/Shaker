@@ -4,9 +4,9 @@ import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.FavoritesRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.FavoritesRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
@@ -22,7 +22,7 @@ import kotlinx.coroutines.launch
 
 class DetailViewModel(
     private val repository: CocktailRepository,
-    private val premiumManager: PremiumManager,
+    private val premiumRepository: PremiumRepository,
     private val favoritesRepository: FavoritesRepository,
     private val purchaselyWrapper: PurchaselyWrapper,
     private val cocktailId: String
@@ -31,7 +31,7 @@ class DetailViewModel(
     private val _cocktail = MutableStateFlow<Cocktail?>(null)
     val cocktail: StateFlow<Cocktail?> = _cocktail.asStateFlow()
 
-    val isPremium: StateFlow<Boolean> = premiumManager.isPremium
+    val isPremium: StateFlow<Boolean> = premiumRepository.isPremium
 
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
 
@@ -136,6 +136,6 @@ class DetailViewModel(
     }
 
     fun onPaywallDismissed() {
-        premiumManager.refreshPremiumStatus()
+        premiumRepository.refreshPremiumStatus()
     }
 }

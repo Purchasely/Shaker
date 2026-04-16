@@ -5,7 +5,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.data.PurchaselySdkMode
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.purchasely.DisplayResult
@@ -23,7 +23,7 @@ import kotlinx.coroutines.launch
 
 class SettingsViewModel(
     private val settingsRepo: SettingsRepository,
-    private val premiumManager: PremiumManager,
+    private val premiumRepository: PremiumRepository,
     private val runningModeRepo: RunningModeRepository,
     private val purchaselyWrapper: PurchaselyWrapper
 ) : ViewModel() {
@@ -31,7 +31,7 @@ class SettingsViewModel(
     private val _userId = MutableStateFlow(settingsRepo.userId)
     val userId: StateFlow<String?> = _userId.asStateFlow()
 
-    val isPremium: StateFlow<Boolean> = premiumManager.isPremium
+    val isPremium: StateFlow<Boolean> = premiumRepository.isPremium
 
     private val _restoreMessage = MutableStateFlow<String?>(null)
     val restoreMessage: StateFlow<String?> = _restoreMessage.asStateFlow()
@@ -95,7 +95,7 @@ class SettingsViewModel(
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         purchaselyWrapper.userLogin(userId) { refresh ->
             if (refresh) {
-                premiumManager.refreshPremiumStatus()
+                premiumRepository.refreshPremiumStatus()
             }
             Log.d(TAG, "[Shaker] Logged in as: $userId (refresh: $refresh)")
         }
@@ -114,7 +114,7 @@ class SettingsViewModel(
         purchaselyWrapper.userLogout()
         _userId.value = null
         settingsRepo.userId = null
-        premiumManager.refreshPremiumStatus()
+        premiumRepository.refreshPremiumStatus()
         Log.d(TAG, "[Shaker] Logged out")
     }
 
@@ -125,7 +125,7 @@ class SettingsViewModel(
         // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/restore-purchases
         purchaselyWrapper.restoreAllProducts(
             onSuccess = { plan ->
-                premiumManager.refreshPremiumStatus()
+                premiumRepository.refreshPremiumStatus()
                 _restoreMessage.value = "Purchases restored successfully!"
                 Log.d(TAG, "[Shaker] Restore success: ${plan?.name}")
             },
@@ -141,7 +141,7 @@ class SettingsViewModel(
     }
 
     fun onPurchaseCompleted() {
-        premiumManager.refreshPremiumStatus()
+        premiumRepository.refreshPremiumStatus()
     }
 
     fun showOnboardingPaywall() {

@@ -1,7 +1,7 @@
 package com.purchasely.shaker
 
 import android.app.Application
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.di.appModule
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import io.purchasely.ext.LogLevel
@@ -12,7 +12,7 @@ import org.koin.core.context.startKoin
 class ShakerApp : Application() {
 
     private val purchaselyWrapper: PurchaselyWrapper by inject()
-    private val premiumManager: PremiumManager by inject()
+    private val premiumRepository: PremiumRepository by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -26,7 +26,7 @@ class ShakerApp : Application() {
             application = this,
             apiKey = BuildConfig.PURCHASELY_API_KEY,
             logLevel = if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN,
-            onConfigured = { premiumManager.refreshPremiumStatus() }
+            onConfigured = { premiumRepository.refreshPremiumStatus() }
         )
 
     }

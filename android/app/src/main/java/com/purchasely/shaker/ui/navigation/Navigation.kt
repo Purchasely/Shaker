@@ -30,7 +30,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import com.purchasely.shaker.data.OnboardingRepository
+import com.purchasely.shaker.domain.repository.OnboardingRepository
 import com.purchasely.shaker.ui.screen.detail.DetailScreen
 import com.purchasely.shaker.ui.screen.favorites.FavoritesScreen
 import com.purchasely.shaker.ui.screen.home.HomeScreen

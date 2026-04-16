@@ -1,7 +1,7 @@
 package com.purchasely.shaker.ui.screen.settings
 
 import com.purchasely.shaker.data.PurchaselySdkMode
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.data.storage.InMemoryKeyValueStore
@@ -38,7 +38,7 @@ class SettingsViewModelTest {
 
     private lateinit var store: InMemoryKeyValueStore
     private lateinit var settingsRepo: SettingsRepository
-    private lateinit var premiumManager: PremiumManager
+    private lateinit var premiumRepository: PremiumRepository
     private lateinit var runningModeRepo: RunningModeRepository
     private lateinit var wrapper: PurchaselyWrapper
 
@@ -48,7 +48,7 @@ class SettingsViewModelTest {
 
         store = InMemoryKeyValueStore()
         settingsRepo = SettingsRepository(store)
-        premiumManager = mockk {
+        premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
         }
@@ -67,7 +67,7 @@ class SettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = SettingsViewModel(settingsRepo, premiumManager, runningModeRepo, wrapper)
+    private fun createViewModel() = SettingsViewModel(settingsRepo, premiumRepository, runningModeRepo, wrapper)
 
     @Test
     fun `initial userId is null when not stored`() {
@@ -122,7 +122,7 @@ class SettingsViewModelTest {
         }
         val vm = createViewModel()
         vm.login("kevin")
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
@@ -133,7 +133,7 @@ class SettingsViewModelTest {
         assertNull(vm.userId.value)
         verify { wrapper.userLogout() }
         assertNull(settingsRepo.userId)
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
@@ -145,7 +145,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.restorePurchases()
         assertEquals("Purchases restored successfully!", vm.restoreMessage.value)
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
@@ -280,7 +280,7 @@ class SettingsViewModelTest {
     fun `onPurchaseCompleted refreshes premium status`() {
         val vm = createViewModel()
         vm.onPurchaseCompleted()
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
