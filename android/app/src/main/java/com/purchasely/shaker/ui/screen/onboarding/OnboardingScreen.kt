@@ -1,7 +1,6 @@
 package com.purchasely.shaker.ui.screen.onboarding
 
 import android.app.Activity
-import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -18,22 +17,24 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.R
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
+import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
 @Composable
 fun OnboardingScreen(
     showOnboarding: Boolean,
-    onComplete: () -> Unit
+    onComplete: () -> Unit,
+    viewModel: OnboardingViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val premiumManager: PremiumManager = koinInject()
     val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     LaunchedEffect(Unit) {
@@ -48,33 +49,16 @@ fun OnboardingScreen(
             return@LaunchedEffect
         }
 
-        when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
+        when (val fetchResult = viewModel.loadOnboarding()) {
             is FetchResult.Success -> {
-                val displayResult = purchaselyWrapper.display(result.presentation, activity)
+                val displayResult = purchaselyWrapper.display(fetchResult.handle, activity)
                 when (displayResult) {
-                    is DisplayResult.Purchased,
-                    is DisplayResult.Restored -> {
-                        Log.d(TAG, "[Shaker] Purchased/Restored from onboarding")
-                        premiumManager.refreshPremiumStatus()
-                    }
-                    is DisplayResult.Cancelled -> {
-                        Log.d(TAG, "[Shaker] Onboarding paywall cancelled")
-                    }
+                    is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPurchaseCompleted()
+                    else -> {}
                 }
                 onComplete()
             }
-            is FetchResult.Client -> {
-                Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding — build custom UI here")
-                onComplete()
-            }
-            is FetchResult.Deactivated -> {
-                Log.d(TAG, "[Shaker] Onboarding placement is deactivated")
-                onComplete()
-            }
-            is FetchResult.Error -> {
-                Log.e(TAG, "[Shaker] Error fetching onboarding: ${result.error?.message}")
-                onComplete()
-            }
+            else -> onComplete()
         }
     }
 
@@ -99,14 +83,14 @@ private fun SplashContent() {
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "Shaker",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Discover cocktails",
+                text = stringResource(R.string.discover_cocktails),
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
@@ -119,5 +103,3 @@ private fun SplashContent() {
         }
     }
 }
-
-private const val TAG = "OnboardingScreen"

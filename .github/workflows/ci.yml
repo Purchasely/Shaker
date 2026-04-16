@@ -35,30 +35,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler-cache: false
-
-      - run: gem install cocoapods
-
       - name: Install XcodeGen
         run: brew install xcodegen
 
       - run: xcodegen generate
 
-      - name: Cache CocoaPods
-        uses: actions/cache@v4
-        with:
-          path: ios/Pods
-          key: pods-${{ hashFiles('ios/Podfile.lock') }}
-          restore-keys: pods-
-
-      - run: pod install
+      - name: Resolve Swift packages
+        run: |
+          xcodebuild -resolvePackageDependencies \
+            -project Shaker.xcodeproj \
+            -scheme Shaker
 
       - run: |
           xcodebuild build \
-            -workspace Shaker.xcworkspace \
+            -project Shaker.xcodeproj \
             -scheme Shaker \
             -destination 'generic/platform=iOS Simulator' \
             -quiet

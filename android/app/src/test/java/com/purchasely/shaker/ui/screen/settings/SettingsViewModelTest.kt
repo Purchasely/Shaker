@@ -1,10 +1,12 @@
 package com.purchasely.shaker.ui.screen.settings
 
-import android.content.Context
-import android.content.SharedPreferences
 import com.purchasely.shaker.data.PurchaselySdkMode
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.domain.model.ThemeMode
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.SettingsRepository
+import com.purchasely.shaker.data.storage.InMemoryKeyValueStore
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import io.mockk.coEvery
@@ -13,9 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
-import io.purchasely.ext.PLYDataProcessingPurpose
-import io.purchasely.models.PLYError
-import io.purchasely.models.PLYPlan
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -36,49 +36,19 @@ class SettingsViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
 
-    private lateinit var context: Context
-    private lateinit var prefs: SharedPreferences
-    private lateinit var editor: SharedPreferences.Editor
-    private lateinit var premiumManager: PremiumManager
+    private lateinit var store: InMemoryKeyValueStore
+    private lateinit var settingsRepo: SettingsRepository
+    private lateinit var premiumRepository: PremiumRepository
     private lateinit var runningModeRepo: RunningModeRepository
     private lateinit var wrapper: PurchaselyWrapper
-
-    private val storedValues = mutableMapOf<String, Any?>()
 
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
 
-        storedValues.clear()
-        editor = mockk(relaxed = true) {
-            every { putString(any(), any()) } answers {
-                storedValues[firstArg()] = secondArg<String?>()
-                this@mockk
-            }
-            every { putBoolean(any(), any()) } answers {
-                storedValues[firstArg()] = secondArg<Boolean>()
-                this@mockk
-            }
-            every { remove(any()) } answers {
-                storedValues.remove(firstArg())
-                this@mockk
-            }
-        }
-        prefs = mockk {
-            every { getString(any(), any()) } answers {
-                storedValues[firstArg()] as? String ?: secondArg()
-            }
-            every { getBoolean(any(), any()) } answers {
-                storedValues[firstArg()] as? Boolean ?: secondArg()
-            }
-            every { contains(any()) } answers { storedValues.containsKey(firstArg()) }
-            every { edit() } returns editor
-        }
-        context = mockk {
-            every { getSharedPreferences(any(), any()) } returns prefs
-            every { applicationContext } returns this
-        }
-        premiumManager = mockk {
+        store = InMemoryKeyValueStore()
+        settingsRepo = SettingsRepository(store)
+        premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
         }
@@ -97,7 +67,7 @@ class SettingsViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = SettingsViewModel(context, premiumManager, runningModeRepo, wrapper)
+    private fun createViewModel() = SettingsViewModel(settingsRepo, premiumRepository, runningModeRepo, wrapper)
 
     @Test
     fun `initial userId is null when not stored`() {
@@ -106,8 +76,8 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `initial userId reads from SharedPreferences`() {
-        storedValues["user_id"] = "kevin"
+    fun `initial userId reads from repository`() {
+        settingsRepo.userId = "kevin"
         val vm = createViewModel()
         assertEquals("kevin", vm.userId.value)
     }
@@ -122,10 +92,10 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `login persists userId to SharedPreferences`() {
+    fun `login persists userId to repository`() {
         val vm = createViewModel()
         vm.login("kevin")
-        verify { editor.putString("user_id", "kevin") }
+        assertEquals("kevin", settingsRepo.userId)
     }
 
     @Test
@@ -152,37 +122,37 @@ class SettingsViewModelTest {
         }
         val vm = createViewModel()
         vm.login("kevin")
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
     fun `logout clears userId and calls wrapper`() {
-        storedValues["user_id"] = "kevin"
+        settingsRepo.userId = "kevin"
         val vm = createViewModel()
         vm.logout()
         assertNull(vm.userId.value)
         verify { wrapper.userLogout() }
-        verify { editor.remove("user_id") }
-        verify { premiumManager.refreshPremiumStatus() }
+        assertNull(settingsRepo.userId)
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
     fun `restorePurchases success updates message`() {
-        val successSlot = slot<(PLYPlan?) -> Unit>()
+        val successSlot = slot<(String?) -> Unit>()
         every { wrapper.restoreAllProducts(capture(successSlot), any()) } answers {
-            successSlot.captured(null)
+            successSlot.captured("Premium Plan")
         }
         val vm = createViewModel()
         vm.restorePurchases()
         assertEquals("Purchases restored successfully!", vm.restoreMessage.value)
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
     fun `restorePurchases error updates message`() {
-        val errorSlot = slot<(PLYError?) -> Unit>()
+        val errorSlot = slot<(String?) -> Unit>()
         every { wrapper.restoreAllProducts(any(), capture(errorSlot)) } answers {
-            errorSlot.captured(mockk { every { message } returns "No purchases found" })
+            errorSlot.captured("No purchases found")
         }
         val vm = createViewModel()
         vm.restorePurchases()
@@ -199,24 +169,24 @@ class SettingsViewModelTest {
     @Test
     fun `setThemeMode persists and sets user attribute`() {
         val vm = createViewModel()
-        vm.setThemeMode("dark")
-        assertEquals("dark", vm.themeMode.value)
-        verify { editor.putString("theme_mode", "dark") }
+        vm.setThemeMode(ThemeMode.DARK)
+        assertEquals(ThemeMode.DARK, vm.themeMode.value)
+        assertEquals(ThemeMode.DARK, settingsRepo.themeMode)
         verify { wrapper.setUserAttribute("app_theme", "dark") }
     }
 
     @Test
-    fun `initial themeMode defaults to system`() {
+    fun `initial themeMode defaults to SYSTEM`() {
         val vm = createViewModel()
-        assertEquals("system", vm.themeMode.value)
+        assertEquals(ThemeMode.SYSTEM, vm.themeMode.value)
     }
 
     @Test
     fun `setDisplayMode persists value`() {
         val vm = createViewModel()
-        vm.setDisplayMode("embedded")
-        assertEquals("embedded", vm.displayMode.value)
-        verify { editor.putString("display_mode", "embedded") }
+        vm.setDisplayMode(DisplayMode.MODAL)
+        assertEquals(DisplayMode.MODAL, vm.displayMode.value)
+        assertEquals(DisplayMode.MODAL, settingsRepo.displayMode)
     }
 
     @Test
@@ -244,7 +214,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setAnalyticsConsent(false)
         assertFalse(vm.analyticsConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.Analytics) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.ANALYTICS) }) }
     }
 
     @Test
@@ -252,7 +222,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setIdentifiedAnalyticsConsent(false)
         assertFalse(vm.identifiedAnalyticsConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.IdentifiedAnalytics) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.IDENTIFIED_ANALYTICS) }) }
     }
 
     @Test
@@ -260,7 +230,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setPersonalizationConsent(false)
         assertFalse(vm.personalizationConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.Personalization) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.PERSONALIZATION) }) }
     }
 
     @Test
@@ -268,7 +238,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setCampaignsConsent(false)
         assertFalse(vm.campaignsConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.Campaigns) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.CAMPAIGNS) }) }
     }
 
     @Test
@@ -276,7 +246,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setThirdPartyConsent(false)
         assertFalse(vm.thirdPartyConsent.value)
-        verify { wrapper.revokeDataProcessingConsent(match { it.contains(PLYDataProcessingPurpose.ThirdPartyIntegrations) }) }
+        verify { wrapper.revokeDataProcessingConsent(match { it.contains(ConsentPurpose.THIRD_PARTY_INTEGRATIONS) }) }
     }
 
     @Test
@@ -293,8 +263,8 @@ class SettingsViewModelTest {
         vm.setPersonalizationConsent(false)
         verify {
             wrapper.revokeDataProcessingConsent(match {
-                it.contains(PLYDataProcessingPurpose.Analytics) &&
-                it.contains(PLYDataProcessingPurpose.Personalization)
+                it.contains(ConsentPurpose.ANALYTICS) &&
+                it.contains(ConsentPurpose.PERSONALIZATION)
             })
         }
     }
@@ -310,7 +280,7 @@ class SettingsViewModelTest {
     fun `onPurchaseCompleted refreshes premium status`() {
         val vm = createViewModel()
         vm.onPurchaseCompleted()
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
@@ -320,23 +290,24 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `initial runningMode reads from repository`() {
-        val vm = createViewModel()
-        assertEquals("full", vm.runningMode.value)
-    }
-
-    @Test
-    fun `initial runningMode is observer when repo says so`() {
-        every { runningModeRepo.isObserverMode } returns true
-        val vm = createViewModel()
-        assertEquals("observer", vm.runningMode.value)
-    }
-
-    @Test
     fun `setSdkMode calls wrapper restart`() {
-        storedValues[PurchaselySdkMode.KEY] = PurchaselySdkMode.FULL.storageValue
+        settingsRepo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
         val vm = createViewModel()
         vm.setSdkMode(PurchaselySdkMode.PAYWALL_OBSERVER)
         verify { wrapper.restart() }
+    }
+
+    @Test
+    fun `initSdkModeIfNeeded sets default when not present`() {
+        // Store starts empty, creating VM triggers initSdkModeIfNeeded
+        val vm = createViewModel()
+        assertEquals(PurchaselySdkMode.DEFAULT.storageValue, settingsRepo.sdkModeStorage)
+    }
+
+    @Test
+    fun `initSdkModeIfNeeded does not overwrite existing value`() {
+        settingsRepo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
+        val vm = createViewModel()
+        assertEquals(PurchaselySdkMode.FULL.storageValue, settingsRepo.sdkModeStorage)
     }
 }

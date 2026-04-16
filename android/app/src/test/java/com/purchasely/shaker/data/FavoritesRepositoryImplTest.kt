@@ -1,42 +1,22 @@
 package com.purchasely.shaker.data
 
-import android.content.Context
-import android.content.SharedPreferences
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import com.purchasely.shaker.data.storage.InMemoryKeyValueStore
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-class FavoritesRepositoryTest {
+class FavoritesRepositoryImplTest {
 
-    private lateinit var prefs: SharedPreferences
-    private lateinit var editor: SharedPreferences.Editor
-    private lateinit var context: Context
-    private var storedSet: MutableSet<String> = mutableSetOf()
+    private lateinit var store: InMemoryKeyValueStore
 
     @Before
     fun setUp() {
-        storedSet = mutableSetOf()
-        editor = mockk(relaxed = true) {
-            every { putStringSet(any(), any()) } answers {
-                storedSet = (secondArg() as Set<String>).toMutableSet()
-                this@mockk
-            }
-        }
-        prefs = mockk {
-            every { getStringSet(any(), any()) } answers { storedSet.toSet() }
-            every { edit() } returns editor
-        }
-        context = mockk {
-            every { getSharedPreferences(any(), any()) } returns prefs
-        }
+        store = InMemoryKeyValueStore()
     }
 
-    private fun createRepository(): FavoritesRepository = FavoritesRepository(context)
+    private fun createRepository(): FavoritesRepositoryImpl = FavoritesRepositoryImpl(store)
 
     @Test
     fun `initial state is empty when no stored favorites`() {
@@ -46,7 +26,7 @@ class FavoritesRepositoryTest {
 
     @Test
     fun `initial state loads stored favorites`() {
-        storedSet = mutableSetOf("cocktail1", "cocktail2")
+        store.putStringSet("favorite_cocktail_ids", setOf("cocktail1", "cocktail2"))
         val repo = createRepository()
         assertEquals(setOf("cocktail1", "cocktail2"), repo.favoriteIds.value)
     }
@@ -59,26 +39,26 @@ class FavoritesRepositoryTest {
     }
 
     @Test
-    fun `addFavorite persists to SharedPreferences`() {
+    fun `addFavorite persists to store`() {
         val repo = createRepository()
         repo.addFavorite("cocktail1")
-        verify { editor.putStringSet(any(), match { it.contains("cocktail1") }) }
+        assertTrue(store.getStringSet("favorite_cocktail_ids").contains("cocktail1"))
     }
 
     @Test
     fun `removeFavorite removes cocktail id`() {
-        storedSet = mutableSetOf("cocktail1")
+        store.putStringSet("favorite_cocktail_ids", setOf("cocktail1"))
         val repo = createRepository()
         repo.removeFavorite("cocktail1")
         assertFalse(repo.favoriteIds.value.contains("cocktail1"))
     }
 
     @Test
-    fun `removeFavorite persists to SharedPreferences`() {
-        storedSet = mutableSetOf("cocktail1")
+    fun `removeFavorite persists to store`() {
+        store.putStringSet("favorite_cocktail_ids", setOf("cocktail1"))
         val repo = createRepository()
         repo.removeFavorite("cocktail1")
-        verify { editor.putStringSet(any(), match { !it.contains("cocktail1") }) }
+        assertFalse(store.getStringSet("favorite_cocktail_ids").contains("cocktail1"))
     }
 
     @Test
@@ -90,7 +70,7 @@ class FavoritesRepositoryTest {
 
     @Test
     fun `toggleFavorite removes when already present`() {
-        storedSet = mutableSetOf("cocktail1")
+        store.putStringSet("favorite_cocktail_ids", setOf("cocktail1"))
         val repo = createRepository()
         repo.toggleFavorite("cocktail1")
         assertFalse(repo.favoriteIds.value.contains("cocktail1"))
@@ -98,7 +78,7 @@ class FavoritesRepositoryTest {
 
     @Test
     fun `isFavorite returns true for existing favorite`() {
-        storedSet = mutableSetOf("cocktail1")
+        store.putStringSet("favorite_cocktail_ids", setOf("cocktail1"))
         val repo = createRepository()
         assertTrue(repo.isFavorite("cocktail1"))
     }

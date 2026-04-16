@@ -1,16 +1,14 @@
 package com.purchasely.shaker.ui.screen.home
 
-import android.app.Activity
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
-import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.PLYPresentation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -21,8 +19,9 @@ import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val repository: CocktailRepository,
-    private val premiumManager: PremiumManager,
-    private val purchaselyWrapper: PurchaselyWrapper
+    private val premiumRepository: PremiumRepository,
+    private val purchaselyWrapper: PurchaselyWrapper,
+    private val getFilteredCocktails: GetFilteredCocktailsUseCase
 ) : ViewModel() {
 
     private val _cocktails = MutableStateFlow<List<Cocktail>>(emptyList())
@@ -31,7 +30,7 @@ class HomeViewModel(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    val isPremium: StateFlow<Boolean> = premiumManager.isPremium
+    val isPremium: StateFlow<Boolean> = premiumRepository.isPremium
 
     // Filter state
     private val _selectedSpirits = MutableStateFlow<Set<String>>(emptySet())
@@ -47,10 +46,14 @@ class HomeViewModel(
     val availableCategories: List<String> get() = repository.getCategories()
     val availableDifficulties: List<String> get() = repository.getDifficulties()
 
-    val hasActiveFilters: Boolean
-        get() = _selectedSpirits.value.isNotEmpty() ||
+    private val _hasActiveFilters = MutableStateFlow(false)
+    val hasActiveFilters: StateFlow<Boolean> = _hasActiveFilters.asStateFlow()
+
+    private fun updateHasActiveFilters() {
+        _hasActiveFilters.value = _selectedSpirits.value.isNotEmpty() ||
                 _selectedCategories.value.isNotEmpty() ||
                 _selectedDifficulty.value != null
+    }
 
     // Prefetched inline presentation
     private val _inlinePresentation = MutableStateFlow<FetchResult?>(null)
@@ -64,12 +67,11 @@ class HomeViewModel(
     val isFiltersLoading: StateFlow<Boolean> = _isFiltersLoading.asStateFlow()
 
     // Signal Screen to display filters paywall
-    private var pendingFiltersPresentation: PLYPresentation? = null
-    private val _requestPaywallDisplay = MutableSharedFlow<Unit>()
-    val requestPaywallDisplay: SharedFlow<Unit> = _requestPaywallDisplay.asSharedFlow()
+    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
 
     init {
-        _cocktails.value = repository.loadCocktails()
+        _cocktails.value = getFilteredCocktails()
         prefetchPresentations()
     }
 
@@ -97,21 +99,7 @@ class HomeViewModel(
         if (isPremium.value) return
         val result = _filtersPresentation.value
         if (result is FetchResult.Success) {
-            pendingFiltersPresentation = result.presentation
-            viewModelScope.launch { _requestPaywallDisplay.emit(Unit) }
-        }
-    }
-
-    suspend fun displayPendingPaywall(activity: Activity) {
-        val presentation = pendingFiltersPresentation ?: return
-        pendingFiltersPresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
-        when (result) {
-            is DisplayResult.Purchased, is DisplayResult.Restored -> {
-                Log.d("HomeViewModel", "[Shaker] Purchased/Restored from filters")
-                onPaywallDismissed()
-            }
-            else -> {}
+            viewModelScope.launch { _requestPaywallDisplay.emit(result.handle) }
         }
     }
 
@@ -120,6 +108,7 @@ class HomeViewModel(
         if (current.contains(spirit)) current.remove(spirit) else current.add(spirit)
         _selectedSpirits.value = current
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun toggleCategory(category: String) {
@@ -127,11 +116,13 @@ class HomeViewModel(
         if (current.contains(category)) current.remove(category) else current.add(category)
         _selectedCategories.value = current
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun selectDifficulty(difficulty: String?) {
         _selectedDifficulty.value = if (_selectedDifficulty.value == difficulty) null else difficulty
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun clearFilters() {
@@ -139,24 +130,19 @@ class HomeViewModel(
         _selectedCategories.value = emptySet()
         _selectedDifficulty.value = null
         applyFilters()
+        updateHasActiveFilters()
     }
 
     fun onPaywallDismissed() {
-        premiumManager.refreshPremiumStatus()
+        premiumRepository.refreshPremiumStatus()
     }
 
     private fun applyFilters() {
-        val query = _searchQuery.value
-        val spirits = _selectedSpirits.value
-        val categories = _selectedCategories.value
-        val difficulty = _selectedDifficulty.value
-
-        _cocktails.value = repository.loadCocktails().filter { cocktail ->
-            val matchesQuery = query.isBlank() || cocktail.name.contains(query, ignoreCase = true)
-            val matchesSpirit = spirits.isEmpty() || spirits.contains(cocktail.spirit)
-            val matchesCategory = categories.isEmpty() || categories.contains(cocktail.category)
-            val matchesDifficulty = difficulty == null || cocktail.difficulty == difficulty
-            matchesQuery && matchesSpirit && matchesCategory && matchesDifficulty
-        }
+        _cocktails.value = getFilteredCocktails(
+            query = _searchQuery.value,
+            spirits = _selectedSpirits.value,
+            categories = _selectedCategories.value,
+            difficulty = _selectedDifficulty.value
+        )
     }
 }

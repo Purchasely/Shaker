@@ -1,22 +1,25 @@
 package com.purchasely.shaker.data
 
-import android.content.Context
-import android.content.SharedPreferences
+import com.purchasely.shaker.data.storage.KeyValueStore
 import io.purchasely.ext.PLYRunningMode
 
-class RunningModeRepository(context: Context) {
-
-    private val prefs: SharedPreferences =
-        context.getSharedPreferences("shaker_settings", Context.MODE_PRIVATE)
+class RunningModeRepository(private val store: KeyValueStore) {
 
     var runningMode: PLYRunningMode
         get() {
-            val stored = prefs.getString(KEY_RUNNING_MODE, "full")
-            return if (stored == "observer") PLYRunningMode.PaywallObserver else PLYRunningMode.Full
+            val stored = store.getString(KEY_RUNNING_MODE, PurchaselySdkMode.DEFAULT.storageValue)
+            // Support legacy "observer" value from previous versions
+            val mode = if (stored == LEGACY_OBSERVER) {
+                PurchaselySdkMode.PAYWALL_OBSERVER
+            } else {
+                PurchaselySdkMode.fromStorage(stored)
+            }
+            return mode.runningMode
         }
         set(value) {
-            val str = if (value == PLYRunningMode.PaywallObserver) "observer" else "full"
-            prefs.edit().putString(KEY_RUNNING_MODE, str).apply()
+            val mode = PurchaselySdkMode.entries.firstOrNull { it.runningMode == value }
+                ?: PurchaselySdkMode.DEFAULT
+            store.putString(KEY_RUNNING_MODE, mode.storageValue)
         }
 
     val isObserverMode: Boolean
@@ -24,5 +27,7 @@ class RunningModeRepository(context: Context) {
 
     companion object {
         private const val KEY_RUNNING_MODE = "running_mode"
+        /** Legacy storage value from before PurchaselySdkMode unification */
+        private const val LEGACY_OBSERVER = "observer"
     }
 }

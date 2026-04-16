@@ -1,17 +1,16 @@
 package com.purchasely.shaker.ui.screen.detail
 
-import android.app.Activity
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.FavoritesRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.FavoritesRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
-import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.domain.usecase.ToggleFavoriteUseCase
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.PLYPresentation
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -22,28 +21,27 @@ import kotlinx.coroutines.launch
 
 class DetailViewModel(
     private val repository: CocktailRepository,
-    private val premiumManager: PremiumManager,
+    private val premiumRepository: PremiumRepository,
     private val favoritesRepository: FavoritesRepository,
     private val purchaselyWrapper: PurchaselyWrapper,
+    private val toggleFavoriteUseCase: ToggleFavoriteUseCase,
     private val cocktailId: String
 ) : ViewModel() {
 
     private val _cocktail = MutableStateFlow<Cocktail?>(null)
     val cocktail: StateFlow<Cocktail?> = _cocktail.asStateFlow()
 
-    val isPremium: StateFlow<Boolean> = premiumManager.isPremium
+    val isPremium: StateFlow<Boolean> = premiumRepository.isPremium
 
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
 
     // Signal Screen to display recipe paywall
-    private var pendingRecipePresentation: PLYPresentation? = null
-    private val _requestRecipePaywall = MutableSharedFlow<Unit>()
-    val requestRecipePaywall: SharedFlow<Unit> = _requestRecipePaywall.asSharedFlow()
+    private val _requestRecipePaywall = MutableSharedFlow<PresentationHandle>()
+    val requestRecipePaywall: SharedFlow<PresentationHandle> = _requestRecipePaywall.asSharedFlow()
 
     // Signal Screen to display favorites paywall
-    private var pendingFavoritesPresentation: PLYPresentation? = null
-    private val _requestFavoritesPaywall = MutableSharedFlow<Unit>()
-    val requestFavoritesPaywall: SharedFlow<Unit> = _requestFavoritesPaywall.asSharedFlow()
+    private val _requestFavoritesPaywall = MutableSharedFlow<PresentationHandle>()
+    val requestFavoritesPaywall: SharedFlow<PresentationHandle> = _requestFavoritesPaywall.asSharedFlow()
 
     init {
         _cocktail.value = repository.getCocktail(cocktailId)
@@ -65,7 +63,7 @@ class DetailViewModel(
     fun isFavorite(): Boolean = favoritesRepository.isFavorite(cocktailId)
 
     fun toggleFavorite() {
-        favoritesRepository.toggleFavorite(cocktailId)
+        toggleFavoriteUseCase(cocktailId)
     }
 
     fun showRecipePaywall() {
@@ -76,8 +74,7 @@ class DetailViewModel(
             )
             when (result) {
                 is FetchResult.Success -> {
-                    pendingRecipePresentation = result.presentation
-                    _requestRecipePaywall.emit(Unit)
+                    _requestRecipePaywall.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
@@ -87,32 +84,12 @@ class DetailViewModel(
         }
     }
 
-    suspend fun displayPendingRecipePaywall(activity: Activity) {
-        val presentation = pendingRecipePresentation ?: return
-        pendingRecipePresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
-        when (result) {
-            is DisplayResult.Purchased -> {
-                Log.d("DetailViewModel", "[Shaker] Purchased: ${result.planName}")
-                onPaywallDismissed()
-            }
-            is DisplayResult.Restored -> {
-                Log.d("DetailViewModel", "[Shaker] Restored: ${result.planName}")
-                onPaywallDismissed()
-            }
-            is DisplayResult.Cancelled -> {
-                Log.d("DetailViewModel", "[Shaker] Cancelled")
-            }
-        }
-    }
-
     fun showFavoritesPaywall() {
         viewModelScope.launch {
             val result = purchaselyWrapper.loadPresentation(placementId = "favorites")
             when (result) {
                 is FetchResult.Success -> {
-                    pendingFavoritesPresentation = result.presentation
-                    _requestFavoritesPaywall.emit(Unit)
+                    _requestFavoritesPaywall.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
@@ -122,20 +99,7 @@ class DetailViewModel(
         }
     }
 
-    suspend fun displayPendingFavoritesPaywall(activity: Activity) {
-        val presentation = pendingFavoritesPresentation ?: return
-        pendingFavoritesPresentation = null
-        val result = purchaselyWrapper.display(presentation, activity)
-        when (result) {
-            is DisplayResult.Purchased, is DisplayResult.Restored -> {
-                Log.d("DetailViewModel", "[Shaker] Purchased/Restored from favorites: ${(result as? DisplayResult.Purchased)?.planName ?: (result as? DisplayResult.Restored)?.planName}")
-                onPaywallDismissed()
-            }
-            else -> {}
-        }
-    }
-
     fun onPaywallDismissed() {
-        premiumManager.refreshPremiumStatus()
+        premiumRepository.refreshPremiumStatus()
     }
 }

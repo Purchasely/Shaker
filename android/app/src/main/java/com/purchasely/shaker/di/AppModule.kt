@@ -1,19 +1,30 @@
 package com.purchasely.shaker.di
 
+import android.content.Context
 import com.android.billingclient.api.BillingClient
 import com.android.billingclient.api.PendingPurchasesParams
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.FavoritesRepository
-import com.purchasely.shaker.data.OnboardingRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.data.CocktailRepositoryImpl
+import com.purchasely.shaker.data.FavoritesRepositoryImpl
+import com.purchasely.shaker.data.OnboardingRepositoryImpl
+import com.purchasely.shaker.data.PremiumManagerImpl
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.SettingsRepository
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.FavoritesRepository
+import com.purchasely.shaker.domain.repository.OnboardingRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
+import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
+import com.purchasely.shaker.domain.usecase.ToggleFavoriteUseCase
 import com.purchasely.shaker.data.purchase.PurchaseManager
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
+import com.purchasely.shaker.data.storage.KeyValueStore
+import com.purchasely.shaker.data.storage.SharedPreferencesKeyValueStore
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
 import com.purchasely.shaker.ui.screen.favorites.FavoritesViewModel
+import com.purchasely.shaker.ui.screen.onboarding.OnboardingViewModel
 import com.purchasely.shaker.ui.screen.settings.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -25,11 +36,26 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
-    single { CocktailRepository(androidContext()) }
-    single { FavoritesRepository(androidContext()) }
-    single { OnboardingRepository(androidContext()) }
-    single { RunningModeRepository(androidContext()) }
-    single { PremiumManager() }
+    single<CocktailRepository> { CocktailRepositoryImpl(androidContext()) }
+    single(named("favorites")) {
+        SharedPreferencesKeyValueStore(
+            androidContext().getSharedPreferences("shaker_favorites", Context.MODE_PRIVATE)
+        ) as KeyValueStore
+    }
+    single(named("onboarding")) {
+        SharedPreferencesKeyValueStore(
+            androidContext().getSharedPreferences("shaker_onboarding", Context.MODE_PRIVATE)
+        ) as KeyValueStore
+    }
+    single(named("settings")) {
+        SharedPreferencesKeyValueStore(
+            androidContext().getSharedPreferences("shaker_settings", Context.MODE_PRIVATE)
+        ) as KeyValueStore
+    }
+    single<FavoritesRepository> { FavoritesRepositoryImpl(get(named("favorites"))) }
+    single<OnboardingRepository> { OnboardingRepositoryImpl(get(named("onboarding"))) }
+    single { RunningModeRepository(get(named("settings"))) }
+    single { SettingsRepository(get(named("settings"))) }
     // Reactive flows for purchase orchestration
     single(named("purchaseRequests")) { MutableSharedFlow<PurchaseRequest>() }
     single(named("restoreRequests")) { MutableSharedFlow<RestoreRequest>() }
@@ -53,7 +79,6 @@ val appModule = module {
     }
     single {
         PurchaselyWrapper(
-            premiumManager = get(),
             runningModeRepo = get(),
             purchaseRequests = get(named("purchaseRequests")),
             restoreRequests = get(named("restoreRequests")),
@@ -61,8 +86,16 @@ val appModule = module {
             scope = get(named("appScope"))
         )
     }
-    viewModel { HomeViewModel(get(), get(), get()) }
-    viewModel { params -> DetailViewModel(get(), get(), get(), get(), params.get()) }
+    single<PremiumRepository> {
+        PremiumManagerImpl(wrapper = get()).also { pm ->
+            get<PurchaselyWrapper>().onTransactionCompleted = { pm.refreshPremiumStatus() }
+        }
+    }
+    factory { GetFilteredCocktailsUseCase(get()) }
+    factory { ToggleFavoriteUseCase(get()) }
+    viewModel { OnboardingViewModel(get(), get()) }
+    viewModel { HomeViewModel(get(), get(), get(), get()) }
+    viewModel { params -> DetailViewModel(get(), get(), get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get(), get()) }
-    viewModel { SettingsViewModel(androidContext(), get(), get(), get()) }
+    viewModel { SettingsViewModel(get<SettingsRepository>(), get(), get(), get()) }
 }

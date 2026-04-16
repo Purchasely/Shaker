@@ -7,19 +7,20 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.view.View
-import com.purchasely.shaker.data.PremiumManager
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
 import com.purchasely.shaker.data.purchase.TransactionResult
 import io.purchasely.ext.EventListener
 import io.purchasely.ext.LogLevel
-import io.purchasely.ext.PLYPresentation
 import io.purchasely.ext.PLYPresentationAction
 import io.purchasely.ext.PLYPresentationActionParameters
 import io.purchasely.ext.PLYPresentationInfo
 import io.purchasely.ext.PLYPresentationProperties
 import io.purchasely.ext.PLYPresentationType
+import io.purchasely.ext.SubscriptionsListener
+import io.purchasely.ext.PLYDataProcessingPurpose
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.fetchPresentation
@@ -35,7 +36,6 @@ import kotlin.coroutines.resume
 import kotlin.coroutines.suspendCoroutine
 
 class PurchaselyWrapper(
-    private val premiumManager: PremiumManager,
     private val runningModeRepo: RunningModeRepository,
     private val purchaseRequests: MutableSharedFlow<PurchaseRequest>,
     private val restoreRequests: MutableSharedFlow<RestoreRequest>,
@@ -43,9 +43,12 @@ class PurchaselyWrapper(
     private val scope: CoroutineScope
 ) {
 
+    var onTransactionCompleted: (() -> Unit)? = null
+
     private var application: Application? = null
     private var apiKey: String = ""
     private var logLevel: LogLevel = LogLevel.DEBUG
+    private var onConfiguredCallback: (() -> Unit)? = null
     private var pendingProcessAction: ((Boolean) -> Unit)? = null
     private var collectionJob: Job? = null
 
@@ -67,11 +70,13 @@ class PurchaselyWrapper(
     fun initialize(
         application: Application,
         apiKey: String,
-        logLevel: LogLevel = LogLevel.DEBUG
+        logLevel: LogLevel = LogLevel.DEBUG,
+        onConfigured: (() -> Unit)? = null
     ) {
         this.application = application
         this.apiKey = apiKey
         this.logLevel = logLevel
+        this.onConfiguredCallback = onConfigured
 
         val mode = runningModeRepo.runningMode
 
@@ -85,7 +90,7 @@ class PurchaselyWrapper(
             .start { isConfigured, error ->
                 if (isConfigured) {
                     Log.d(TAG, "[Shaker] Purchasely SDK configured successfully")
-                    premiumManager.refreshPremiumStatus()
+                    onConfigured?.invoke()
                 }
                 error?.let {
                     Log.e(TAG, "[Shaker] Purchasely configuration error: ${it.message}")
@@ -108,7 +113,7 @@ class PurchaselyWrapper(
     fun restart() {
         close()
         val app = application ?: return
-        initialize(app, apiKey, logLevel)
+        initialize(app, apiKey, logLevel, onConfiguredCallback)
     }
 
     fun close() {
@@ -186,7 +191,7 @@ class PurchaselyWrapper(
                 synchronize()
                 pendingProcessAction?.invoke(false)
                 pendingProcessAction = null
-                premiumManager.refreshPremiumStatus()
+                onTransactionCompleted?.invoke()
                 Log.d(TAG, "[Shaker] Transaction success — synchronized and refreshed")
             }
             is TransactionResult.Cancelled -> {
@@ -241,23 +246,24 @@ class PurchaselyWrapper(
             } else {
                 Purchasely.fetchPresentation(placementId = placementId)
             }
+            val handle = PresentationHandle(presentation)
             when (presentation.type) {
                 PLYPresentationType.DEACTIVATED -> FetchResult.Deactivated
-                PLYPresentationType.CLIENT -> FetchResult.Client(presentation)
-                else -> FetchResult.Success(presentation)
+                PLYPresentationType.CLIENT -> FetchResult.Client(handle)
+                else -> FetchResult.Success(handle, presentation.height)
             }
         } catch (e: Exception) {
-            FetchResult.Error(e as? PLYError)
+            FetchResult.Error(e.message)
         }
     }
 
     // MARK: - Modal Display
 
     suspend fun display(
-        presentation: PLYPresentation,
+        handle: PresentationHandle,
         activity: Activity
     ): DisplayResult = suspendCoroutine { continuation ->
-        presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
+        handle.presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
             when (result) {
                 PLYProductViewResult.PURCHASED -> continuation.resume(DisplayResult.Purchased(plan?.name))
                 PLYProductViewResult.RESTORED -> continuation.resume(DisplayResult.Restored(plan?.name))
@@ -269,11 +275,11 @@ class PurchaselyWrapper(
     // MARK: - Embedded View
 
     fun getView(
-        presentation: PLYPresentation,
+        handle: PresentationHandle,
         context: Context,
         onResult: (DisplayResult) -> Unit
     ): View? {
-        return presentation.buildView(
+        return handle.presentation.buildView(
             context = context,
             callback = { result: PLYProductViewResult, plan: PLYPlan? ->
                 when (result) {
@@ -320,13 +326,22 @@ class PurchaselyWrapper(
         Purchasely.incrementUserAttribute(key)
     }
 
+    // MARK: - Subscriptions
+
+    fun userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener) {
+        Purchasely.userSubscriptions(invalidateCache, listener)
+    }
+
     // MARK: - Restore
 
     fun restoreAllProducts(
-        onSuccess: (PLYPlan?) -> Unit,
-        onError: (PLYError?) -> Unit
+        onSuccess: (String?) -> Unit,
+        onError: (String?) -> Unit
     ) {
-        Purchasely.restoreAllProducts(onSuccess, onError)
+        Purchasely.restoreAllProducts(
+            { plan -> onSuccess(plan?.name) },
+            { error -> onError(error?.message) }
+        )
     }
 
     // MARK: - Observer Mode
@@ -337,8 +352,17 @@ class PurchaselyWrapper(
 
     // MARK: - GDPR Consent
 
-    fun revokeDataProcessingConsent(purposes: Set<io.purchasely.ext.PLYDataProcessingPurpose>) {
-        Purchasely.revokeDataProcessingConsent(purposes)
+    fun revokeDataProcessingConsent(purposes: Set<ConsentPurpose>) {
+        val sdkPurposes = purposes.mapTo(mutableSetOf()) { purpose ->
+            when (purpose) {
+                ConsentPurpose.ANALYTICS -> PLYDataProcessingPurpose.Analytics
+                ConsentPurpose.IDENTIFIED_ANALYTICS -> PLYDataProcessingPurpose.IdentifiedAnalytics
+                ConsentPurpose.PERSONALIZATION -> PLYDataProcessingPurpose.Personalization
+                ConsentPurpose.CAMPAIGNS -> PLYDataProcessingPurpose.Campaigns
+                ConsentPurpose.THIRD_PARTY_INTEGRATIONS -> PLYDataProcessingPurpose.ThirdPartyIntegrations
+            }
+        }
+        Purchasely.revokeDataProcessingConsent(sdkPurposes)
     }
 
     // MARK: - SDK Info

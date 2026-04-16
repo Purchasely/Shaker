@@ -42,10 +42,15 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 import org.koin.core.parameter.parametersOf
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,11 +65,13 @@ fun DetailScreen(
     val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val isFavorite = favoriteIds.contains(cocktailId)
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     // Force light (white) status bar icons over the hero image
     val view = LocalView.current
     DisposableEffect(Unit) {
-        val window = (context as Activity).window
+        val activity = context as? Activity ?: return@DisposableEffect onDispose {}
+        val window = activity.window
         val controller = WindowCompat.getInsetsController(window, view)
         controller.isAppearanceLightStatusBars = false // white icons
         onDispose {
@@ -74,17 +81,25 @@ fun DetailScreen(
 
     // Collect recipe paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestRecipePaywall.collect {
+        viewModel.requestRecipePaywall.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingRecipePaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 
     // Collect favorites paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestFavoritesPaywall.collect {
+        viewModel.requestFavoritesPaywall.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingFavoritesPaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 
@@ -152,7 +167,7 @@ fun DetailScreen(
                     // Ingredients
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = "Ingredients",
+                        text = stringResource(R.string.ingredients),
                         style = MaterialTheme.typography.titleLarge
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -182,7 +197,7 @@ fun DetailScreen(
                     // Instructions
                     Spacer(modifier = Modifier.height(24.dp))
                     Text(
-                        text = "Instructions",
+                        text = stringResource(R.string.instructions),
                         style = MaterialTheme.typography.titleLarge
                     )
                     Spacer(modifier = Modifier.height(8.dp))
@@ -236,7 +251,7 @@ fun DetailScreen(
                                         contentDescription = null,
                                         modifier = Modifier.padding(end = 8.dp)
                                     )
-                                    Text("Unlock Full Recipe")
+                                    Text(stringResource(R.string.unlock_full_recipe))
                                 }
                             }
                         }
@@ -254,7 +269,7 @@ fun DetailScreen(
                 IconButton(onClick = onBack) {
                     Icon(
                         Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
+                        contentDescription = stringResource(R.string.back),
                         tint = Color.White
                     )
                 }
@@ -269,7 +284,7 @@ fun DetailScreen(
                 }) {
                     Icon(
                         imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                        contentDescription = if (isFavorite) "Remove from favorites" else "Add to favorites",
+                        contentDescription = if (isFavorite) stringResource(R.string.remove_from_favorites) else stringResource(R.string.add_to_favorites),
                         tint = if (isFavorite) Color.Red else Color.White
                     )
                 }

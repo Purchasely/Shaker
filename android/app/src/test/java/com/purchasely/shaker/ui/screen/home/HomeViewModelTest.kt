@@ -1,7 +1,8 @@
 package com.purchasely.shaker.ui.screen.home
 
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
+import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.testCocktail
@@ -37,8 +38,9 @@ class HomeViewModelTest {
     )
 
     private lateinit var repository: CocktailRepository
-    private lateinit var premiumManager: PremiumManager
+    private lateinit var premiumRepository: PremiumRepository
     private lateinit var wrapper: PurchaselyWrapper
+    private lateinit var getFilteredCocktails: GetFilteredCocktailsUseCase
 
     @Before
     fun setUp() {
@@ -49,13 +51,14 @@ class HomeViewModelTest {
             every { getCategories() } returns listOf("Bitter", "Classic", "Tropical")
             every { getDifficulties() } returns listOf("Easy", "Medium", "Hard")
         }
-        premiumManager = mockk {
+        premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
         }
         wrapper = mockk(relaxed = true) {
             coEvery { loadPresentation(any(), any()) } returns FetchResult.Deactivated
         }
+        getFilteredCocktails = GetFilteredCocktailsUseCase(repository)
     }
 
     @After
@@ -63,7 +66,7 @@ class HomeViewModelTest {
         Dispatchers.resetMain()
     }
 
-    private fun createViewModel() = HomeViewModel(repository, premiumManager, wrapper)
+    private fun createViewModel() = HomeViewModel(repository, premiumRepository, wrapper, getFilteredCocktails)
 
     @Test
     fun `initial cocktails are loaded from repository`() {
@@ -216,28 +219,28 @@ class HomeViewModelTest {
     @Test
     fun `hasActiveFilters is false initially`() {
         val vm = createViewModel()
-        assertFalse(vm.hasActiveFilters)
+        assertFalse(vm.hasActiveFilters.value)
     }
 
     @Test
     fun `hasActiveFilters is true with spirit filter`() {
         val vm = createViewModel()
         vm.toggleSpirit("Rum")
-        assertTrue(vm.hasActiveFilters)
+        assertTrue(vm.hasActiveFilters.value)
     }
 
     @Test
     fun `hasActiveFilters is true with category filter`() {
         val vm = createViewModel()
         vm.toggleCategory("Classic")
-        assertTrue(vm.hasActiveFilters)
+        assertTrue(vm.hasActiveFilters.value)
     }
 
     @Test
     fun `hasActiveFilters is true with difficulty filter`() {
         val vm = createViewModel()
         vm.selectDifficulty("Easy")
-        assertTrue(vm.hasActiveFilters)
+        assertTrue(vm.hasActiveFilters.value)
     }
 
     @Test
@@ -249,7 +252,7 @@ class HomeViewModelTest {
 
     @Test
     fun `init does not prefetch presentations when premium`() {
-        every { premiumManager.isPremium } returns MutableStateFlow(true)
+        every { premiumRepository.isPremium } returns MutableStateFlow(true)
         createViewModel()
         coVerify(exactly = 0) { wrapper.loadPresentation(any(), any()) }
     }
@@ -258,12 +261,12 @@ class HomeViewModelTest {
     fun `onPaywallDismissed refreshes premium status`() {
         val vm = createViewModel()
         vm.onPaywallDismissed()
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
     fun `onFilterClick does nothing when premium`() {
-        every { premiumManager.isPremium } returns MutableStateFlow(true)
+        every { premiumRepository.isPremium } returns MutableStateFlow(true)
         val vm = createViewModel()
         vm.onFilterClick()
         // No exception, no paywall display signal

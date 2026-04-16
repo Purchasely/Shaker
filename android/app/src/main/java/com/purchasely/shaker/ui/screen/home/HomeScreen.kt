@@ -46,13 +46,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -64,15 +69,21 @@ fun HomeScreen(
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
     val isFiltersLoading by viewModel.isFiltersLoading.collectAsStateWithLifecycle()
+    val hasActiveFilters by viewModel.hasActiveFilters.collectAsStateWithLifecycle()
     val inlinePresentation by viewModel.inlinePresentation.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
     var showFilterSheet by remember { mutableStateOf(false) }
 
     // Collect paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect {
+        viewModel.requestPaywallDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingPaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 
@@ -85,8 +96,8 @@ fun HomeScreen(
                     onSearch = {},
                     expanded = false,
                     onExpandedChange = {},
-                    placeholder = { Text("Search cocktails...") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                    placeholder = { Text(stringResource(R.string.search_cocktails)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search)) },
                     trailingIcon = {
                         if (!isPremium && isFiltersLoading) {
                             Box(
@@ -106,12 +117,12 @@ fun HomeScreen(
                                     viewModel.onFilterClick()
                                 }
                             }) {
-                                if (viewModel.hasActiveFilters) {
+                                if (hasActiveFilters) {
                                     BadgedBox(badge = { Badge() }) {
-                                        Icon(Icons.Default.Tune, contentDescription = "Filters")
+                                        Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.filters))
                                     }
                                 } else {
-                                    Icon(Icons.Default.Tune, contentDescription = "Filters")
+                                    Icon(Icons.Default.Tune, contentDescription = stringResource(R.string.filters))
                                 }
                             }
                         }
@@ -139,13 +150,13 @@ fun HomeScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = "No cocktails found",
+                        text = stringResource(R.string.no_cocktails_found),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Try a different search or filter.",
+                        text = stringResource(R.string.try_different_search),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                     )

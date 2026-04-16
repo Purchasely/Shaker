@@ -35,26 +35,35 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.purchasely.shaker.R
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.purchasely.DisplayResult
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.components.CocktailImage
 import org.koin.androidx.compose.koinViewModel
+import org.koin.compose.koinInject
 
 @Composable
 fun FavoritesScreen(
     onCocktailClick: (String) -> Unit,
     viewModel: FavoritesViewModel = koinViewModel()
 ) {
-    val favoriteIds by viewModel.favoriteIds.collectAsStateWithLifecycle()
     val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
-    val favorites = viewModel.getFavoriteCocktails()
+    val favorites by viewModel.favorites.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     // Collect paywall display requests from ViewModel
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect {
+        viewModel.requestPaywallDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
-            viewModel.displayPendingPaywall(activity)
+            val result = purchaselyWrapper.display(handle, activity)
+            when (result) {
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                else -> {}
+            }
         }
     }
 
@@ -73,13 +82,13 @@ fun FavoritesScreen(
                 )
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "No favorites yet",
+                    text = stringResource(R.string.no_favorites_yet),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Tap the heart icon on a cocktail to save it here.",
+                    text = stringResource(R.string.favorites_hint),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
                 )
@@ -93,7 +102,7 @@ fun FavoritesScreen(
                         )
                     ) {
                         Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
-                        Text("Unlock Favorites")
+                        Text(stringResource(R.string.unlock_favorites))
                     }
                 }
             }

@@ -1,8 +1,9 @@
 package com.purchasely.shaker.ui.screen.detail
 
-import com.purchasely.shaker.data.CocktailRepository
-import com.purchasely.shaker.data.FavoritesRepository
-import com.purchasely.shaker.data.PremiumManager
+import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.domain.repository.FavoritesRepository
+import com.purchasely.shaker.domain.repository.PremiumRepository
+import com.purchasely.shaker.domain.usecase.ToggleFavoriteUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.testCocktail
@@ -35,9 +36,10 @@ class DetailViewModelTest {
     private val mojito = testCocktail("mojito", "Mojito", "Rum", "Classic", "Easy")
 
     private lateinit var repository: CocktailRepository
-    private lateinit var premiumManager: PremiumManager
+    private lateinit var premiumRepository: PremiumRepository
     private lateinit var favoritesRepository: FavoritesRepository
     private lateinit var wrapper: PurchaselyWrapper
+    private lateinit var toggleFavoriteUseCase: ToggleFavoriteUseCase
 
     @Before
     fun setUp() {
@@ -47,7 +49,7 @@ class DetailViewModelTest {
             every { getCocktail("mojito") } returns mojito
             every { getCocktail("nonexistent") } returns null
         }
-        premiumManager = mockk {
+        premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
         }
@@ -58,6 +60,7 @@ class DetailViewModelTest {
         wrapper = mockk(relaxed = true) {
             coEvery { loadPresentation(any(), any()) } returns FetchResult.Deactivated
         }
+        toggleFavoriteUseCase = ToggleFavoriteUseCase(favoritesRepository)
     }
 
     @After
@@ -66,7 +69,7 @@ class DetailViewModelTest {
     }
 
     private fun createViewModel(cocktailId: String = "mojito") =
-        DetailViewModel(repository, premiumManager, favoritesRepository, wrapper, cocktailId)
+        DetailViewModel(repository, premiumRepository, favoritesRepository, wrapper, toggleFavoriteUseCase, cocktailId)
 
     @Test
     fun `loads cocktail by id on init`() {
@@ -137,13 +140,13 @@ class DetailViewModelTest {
     fun `onPaywallDismissed refreshes premium status`() {
         val vm = createViewModel()
         vm.onPaywallDismissed()
-        verify { premiumManager.refreshPremiumStatus() }
+        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
-    fun `isPremium exposes premiumManager state`() {
+    fun `isPremium exposes premiumRepository state`() {
         val premiumFlow = MutableStateFlow(false)
-        every { premiumManager.isPremium } returns premiumFlow
+        every { premiumRepository.isPremium } returns premiumFlow
         val vm = createViewModel()
         assertFalse(vm.isPremium.value)
         premiumFlow.value = true
