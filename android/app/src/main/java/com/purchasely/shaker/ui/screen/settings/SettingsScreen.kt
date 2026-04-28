@@ -3,6 +3,11 @@ package com.purchasely.shaker.ui.screen.settings
 import android.app.Activity
 import android.content.ClipData
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -12,28 +17,19 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material3.Button
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
-import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -41,45 +37,50 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.purchasely.shaker.R
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.domain.model.DisplayMode
 import com.purchasely.shaker.domain.model.ThemeMode
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
+import com.purchasely.shaker.ui.theme.Shaker
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
 @Composable
-fun SettingsScreen(
-    viewModel: SettingsViewModel = koinViewModel()
-) {
+fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
+    val tokens = Shaker.tokens
     val userId by viewModel.userId.collectAsStateWithLifecycle()
     val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
     val restoreMessage by viewModel.restoreMessage.collectAsStateWithLifecycle()
     val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
     val sdkMode by viewModel.sdkMode.collectAsStateWithLifecycle()
+    val displayMode by viewModel.displayMode.collectAsStateWithLifecycle()
+    val anonymousId by viewModel.anonymousId.collectAsStateWithLifecycle()
 
     val analyticsConsent by viewModel.analyticsConsent.collectAsStateWithLifecycle()
     val identifiedAnalyticsConsent by viewModel.identifiedAnalyticsConsent.collectAsStateWithLifecycle()
     val personalizationConsent by viewModel.personalizationConsent.collectAsStateWithLifecycle()
     val campaignsConsent by viewModel.campaignsConsent.collectAsStateWithLifecycle()
     val thirdPartyConsent by viewModel.thirdPartyConsent.collectAsStateWithLifecycle()
-    val anonymousId by viewModel.anonymousId.collectAsStateWithLifecycle()
-    val displayMode by viewModel.displayMode.collectAsStateWithLifecycle()
+
     val clipboard = LocalClipboard.current
     val clipboardScope = rememberCoroutineScope()
     val context = LocalContext.current
     val purchaselyWrapper: PurchaselyWrapper = koinInject()
     var loginInput by remember { mutableStateOf("") }
 
-    // Show restore toast
     LaunchedEffect(restoreMessage) {
         restoreMessage?.let {
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
@@ -87,7 +88,6 @@ fun SettingsScreen(
         }
     }
 
-    // Collect paywall display requests from ViewModel
     LaunchedEffect(Unit) {
         viewModel.requestPaywallDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
@@ -102,330 +102,378 @@ fun SettingsScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(tokens.bg)
             .statusBarsPadding()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp)
+            .verticalScroll(rememberScrollState()),
     ) {
-        // Account section
         Text(
-            text = stringResource(R.string.account),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
+            "Settings",
+            color = tokens.text,
+            fontSize = 28.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
-        Spacer(modifier = Modifier.height(12.dp))
 
-        if (userId != null) {
-            // Logged in state
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Person, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.logged_in_as),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = userId ?: "",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+        SectionHeader("Account")
+        SettingsCard {
+            if (userId != null) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(tokens.indigo),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            (userId ?: "").take(2).uppercase(),
+                            color = tokens.onIndigo,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 16.sp,
+                        )
+                    }
+                    Spacer(Modifier.size(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text("Logged in as", color = tokens.textSec, fontSize = 12.sp)
+                        Text(userId ?: "", color = tokens.text, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+                    }
+                    Row(
+                        modifier = Modifier.clickable { viewModel.logout() },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Default.Logout, null, tint = tokens.danger, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.size(6.dp))
+                        Text("Logout", color = tokens.danger, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    }
                 }
-                TextButton(onClick = { viewModel.logout() }) {
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(tokens.bgSubtle)
+                            .border(1.dp, tokens.hair, RoundedCornerShape(12.dp))
+                            .padding(horizontal = 14.dp),
+                        contentAlignment = Alignment.CenterStart,
+                    ) {
+                        if (loginInput.isEmpty()) {
+                            Text("User ID", color = tokens.textSec, fontSize = 15.sp)
+                        }
+                        BasicTextField(
+                            value = loginInput,
+                            onValueChange = { loginInput = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = tokens.text, fontSize = 15.sp),
+                            cursorBrush = SolidColor(tokens.indigo),
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    Spacer(Modifier.size(10.dp))
+                    val enabled = loginInput.isNotBlank()
+                    Box(
+                        modifier = Modifier
+                            .height(44.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (enabled) tokens.accent else tokens.bgSubtle)
+                            .clickable(enabled = enabled) {
+                                viewModel.login(loginInput)
+                                loginInput = ""
+                            }
+                            .padding(horizontal = 18.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Login",
+                            color = if (enabled) Color.White else tokens.textSec,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp,
+                        )
+                    }
+                }
+            }
+            Divider()
+            RowBetween {
+                Text("Premium status", color = tokens.text, fontSize = 15.sp)
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(if (isPremium) tokens.goldSoft else tokens.indigoSoft)
+                        .padding(horizontal = 10.dp, vertical = 3.dp),
+                ) {
                     Text(
-                        stringResource(R.string.logout),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
+                        if (isPremium) "PRO" else "FREE",
+                        color = tokens.indigoText,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
                     )
                 }
             }
-        } else {
-            // Login form
+            Divider()
             Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedTextField(
-                    value = loginInput,
-                    onValueChange = { loginInput = it },
-                    label = { Text(stringResource(R.string.user_id)) },
-                    placeholder = { Text(stringResource(R.string.enter_user_id)) },
-                    singleLine = true,
-                    modifier = Modifier.weight(1f)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Button(
-                    onClick = {
-                        viewModel.login(loginInput)
-                        loginInput = ""
-                    },
-                    enabled = loginInput.isNotBlank()
+                Column(Modifier.weight(1f)) {
+                    Text("Anonymous ID", color = tokens.textSec, fontSize = 13.sp)
+                    Text(anonymousId, color = tokens.text, fontSize = 11.sp, maxLines = 1)
+                }
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(tokens.inputBg)
+                        .clickable {
+                            clipboardScope.launch {
+                                clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("anonymousId", anonymousId)))
+                            }
+                            Toast.makeText(context, "Copied", Toast.LENGTH_SHORT).show()
+                        },
+                    contentAlignment = Alignment.Center,
                 ) {
-                    Text(stringResource(R.string.login))
+                    Icon(Icons.Default.ContentCopy, null, tint = tokens.textSec, modifier = Modifier.size(16.dp))
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // Premium status
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(stringResource(R.string.premium_status), style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = if (isPremium) stringResource(R.string.active) else stringResource(R.string.free),
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (isPremium) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        SectionHeader("Purchases")
+        Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            OutlineButton(label = "Restore purchases") { viewModel.restorePurchases() }
+            OutlineButton(label = "Show onboarding") { viewModel.showOnboardingPaywall() }
         }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(stringResource(R.string.anonymous_id), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(
-                    text = anonymousId,
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1
-                )
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("Purchasely SDK")
+        Segmented(
+            options = listOf(PurchaselySdkMode.PAYWALL_OBSERVER.label, PurchaselySdkMode.FULL.label),
+            active = sdkMode.label,
+            onSelect = { label ->
+                val mode = PurchaselySdkMode.entries.firstOrNull { it.label == label } ?: PurchaselySdkMode.DEFAULT
+                viewModel.setSdkMode(mode)
+            },
+        )
+        Text(
+            "Default mode is Paywall Observer — Shaker observes purchases but uses its own paywall UI.",
+            color = tokens.textSec,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("Data privacy")
+        SettingsCard {
+            ToggleRow("Analytics", "Anonymous audience measurement", analyticsConsent) { viewModel.setAnalyticsConsent(it) }
+            Divider()
+            ToggleRow("Identified analytics", "User-identified analytics", identifiedAnalyticsConsent) { viewModel.setIdentifiedAnalyticsConsent(it) }
+            Divider()
+            ToggleRow("Personalization", "Personalized content & offers", personalizationConsent) { viewModel.setPersonalizationConsent(it) }
+            Divider()
+            ToggleRow("Campaigns", "Promotional campaigns", campaignsConsent) { viewModel.setCampaignsConsent(it) }
+            Divider()
+            ToggleRow("Third-party integrations", "External analytics & integrations", thirdPartyConsent, last = true) { viewModel.setThirdPartyConsent(it) }
+        }
+        Text(
+            "Technical processing required for app operation cannot be disabled.",
+            color = tokens.textSec,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+        )
+
+        SectionHeader("Appearance")
+        Segmented(
+            options = ThemeMode.entries.map { it.label },
+            active = themeMode.label,
+            onSelect = { label ->
+                ThemeMode.entries.firstOrNull { it.label == label }?.let(viewModel::setThemeMode)
+            },
+        )
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("Screen display mode")
+        Text(
+            "How paywalls are presented on screen",
+            color = tokens.textSec,
+            fontSize = 12.sp,
+            modifier = Modifier.padding(horizontal = 20.dp),
+        )
+        Spacer(Modifier.height(8.dp))
+        Segmented(
+            options = DisplayMode.entries.map { it.label },
+            active = displayMode.label,
+            onSelect = { label ->
+                DisplayMode.entries.firstOrNull { it.label == label }?.let(viewModel::setDisplayMode)
+            },
+        )
+        Spacer(Modifier.height(16.dp))
+
+        SectionHeader("About")
+        SettingsCard {
+            RowBetween {
+                Text("Version", color = tokens.text, fontSize = 15.sp)
+                Text("1.0.0", color = tokens.textSec, fontSize = 15.sp)
             }
-            IconButton(onClick = {
-                clipboardScope.launch {
-                    clipboard.setClipEntry(
-                        ClipEntry(ClipData.newPlainText("anonymousId", anonymousId))
-                    )
-                }
-                Toast.makeText(context, context.getString(R.string.copied), Toast.LENGTH_SHORT).show()
-            }) {
-                Icon(Icons.Default.ContentCopy, contentDescription = stringResource(R.string.copy), modifier = Modifier.size(18.dp))
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Purchases section
-        Text(
-            text = stringResource(R.string.purchases),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedButton(
-            onClick = { viewModel.restorePurchases() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.restore_purchases))
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = { viewModel.showOnboardingPaywall() },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.show_onboarding))
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Purchasely SDK section
-        Text(
-            text = stringResource(R.string.purchasely_sdk),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val sdkModes = listOf(PurchaselySdkMode.PAYWALL_OBSERVER, PurchaselySdkMode.FULL)
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            sdkModes.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = sdkMode == mode,
-                    onClick = { viewModel.setSdkMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = sdkModes.size)
-                ) {
-                    Text(mode.label)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.default_mode_hint),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Data Privacy section
-        Text(
-            text = stringResource(R.string.data_privacy),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        ConsentToggleRow(
-            label = stringResource(R.string.analytics),
-            description = stringResource(R.string.analytics_desc),
-            checked = analyticsConsent,
-            onCheckedChange = { viewModel.setAnalyticsConsent(it) }
-        )
-        ConsentToggleRow(
-            label = stringResource(R.string.identified_analytics),
-            description = stringResource(R.string.identified_analytics_desc),
-            checked = identifiedAnalyticsConsent,
-            onCheckedChange = { viewModel.setIdentifiedAnalyticsConsent(it) }
-        )
-        ConsentToggleRow(
-            label = stringResource(R.string.personalization),
-            description = stringResource(R.string.personalization_desc),
-            checked = personalizationConsent,
-            onCheckedChange = { viewModel.setPersonalizationConsent(it) }
-        )
-        ConsentToggleRow(
-            label = stringResource(R.string.campaigns),
-            description = stringResource(R.string.campaigns_desc),
-            checked = campaignsConsent,
-            onCheckedChange = { viewModel.setCampaignsConsent(it) }
-        )
-        ConsentToggleRow(
-            label = stringResource(R.string.third_party),
-            description = stringResource(R.string.third_party_desc),
-            checked = thirdPartyConsent,
-            onCheckedChange = { viewModel.setThirdPartyConsent(it) }
-        )
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.technical_processing_note),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Appearance section
-        Text(
-            text = stringResource(R.string.appearance),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val themes = ThemeMode.entries
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            themes.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = themeMode == mode,
-                    onClick = { viewModel.setThemeMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = themes.size)
-                ) {
-                    Text(mode.label)
-                }
+            Divider()
+            RowBetween {
+                Text("Purchasely SDK", color = tokens.text, fontSize = 15.sp)
+                Text(viewModel.sdkVersion, color = tokens.textSec, fontSize = 15.sp)
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Display Mode section
         Text(
-            text = stringResource(R.string.screen_display_mode),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
+            "Powered by Purchasely",
+            color = tokens.textTer,
+            fontSize = 12.sp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 16.dp),
         )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = stringResource(R.string.display_mode_desc),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val displayModes = DisplayMode.entries
-        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-            displayModes.forEachIndexed { index, mode ->
-                SegmentedButton(
-                    selected = displayMode == mode,
-                    onClick = { viewModel.setDisplayMode(mode) },
-                    shape = SegmentedButtonDefaults.itemShape(index = index, count = displayModes.size)
-                ) {
-                    Text(mode.label, style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // About section
-        Text(
-            text = stringResource(R.string.about),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row {
-            Text(stringResource(R.string.version), style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = "1.0.0",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Row {
-            Text(stringResource(R.string.purchasely_sdk), style = MaterialTheme.typography.bodyMedium)
-            Spacer(modifier = Modifier.weight(1f))
-            Text(
-                text = viewModel.sdkVersion,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Text(
-            text = stringResource(R.string.powered_by_purchasely),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(Modifier.height(60.dp))
     }
 }
 
 @Composable
-private fun ConsentToggleRow(
-    label: String,
-    description: String,
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit
+private fun SectionHeader(title: String) {
+    val tokens = Shaker.tokens
+    Text(
+        title,
+        color = tokens.indigoText,
+        fontSize = 16.sp,
+        fontWeight = FontWeight.SemiBold,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+    )
+    Spacer(Modifier.height(8.dp))
+}
+
+@Composable
+private fun SettingsCard(content: @Composable () -> Unit) {
+    val tokens = Shaker.tokens
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(tokens.bgCard)
+            .border(1.dp, tokens.hair, RoundedCornerShape(16.dp)),
+    ) { content() }
+    Spacer(Modifier.height(16.dp))
+}
+
+@Composable
+private fun Divider() {
+    Box(Modifier.fillMaxWidth().height(1.dp).background(Shaker.tokens.hair))
+}
+
+@Composable
+private fun RowBetween(content: @Composable () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        content()
+        Spacer(Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ToggleRow(
+    title: String,
+    subtitle: String,
+    on: Boolean,
+    last: Boolean = false,
+    onToggle: (Boolean) -> Unit,
 ) {
+    val tokens = Shaker.tokens
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, color = tokens.text, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+            Text(subtitle, color = tokens.textSec, fontSize = 13.sp)
+        }
+        ShakerToggle(on = on, onToggle = { onToggle(!on) })
+    }
+}
+
+@Composable
+private fun ShakerToggle(on: Boolean, onToggle: () -> Unit) {
+    val tokens = Shaker.tokens
+    Box(
+        modifier = Modifier
+            .size(width = 51.dp, height = 31.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (on) tokens.indigo else if (tokens.dark) Color(0xFF3D3F54) else Color(0xFFE0DEE9))
+            .clickable(onClick = onToggle),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            modifier = Modifier
+                .padding(start = if (on) 22.dp else 2.dp)
+                .size(27.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+        )
+    }
+}
+
+@Composable
+private fun Segmented(options: List<String>, active: String, onSelect: (String) -> Unit) {
+    val tokens = Shaker.tokens
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(horizontal = 20.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(tokens.inputBg)
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(text = label, style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        options.forEach { o ->
+            val selected = o == active
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(36.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (selected) tokens.indigoSoft else Color.Transparent)
+                    .clickable { onSelect(o) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (selected) {
+                        Icon(Icons.Default.Check, null, tint = tokens.indigoText, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.size(6.dp))
+                    }
+                    Text(
+                        o,
+                        color = if (selected) tokens.indigoText else tokens.textSec,
+                        fontSize = 13.sp,
+                        fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                    )
+                }
+            }
         }
-        Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+}
+
+@Composable
+private fun OutlineButton(label: String, onClick: () -> Unit) {
+    val tokens = Shaker.tokens
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(100.dp))
+            .border(1.5.dp, tokens.indigoText, RoundedCornerShape(100.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = tokens.indigoText, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
     }
 }

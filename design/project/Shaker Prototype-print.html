@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shaker — Print</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Text:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; background: #F0EEE9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+
+  @page { size: A4 landscape; margin: 0.5cm; }
+
+  .page {
+    width: 297mm; height: 206mm;
+    padding: 10mm 12mm;
+    background: #F0EEE9;
+    display: flex; flex-direction: column;
+    break-after: page; page-break-after: always;
+    overflow: hidden;
+  }
+  .page.dark-page { background: #12131F; color: #fff; }
+  .page:last-child { break-after: auto; page-break-after: auto; }
+
+  .page-header {
+    display: flex; align-items: baseline; justify-content: space-between;
+    margin-bottom: 8mm;
+  }
+  .page-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; color: rgba(40,30,20,0.92); margin: 0; }
+  .dark-page .page-title { color: #fff; }
+  .page-subtitle { font-size: 12px; color: rgba(60,50,40,0.65); margin-top: 2px; }
+  .dark-page .page-subtitle { color: #9EA2B6; }
+  .page-tag { font-size: 10px; font-weight: 700; color: #3C4876; letter-spacing: 0.6px; text-transform: uppercase; }
+  .dark-page .page-tag { color: #B3BDE4; }
+
+  .pair {
+    display: flex; gap: 24mm; align-items: flex-start; justify-content: center; flex: 1;
+  }
+  .pair-item { display: flex; flex-direction: column; align-items: center; gap: 4mm; }
+  .pair-label { font-size: 11px; color: rgba(40,30,20,0.55); font-weight: 500; letter-spacing: 0.3px; }
+  .dark-page .pair-label { color: #9EA2B6; }
+
+  .cover {
+    background: linear-gradient(135deg, #2A1C4F 0%, #1B1D30 100%);
+    color: #fff;
+  }
+  .cover .page-title, .cover h1, .cover p { color: #fff; }
+
+  @media print {
+    body { background: #fff; }
+  }
+</style>
+</head>
+<body>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="shared/data.jsx"></script>
+<script type="text/babel" src="shared/theme.jsx"></script>
+<script type="text/babel" src="shared/primitives.jsx"></script>
+<script type="text/babel" src="shared/art.jsx"></script>
+<script type="text/babel" src="shared/ios-shell.jsx"></script>
+<script type="text/babel" src="shared/android-shell.jsx"></script>
+<script type="text/babel" src="shared/screens-onboarding.jsx"></script>
+<script type="text/babel" src="shared/screens-home.jsx"></script>
+<script type="text/babel" src="shared/screens-rest.jsx"></script>
+
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+// Scale: devices are 390×844 / 412×892. Max height on landscape A4 page ~ 165mm ≈ 624px.
+// Scale factor 0.72 → iOS 281×608, Android 297×642 — fits nicely paired.
+const SCALE = 0.72;
+
+function Device({ platform, theme, children, tabBar }) {
+  const W = platform === 'ios' ? 390 : 412;
+  const H = platform === 'ios' ? 844 : 892;
+  const Frame = platform === 'ios' ? IOSFrame : AndroidFrame;
+  const TabBar = platform === 'ios' ? IOSTabBar : AndroidTabBar;
+  return (
+    <div style={{ width: W * SCALE, height: H * SCALE, position: 'relative' }}>
+      <div style={{ transform: `scale(${SCALE})`, transformOrigin: 'top left', width: W, height: H }}>
+        <Frame width={W} height={H} theme={theme}>
+          {children}
+          {tabBar && <TabBar active={tabBar} theme={theme}/>}
+        </Frame>
+      </div>
+    </div>
+  );
+}
+
+function Pair({ theme, iosScreen, androidScreen, iosTab, androidTab }) {
+  return (
+    <div className="pair">
+      <div className="pair-item">
+        <Device platform="ios" theme={theme} tabBar={iosTab}>{iosScreen}</Device>
+        <div className="pair-label">iOS · 390×844</div>
+      </div>
+      <div className="pair-item">
+        <Device platform="android" theme={theme} tabBar={androidTab}>{androidScreen}</Device>
+        <div className="pair-label">Android · 412×892</div>
+      </div>
+    </div>
+  );
+}
+
+function Page({ title, subtitle, tag, dark, children }) {
+  return (
+    <div className={'page' + (dark ? ' dark-page' : '')}>
+      <div className="page-header">
+        <div>
+          <div className="page-title">{title}</div>
+          {subtitle && <div className="page-subtitle">{subtitle}</div>}
+        </div>
+        <div className="page-tag">{tag}</div>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ScreenPair({ title, subtitle, render, iosTab, androidTab }) {
+  const light = makeTheme(false);
+  const dark  = makeTheme(true);
+  return (
+    <>
+      <Page title={title} subtitle={subtitle} tag={`${title.split(' · ')[0]} · Light`}>
+        <Pair theme={light} iosTab={iosTab} androidTab={androidTab}
+          iosScreen={render('ios', light)} androidScreen={render('android', light)}/>
+      </Page>
+      <Page title={title} subtitle={subtitle} tag={`${title.split(' · ')[0]} · Dark`} dark>
+        <Pair theme={dark} iosTab={iosTab} androidTab={androidTab}
+          iosScreen={render('ios', dark)} androidScreen={render('android', dark)}/>
+      </Page>
+    </>
+  );
+}
+
+function Deck() {
+  const mojito = COCKTAILS[0];
+  const manhattan = COCKTAILS[3];
+  const light = makeTheme(false);
+
+  return (
+    <>
+      {/* Cover */}
+      <div className="page cover">
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', textAlign: 'center' }}>
+          <div style={{ width: 90, height: 90, borderRadius: 22, background: 'rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20, border: '1px solid rgba(255,255,255,0.15)' }}>
+            <ShakerLogo size={58} color="#fff"/>
+          </div>
+          <div style={{ fontSize: 56, fontWeight: 700, letterSpacing: -1.5, margin: 0 }}>Shaker</div>
+          <div style={{ fontSize: 20, color: 'rgba(255,255,255,0.75)', marginTop: 6, letterSpacing: -0.2 }}>
+            A Purchasely SDK demo · Full UX specification
+          </div>
+          <div style={{ marginTop: 40, display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            {['iOS 17','Android 14','Light + Dark','Purchasely SDK 5.7.3'].map(t => (
+              <div key={t} style={{ padding: '6px 14px', borderRadius: 100, background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.18)', fontSize: 13, fontWeight: 500 }}>{t}</div>
+            ))}
+          </div>
+        </div>
+        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.5)', textAlign: 'center' }}>
+          Snapshot of Shaker Prototype · shaker.html · Generated for review
+        </div>
+      </div>
+
+      <ScreenPair title="01 · Onboarding — Welcome" subtitle="First slide. Skip always visible."
+        render={(p, t) => <OnboardingWelcome platform={p} theme={t}/>}/>
+
+      <ScreenPair title="02 · Onboarding — Mix" subtitle="Second slide. Orange CTA."
+        render={(p, t) => <OnboardingMix platform={p} theme={t}/>}/>
+
+      <ScreenPair title="03 · Home — Default" subtitle="Tonight's pick hero + chip row + cocktail grid."
+        iosTab="home" androidTab="home"
+        render={(p, t) => <Home platform={p} theme={t}/>}/>
+
+      <ScreenPair title="04 · Home — A/B Variant B" subtitle="Inline Purchasely placement 'home_banner' replaces the hero."
+        iosTab="home" androidTab="home"
+        render={(p, t) => <Home platform={p} theme={t} variantB/>}/>
+
+      <ScreenPair title="05 · Cocktail detail — Locked (free user)" subtitle="Pro recipes gated with a premium unlock card."
+        render={(p, t) => <Detail platform={p} theme={t} cocktail={mojito} locked/>}/>
+
+      <ScreenPair title="06 · Cocktail detail — Unlocked (Pro)" subtitle="Full step-by-step recipe + Start mixing and Save actions."
+        render={(p, t) => <Detail platform={p} theme={t} cocktail={manhattan} locked={false} isFav/>}/>
+
+      <ScreenPair title="07 · Start mixing — Guided mode" subtitle="Full-screen step-by-step mixing assistant, one step at a time."
+        render={(p, t) => <MixingMode platform={p} theme={t} cocktail={manhattan} step={1} onStep={() => {}}/>}/>
+
+      <ScreenPair title="08 · Favorites — Empty" subtitle="Free-user empty state with paywall + browse CTAs."
+        iosTab="favorites" androidTab="favorites"
+        render={(p, t) => <Favorites platform={p} theme={t}/>}/>
+
+      <ScreenPair title="09 · Paywall — Shaker Pro" subtitle="Full-screen paywall, three plans, annual as Best value."
+        render={(p, t) => <Paywall platform={p} theme={t}/>}/>
+
+      <ScreenPair title="10 · Settings — Logged out" subtitle="User ID input + SDK mode + privacy + appearance + display mode."
+        iosTab="settings" androidTab="settings"
+        render={(p, t) => <Settings platform={p} theme={t} loggedIn={false}/>}/>
+
+      <ScreenPair title="11 · Settings — Logged in" subtitle="Active account with logout action."
+        iosTab="settings" androidTab="settings"
+        render={(p, t) => <Settings platform={p} theme={t} loggedIn userId="kevinb"/>}/>
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<Deck/>);
+
+// Auto-print after fonts and React settle
+(async () => {
+  try { await document.fonts.ready; } catch (e) {}
+  await new Promise(r => setTimeout(r, 1200));
+  window.print();
+})();
+</script>
+</body>
+</html>

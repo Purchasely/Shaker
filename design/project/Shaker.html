@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shaker — iOS & Android (light + dark)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Text:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; background: #F0EEE9; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+  * { box-sizing: border-box; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="design-canvas.jsx"></script>
+<script type="text/babel" src="shared/data.jsx"></script>
+<script type="text/babel" src="shared/theme.jsx"></script>
+<script type="text/babel" src="shared/primitives.jsx"></script>
+<script type="text/babel" src="shared/art.jsx"></script>
+<script type="text/babel" src="shared/ios-shell.jsx"></script>
+<script type="text/babel" src="shared/android-shell.jsx"></script>
+<script type="text/babel" src="shared/screens-onboarding.jsx"></script>
+<script type="text/babel" src="shared/screens-home.jsx"></script>
+<script type="text/babel" src="shared/screens-rest.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+// Shaker — canvas with light AND dark mode for every screen
+
+const IOS_W = 390;
+const IOS_H = 844;
+const AND_W = 412;
+const AND_H = 892;
+
+// Taller devices so long content (settings, detail) is fully visible inline
+const TALL_IOS_H = 1380;
+const TALL_AND_H = 1400;
+
+function Pair({ title, iosChildren, androidChildren, iosTabBar, androidTabBar, theme, tall = false }) {
+  const iH = tall ? TALL_IOS_H : IOS_H;
+  const aH = tall ? TALL_AND_H : AND_H;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'rgba(40,30,20,0.55)', textTransform: 'uppercase', letterSpacing: 0.6 }}>
+        {title}
+      </div>
+      <div style={{ display: 'flex', gap: 40, alignItems: 'flex-start' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+          <IOSFrame width={IOS_W} height={iH} theme={theme}>
+            {iosChildren}
+            {iosTabBar && <IOSTabBar active={iosTabBar} theme={theme}/>}
+          </IOSFrame>
+          <div style={{ fontSize: 11, color: 'rgba(40,30,20,0.55)', fontWeight: 500 }}>iOS</div>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
+          <AndroidFrame width={AND_W} height={aH} theme={theme}>
+            {androidChildren}
+            {androidTabBar && <AndroidTabBar active={androidTabBar} theme={theme}/>}
+          </AndroidFrame>
+          <div style={{ fontSize: 11, color: 'rgba(40,30,20,0.55)', fontWeight: 500 }}>Android</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ScreenRow({ label, sub, renderIOS, renderAndroid, tall, iosTab, androidTab }) {
+  const light = makeTheme(false);
+  const dark  = makeTheme(true);
+  return (
+    <DCSection title={label} subtitle={sub}>
+      <div style={{ flexShrink: 0 }}>
+        <Pair title="Light"
+          theme={light} tall={tall}
+          iosTabBar={iosTab} androidTabBar={androidTab}
+          iosChildren={renderIOS(light)}
+          androidChildren={renderAndroid(light)}/>
+      </div>
+      <div style={{ flexShrink: 0 }}>
+        <Pair title="Dark"
+          theme={dark} tall={tall}
+          iosTabBar={iosTab} androidTabBar={androidTab}
+          iosChildren={renderIOS(dark)}
+          androidChildren={renderAndroid(dark)}/>
+      </div>
+    </DCSection>
+  );
+}
+
+function App() {
+  const mojito = COCKTAILS[0];
+  const manhattan = COCKTAILS[3];
+
+  return (
+    <DesignCanvas>
+      {/* Header */}
+      <div data-screen-label="00 Canvas header" style={{ padding: '0 60px 40px', maxWidth: 1200 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 8 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 14, background: '#3C4876', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <ShakerLogo size={36} color="#fff"/>
+          </div>
+          <div>
+            <div style={{ fontSize: 36, fontWeight: 700, color: 'rgba(40,30,20,0.92)', letterSpacing: -0.6 }}>Shaker</div>
+            <div style={{ fontSize: 14, color: 'rgba(60,50,40,0.65)', marginTop: 2 }}>Full spec, iOS & Android, light + dark</div>
+          </div>
+        </div>
+        <div style={{ marginTop: 20, padding: 16, background: '#fff', borderRadius: 12, border: '1px solid rgba(0,0,0,0.06)', maxWidth: 820, fontSize: 13, color: 'rgba(60,50,40,0.75)', lineHeight: 1.55 }}>
+          Each screen below is shown in light and dark, iOS + Android. Devices are tall so scroll-heavy screens (Detail, Settings) are entirely visible without scrolling. For a <b>fully interactive, clickable</b> end-to-end flow, open <a href="Shaker Prototype.html" style={{ color: '#2B79E4' }}>Shaker Prototype.html</a>.
+        </div>
+      </div>
+
+      <ScreenRow
+        label="1 · Onboarding — Welcome"
+        sub="First slide. Skip always visible."
+        renderIOS={t => <OnboardingWelcome platform="ios" theme={t}/>}
+        renderAndroid={t => <OnboardingWelcome platform="android" theme={t}/>}/>
+
+      <ScreenRow
+        label="1 · Onboarding — Mix"
+        sub="Second slide."
+        renderIOS={t => <OnboardingMix platform="ios" theme={t}/>}
+        renderAndroid={t => <OnboardingMix platform="android" theme={t}/>}/>
+
+      <ScreenRow
+        label="2 · Home — Default"
+        sub="Tonight's pick hero + chip row + grid."
+        iosTab="home" androidTab="home"
+        renderIOS={t => <Home platform="ios" theme={t}/>}
+        renderAndroid={t => <Home platform="android" theme={t}/>}/>
+
+      <ScreenRow
+        label="2 · Home — A/B Variant B"
+        sub="Inline Purchasely placement 'home_banner' replaces the hero."
+        iosTab="home" androidTab="home"
+        renderIOS={t => <Home platform="ios" theme={t} variantB/>}
+        renderAndroid={t => <Home platform="android" theme={t} variantB/>}/>
+
+      <ScreenRow
+        label="3 · Cocktail detail — Locked (free user)"
+        sub="Instructions blurred with Unlock CTA. Tall frame so the full recipe card is visible."
+        tall
+        renderIOS={t => <Detail platform="ios" theme={t} cocktail={mojito} locked/>}
+        renderAndroid={t => <Detail platform="android" theme={t} cocktail={mojito} locked/>}/>
+
+      <ScreenRow
+        label="3 · Cocktail detail — Unlocked (Pro)"
+        sub="Full instructions visible, Start mixing CTA."
+        tall
+        renderIOS={t => <Detail platform="ios" theme={t} cocktail={manhattan} locked={false}/>}
+        renderAndroid={t => <Detail platform="android" theme={t} cocktail={manhattan} locked={false}/>}/>
+
+      <ScreenRow
+        label="4 · Favorites — Empty"
+        sub="Free-user state with paywall + browse CTAs."
+        iosTab="favorites" androidTab="favorites"
+        renderIOS={t => <Favorites platform="ios" theme={t}/>}
+        renderAndroid={t => <Favorites platform="android" theme={t}/>}/>
+
+      <ScreenRow
+        label="5 · Paywall — Shaker Pro"
+        sub="Full-screen paywall with plan selector."
+        tall
+        renderIOS={t => <Paywall platform="ios" theme={t}/>}
+        renderAndroid={t => <Paywall platform="android" theme={t}/>}/>
+
+      <ScreenRow
+        label="6 · Settings — Logged out"
+        sub="User ID input + full SDK / privacy / appearance / display mode controls."
+        iosTab="settings" androidTab="settings"
+        tall
+        renderIOS={t => <Settings platform="ios" theme={t} loggedIn={false}/>}
+        renderAndroid={t => <Settings platform="android" theme={t} loggedIn={false}/>}/>
+
+      <ScreenRow
+        label="6 · Settings — Logged in"
+        sub="Same surface with active account + logout."
+        iosTab="settings" androidTab="settings"
+        tall
+        renderIOS={t => <Settings platform="ios" theme={t} loggedIn userId="kevinb"/>}
+        renderAndroid={t => <Settings platform="android" theme={t} loggedIn userId="kevinb"/>}/>
+
+      <div style={{ padding: '20px 60px 120px', maxWidth: 820 }}>
+        <div style={{ padding: 20, background: '#fff', borderRadius: 14, border: '1px solid rgba(0,0,0,0.06)', fontSize: 13, color: 'rgba(60,50,40,0.75)', lineHeight: 1.55 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#3C4876', marginBottom: 8, textTransform: 'uppercase', letterSpacing: 0.4 }}>Notes</div>
+          <ul style={{ paddingLeft: 20, margin: 0 }}>
+            <li>Single source of truth: every screen takes a <code>theme</code> prop (tokens from <code>makeTheme(dark)</code>).</li>
+            <li>Dark mode uses desaturated indigo (#8A96C9) for tappable text so contrast stays comfortable on #0F1020.</li>
+            <li>Tall device frames are a canvas affordance only; in the interactive prototype each device is at real 390×844 / 412×892.</li>
+          </ul>
+        </div>
+      </div>
+    </DesignCanvas>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>

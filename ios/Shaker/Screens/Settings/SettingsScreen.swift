@@ -5,240 +5,321 @@ struct SettingsScreen: View {
     @StateObject private var viewModel = SettingsViewModel()
     @EnvironmentObject private var premiumManager: PremiumManager
     @EnvironmentObject private var appViewModel: AppViewModel
+    @Environment(\.shakerTokens) private var tokens
     @State private var loginInput = ""
     @State private var hostViewController: UIViewController?
 
     var body: some View {
-        List {
-            // Account section
-            Section("Account") {
-                if let userId = viewModel.userId {
-                    HStack {
-                        Image(systemName: "person.fill")
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Logged in as")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text(userId)
-                                .font(.body)
+        ZStack {
+            tokens.bg.ignoresSafeArea()
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("Settings")
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(tokens.text)
+                        .padding(.horizontal, 20)
+                        .padding(.top, 16)
+
+                    sectionHeader("Account")
+                    accountCard
+
+                    sectionHeader("Purchases")
+                    VStack(spacing: 10) {
+                        outlineButton("Restore purchases") { viewModel.restorePurchases() }
+                        outlineButton("Show onboarding") {
+                            viewModel.displayOnboardingPaywall(from: hostViewController)
                         }
-                        Spacer()
-                        Button("Logout") {
-                            viewModel.logout()
+                    }
+                    .padding(.horizontal, 20)
+
+                    sectionHeader("Purchasely SDK")
+                    segmented(
+                        options: PurchaselySDKMode.allCases.map { $0.title },
+                        active: viewModel.sdkMode.title,
+                        onSelect: { t in
+                            PurchaselySDKMode.allCases.first(where: { $0.title == t }).map { viewModel.setSdkMode($0) }
                         }
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                    }
-                } else {
-                    HStack {
-                        TextField("User ID", text: $loginInput)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                    )
+                    Text("Default mode is Paywall Observer — Shaker observes purchases but uses its own paywall UI.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(tokens.textSec)
+                        .padding(.horizontal, 20)
 
-                        Button("Login") {
-                            viewModel.login(userId: loginInput)
-                            loginInput = ""
+                    sectionHeader("Data privacy")
+                    privacyCard
+                    Text("Technical processing required for app operation cannot be disabled.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(tokens.textSec)
+                        .padding(.horizontal, 20)
+
+                    sectionHeader("Appearance")
+                    segmented(
+                        options: ["Light", "Dark", "System"],
+                        active: viewModel.themeMode.capitalized,
+                        onSelect: { t in
+                            viewModel.setThemeMode(t.lowercased())
                         }
-                        .disabled(loginInput.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
+                    )
 
-                HStack {
-                    Text("Premium Status")
-                    Spacer()
-                    Text(premiumManager.isPremium ? "Active" : "Free")
-                        .foregroundStyle(premiumManager.isPremium ? .orange : .secondary)
-                }
+                    sectionHeader("Screen display mode")
+                    Text("How paywalls are presented on screen")
+                        .font(.system(size: 12))
+                        .foregroundStyle(tokens.textSec)
+                        .padding(.horizontal, 20)
+                    segmented(
+                        options: ["Full", "Modal", "Drawer", "Popin"],
+                        active: displayLabel(viewModel.displayMode),
+                        onSelect: { t in viewModel.setDisplayMode(displayStorage(t)) }
+                    )
 
-                HStack {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Anonymous ID")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text(viewModel.anonymousId)
-                            .font(.caption2)
-                            .lineLimit(1)
-                    }
-                    Spacer()
-                    Button {
-                        UIPasteboard.general.string = viewModel.anonymousId
-                    } label: {
-                        Image(systemName: "doc.on.doc")
-                            .font(.caption)
-                    }
-                }
-            }
+                    sectionHeader("About")
+                    aboutCard
 
-            // Purchases section
-            Section("Purchases") {
-                Button("Restore Purchases") {
-                    viewModel.restorePurchases()
+                    Text("Powered by Purchasely")
+                        .font(.system(size: 12))
+                        .foregroundStyle(tokens.textTer)
+                        .frame(maxWidth: .infinity)
+                        .padding(.bottom, 60)
                 }
-                Button("Show Onboarding") {
-                    viewModel.displayOnboardingPaywall(from: hostViewController)
-                }
-            }
-
-            // SDK mode section
-            Section("Purchasely SDK") {
-                Picker("Mode", selection: Binding(
-                    get: { viewModel.sdkMode },
-                    set: { viewModel.setSdkMode($0) }
-                )) {
-                    ForEach(PurchaselySDKMode.allCases) { mode in
-                        Text(mode.title).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                Text("Default mode is Paywall Observer. Changing mode requires an app restart.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            // Data Privacy section
-            Section {
-                Toggle(isOn: Binding(
-                    get: { viewModel.analyticsConsent },
-                    set: { viewModel.setAnalyticsConsent($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Analytics")
-                        Text("Anonymous audience measurement")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Toggle(isOn: Binding(
-                    get: { viewModel.identifiedAnalyticsConsent },
-                    set: { viewModel.setIdentifiedAnalyticsConsent($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Identified Analytics")
-                        Text("User-identified analytics")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Toggle(isOn: Binding(
-                    get: { viewModel.personalizationConsent },
-                    set: { viewModel.setPersonalizationConsent($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Personalization")
-                        Text("Personalized content & offers")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Toggle(isOn: Binding(
-                    get: { viewModel.campaignsConsent },
-                    set: { viewModel.setCampaignsConsent($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Campaigns")
-                        Text("Promotional campaigns")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Toggle(isOn: Binding(
-                    get: { viewModel.thirdPartyConsent },
-                    set: { viewModel.setThirdPartyConsent($0) }
-                )) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Third-party Integrations")
-                        Text("External analytics & integrations")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } header: {
-                Text("Data Privacy")
-            } footer: {
-                Text("Technical processing required for app operation cannot be disabled.")
-            }
-
-            // Appearance section
-            Section("Appearance") {
-                Picker("Theme", selection: $viewModel.themeMode) {
-                    Text("Light").tag("light")
-                    Text("Dark").tag("dark")
-                    Text("System").tag("system")
-                }
-                .pickerStyle(.segmented)
-                .onChange(of: viewModel.themeMode) { newValue in
-                    viewModel.setThemeMode(newValue)
-                }
-            }
-
-            // Screen Display Mode section
-            Section {
-                Picker("Display Mode", selection: Binding(
-                    get: { viewModel.displayMode },
-                    set: { viewModel.setDisplayMode($0) }
-                )) {
-                    Text("Full").tag("fullscreen")
-                    Text("Modal").tag("modal")
-                    Text("Drawer").tag("drawer")
-                    Text("Popin").tag("popin")
-                }
-                .pickerStyle(.segmented)
-            } header: {
-                Text("Screen Display Mode")
-            } footer: {
-                Text("How paywalls are presented on screen")
-            }
-
-            // About section
-            Section("About") {
-                HStack {
-                    Text("Version")
-                    Spacer()
-                    Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
-                        .foregroundStyle(.secondary)
-                }
-
-                HStack {
-                    Text("Purchasely SDK")
-                    Spacer()
-                    Text(viewModel.sdkVersion)
-                        .foregroundStyle(.secondary)
-                }
-
-                Text("Powered by Purchasely")
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
             }
         }
-        .background {
-            ViewControllerResolver { vc in
-                hostViewController = vc
-            }
-        }
-        .navigationTitle("Settings")
-        .onAppear {
-            viewModel.prefetchOnboardingPresentation()
-        }
-        .alert("Restore", isPresented: .init(
+        .background { ViewControllerResolver { vc in hostViewController = vc } }
+        .navigationBarHidden(true)
+        .onAppear { viewModel.prefetchOnboardingPresentation() }
+        .alert("Restore", isPresented: Binding(
             get: { viewModel.restoreMessage != nil },
             set: { if !$0 { viewModel.clearRestoreMessage() } }
         )) {
             Button("OK") { viewModel.clearRestoreMessage() }
-        } message: {
-            Text(viewModel.restoreMessage ?? "")
-        }
-        .alert("SDK Restart Required", isPresented: .init(
+        } message: { Text(viewModel.restoreMessage ?? "") }
+        .alert("SDK Restart Required", isPresented: Binding(
             get: { viewModel.sdkModeRestartMessage != nil },
             set: { if !$0 { viewModel.clearSdkModeRestartMessage() } }
         )) {
             Button("OK") { viewModel.clearSdkModeRestartMessage() }
-        } message: {
-            Text(viewModel.sdkModeRestartMessage ?? "")
+        } message: { Text(viewModel.sdkModeRestartMessage ?? "") }
+    }
+
+    // MARK: - Sections
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(tokens.indigoText)
+            .padding(.horizontal, 20)
+    }
+
+    private var accountCard: some View {
+        VStack(spacing: 0) {
+            if let userId = viewModel.userId {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle().fill(tokens.indigo)
+                        Text(String(userId.prefix(2)).uppercased())
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(tokens.onIndigo)
+                    }
+                    .frame(width: 44, height: 44)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Logged in as")
+                            .font(.system(size: 12))
+                            .foregroundStyle(tokens.textSec)
+                        Text(userId)
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundStyle(tokens.text)
+                    }
+                    Spacer()
+                    Button { viewModel.logout() } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "rectangle.portrait.and.arrow.right")
+                                .font(.system(size: 13))
+                            Text("Logout").font(.system(size: 14, weight: .semibold))
+                        }
+                        .foregroundStyle(tokens.danger)
+                    }
+                }
+                .padding(16)
+            } else {
+                HStack(spacing: 10) {
+                    TextField("User ID", text: $loginInput)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
+                        .font(.system(size: 15))
+                        .padding(.horizontal, 14).frame(height: 44)
+                        .background(RoundedRectangle(cornerRadius: 12).fill(tokens.bgSubtle))
+                        .overlay(RoundedRectangle(cornerRadius: 12).stroke(tokens.hair, lineWidth: 1))
+
+                    Button {
+                        viewModel.login(userId: loginInput)
+                        loginInput = ""
+                    } label: {
+                        Text("Login")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundStyle(loginInput.isEmpty ? tokens.textSec : .white)
+                            .frame(height: 44).padding(.horizontal, 18)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .fill(loginInput.isEmpty ? tokens.bgSubtle : tokens.accent)
+                            )
+                    }
+                    .disabled(loginInput.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+                .padding(12)
+            }
+            divider
+            HStack {
+                Text("Premium status").font(.system(size: 15)).foregroundStyle(tokens.text)
+                Spacer()
+                Text(premiumManager.isPremium ? "PRO" : "FREE")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(tokens.indigoText)
+                    .padding(.horizontal, 10).padding(.vertical, 3)
+                    .background(Capsule().fill(premiumManager.isPremium ? tokens.goldSoft : tokens.indigoSoft))
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            divider
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Anonymous ID").font(.system(size: 13)).foregroundStyle(tokens.textSec)
+                    Text(viewModel.anonymousId).font(.system(size: 11, design: .monospaced)).foregroundStyle(tokens.text).lineLimit(1)
+                }
+                Spacer()
+                Button {
+                    UIPasteboard.general.string = viewModel.anonymousId
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 13))
+                        .foregroundStyle(tokens.textSec)
+                        .frame(width: 32, height: 32)
+                        .background(RoundedRectangle(cornerRadius: 8).fill(tokens.inputBg))
+                }
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+        }
+        .background(RoundedRectangle(cornerRadius: 16).fill(tokens.bgCard))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(tokens.hair, lineWidth: 1))
+        .padding(.horizontal, 20)
+    }
+
+    private var privacyCard: some View {
+        VStack(spacing: 0) {
+            toggleRow("Analytics", sub: "Anonymous audience measurement",
+                      on: Binding(get: { viewModel.analyticsConsent }, set: { viewModel.setAnalyticsConsent($0) }))
+            divider
+            toggleRow("Identified analytics", sub: "User-identified analytics",
+                      on: Binding(get: { viewModel.identifiedAnalyticsConsent }, set: { viewModel.setIdentifiedAnalyticsConsent($0) }))
+            divider
+            toggleRow("Personalization", sub: "Personalized content & offers",
+                      on: Binding(get: { viewModel.personalizationConsent }, set: { viewModel.setPersonalizationConsent($0) }))
+            divider
+            toggleRow("Campaigns", sub: "Promotional campaigns",
+                      on: Binding(get: { viewModel.campaignsConsent }, set: { viewModel.setCampaignsConsent($0) }))
+            divider
+            toggleRow("Third-party integrations", sub: "External analytics & integrations",
+                      on: Binding(get: { viewModel.thirdPartyConsent }, set: { viewModel.setThirdPartyConsent($0) }))
+        }
+        .background(RoundedRectangle(cornerRadius: 16).fill(tokens.bgCard))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(tokens.hair, lineWidth: 1))
+        .padding(.horizontal, 20)
+    }
+
+    private var aboutCard: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Version").font(.system(size: 15)).foregroundStyle(tokens.text)
+                Spacer()
+                Text(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0")
+                    .font(.system(size: 15))
+                    .foregroundStyle(tokens.textSec)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            divider
+            HStack {
+                Text("Purchasely SDK").font(.system(size: 15)).foregroundStyle(tokens.text)
+                Spacer()
+                Text(viewModel.sdkVersion).font(.system(size: 15)).foregroundStyle(tokens.textSec)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+        }
+        .background(RoundedRectangle(cornerRadius: 16).fill(tokens.bgCard))
+        .overlay(RoundedRectangle(cornerRadius: 16).stroke(tokens.hair, lineWidth: 1))
+        .padding(.horizontal, 20)
+    }
+
+    private func toggleRow(_ title: String, sub: String, on: Binding<Bool>) -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.system(size: 15, weight: .medium)).foregroundStyle(tokens.text)
+                Text(sub).font(.system(size: 13)).foregroundStyle(tokens.textSec)
+            }
+            Spacer()
+            Toggle("", isOn: on).labelsHidden().tint(tokens.indigo)
+        }
+        .padding(.horizontal, 16).padding(.vertical, 12)
+    }
+
+    private var divider: some View {
+        Rectangle().fill(tokens.hair).frame(height: 1)
+    }
+
+    private func outlineButton(_ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(tokens.indigoText)
+                .frame(maxWidth: .infinity, minHeight: 52)
+                .overlay(Capsule().stroke(tokens.indigoText, lineWidth: 1.5))
+        }
+    }
+
+    private func segmented(options: [String], active: String, onSelect: @escaping (String) -> Void) -> some View {
+        HStack(spacing: 4) {
+            ForEach(options, id: \.self) { o in
+                let selected = o == active
+                Button {
+                    onSelect(o)
+                } label: {
+                    HStack(spacing: 6) {
+                        if selected {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(tokens.indigoText)
+                        }
+                        Text(o)
+                            .font(.system(size: 13, weight: selected ? .semibold : .medium))
+                            .foregroundStyle(selected ? tokens.indigoText : tokens.textSec)
+                    }
+                    .frame(maxWidth: .infinity, minHeight: 36)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(selected ? tokens.indigoSoft : Color.clear)
+                    )
+                }
+            }
+        }
+        .padding(4)
+        .background(RoundedRectangle(cornerRadius: 12).fill(tokens.inputBg))
+        .padding(.horizontal, 20)
+    }
+
+    private func displayLabel(_ v: String) -> String {
+        switch v {
+        case "fullscreen": return "Full"
+        case "modal": return "Modal"
+        case "drawer": return "Drawer"
+        case "popin": return "Popin"
+        default: return "Full"
+        }
+    }
+
+    private func displayStorage(_ l: String) -> String {
+        switch l {
+        case "Full": return "fullscreen"
+        case "Modal": return "modal"
+        case "Drawer": return "drawer"
+        case "Popin": return "popin"
+        default: return "fullscreen"
         }
     }
 }

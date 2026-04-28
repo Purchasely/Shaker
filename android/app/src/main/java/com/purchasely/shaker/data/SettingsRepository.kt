@@ -3,8 +3,14 @@ package com.purchasely.shaker.data
 import com.purchasely.shaker.data.storage.KeyValueStore
 import com.purchasely.shaker.domain.model.DisplayMode
 import com.purchasely.shaker.domain.model.ThemeMode
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 class SettingsRepository(private val store: KeyValueStore) {
+
+    private val _themeMode = MutableStateFlow(ThemeMode.fromStorage(store.getString(KEY_THEME)))
+    val themeModeFlow: StateFlow<ThemeMode> = _themeMode.asStateFlow()
 
     var userId: String?
         get() = store.getString(KEY_USER_ID)
@@ -13,8 +19,11 @@ class SettingsRepository(private val store: KeyValueStore) {
         }
 
     var themeMode: ThemeMode
-        get() = ThemeMode.fromStorage(store.getString(KEY_THEME))
-        set(value) = store.putString(KEY_THEME, value.storageValue)
+        get() = _themeMode.value
+        set(value) {
+            store.putString(KEY_THEME, value.storageValue)
+            _themeMode.value = value
+        }
 
     var displayMode: DisplayMode
         get() = DisplayMode.fromStorage(store.getString(KEY_DISPLAY_MODE))

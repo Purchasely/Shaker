@@ -24,6 +24,7 @@ import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.screen.home.HomeViewModel
 import com.purchasely.shaker.ui.screen.detail.DetailViewModel
 import com.purchasely.shaker.ui.screen.favorites.FavoritesViewModel
+import com.purchasely.shaker.ui.screen.mixing.MixingViewModel
 import com.purchasely.shaker.ui.screen.onboarding.OnboardingViewModel
 import com.purchasely.shaker.ui.screen.settings.SettingsViewModel
 import kotlinx.coroutines.CoroutineScope
@@ -97,5 +98,6 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get(), get()) }
+    viewModel { params -> MixingViewModel(get(), params.get()) }
     viewModel { SettingsViewModel(get<SettingsRepository>(), get(), get(), get()) }
 }

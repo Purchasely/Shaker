@@ -6,6 +6,9 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.navigation.ShakerNavHost
 import com.purchasely.shaker.ui.theme.ShakerTheme
@@ -14,6 +17,7 @@ import org.koin.android.ext.android.inject
 class MainActivity : ComponentActivity() {
 
     private val purchaselyWrapper: PurchaselyWrapper by inject()
+    private val settingsRepository: SettingsRepository by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -22,7 +26,8 @@ class MainActivity : ComponentActivity() {
         handleDeepLink(intent)
 
         setContent {
-            ShakerTheme {
+            val themeMode by settingsRepository.themeModeFlow.collectAsState()
+            ShakerTheme(themeMode = themeMode) {
                 ShakerNavHost()
             }
         }

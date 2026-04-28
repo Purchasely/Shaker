@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Shaker — Interactive Prototype</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Google+Sans+Text:wght@400;500;600;700&family=Roboto:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  html, body { margin: 0; padding: 0; background: #12131F; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif; -webkit-font-smoothing: antialiased; min-height: 100vh; }
+  * { box-sizing: border-box; }
+  .chrome-link { color: #9EA2B6; text-decoration: none; }
+  .chrome-link:hover { color: #fff; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+<script type="text/babel" src="shared/data.jsx"></script>
+<script type="text/babel" src="shared/theme.jsx"></script>
+<script type="text/babel" src="shared/primitives.jsx"></script>
+<script type="text/babel" src="shared/art.jsx"></script>
+<script type="text/babel" src="shared/ios-shell.jsx"></script>
+<script type="text/babel" src="shared/android-shell.jsx"></script>
+<script type="text/babel" src="shared/screens-onboarding.jsx"></script>
+<script type="text/babel" src="shared/screens-home.jsx"></script>
+<script type="text/babel" src="shared/screens-rest.jsx"></script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect } = React;
+
+// ─────────────────────────────────────────────────────────────
+// App state — shared by both iOS and Android panels
+// ─────────────────────────────────────────────────────────────
+const initialState = () => {
+  try {
+    const raw = localStorage.getItem('shaker-proto-state');
+    if (raw) return JSON.parse(raw);
+  } catch (e) {}
+  return {
+    route: 'onboarding1',      // onboarding1 | onboarding2 | home | detail | favorites | paywall | settings
+    prevRoute: null,
+    detailId: null,
+    favs: [],
+    premium: false,
+    loggedIn: false,
+    userId: '',
+    userIdInput: '',
+    dark: false,
+    variantB: false,
+    bannerDismissed: false,
+    activeCat: 'All',
+    sdkMode: 'Paywall Observer',
+    appearance: 'Light',
+    displayMode: 'Full',
+    privacy: { analytics: true, identified: true, personalization: true, campaigns: true, thirdparty: false },
+    activeTab: 'home',
+    toast: null,
+  };
+};
+
+function useAppState() {
+  const [state, setState] = useState(initialState);
+  useEffect(() => {
+    try { localStorage.setItem('shaker-proto-state', JSON.stringify(state)); } catch(e) {}
+  }, [state]);
+  const update = patch => setState(s => ({ ...s, ...(typeof patch === 'function' ? patch(s) : patch) }));
+  return [state, update];
+}
+
+// ─────────────────────────────────────────────────────────────
+// Platform panel — renders the current screen for a given platform
+// ─────────────────────────────────────────────────────────────
+function PlatformPanel({ platform, state, update }) {
+  const theme = makeTheme(state.dark);
+  const Frame = platform === 'ios' ? IOSFrame : AndroidFrame;
+  const TabBar = platform === 'ios' ? IOSTabBar : AndroidTabBar;
+  const W = platform === 'ios' ? 390 : 412;
+  const H = platform === 'ios' ? 844 : 892;
+
+  const go = (route, extra = {}) => update(s => ({ ...s, prevRoute: s.route, route, ...extra }));
+  const toast = msg => {
+    update({ toast: msg });
+    setTimeout(() => update({ toast: null }), 2000);
+  };
+
+  // Nav helpers
+  const toHome = () => go('home', { activeTab: 'home' });
+  const toFavs = () => go('favorites', { activeTab: 'favorites' });
+  const toSettings = () => go('settings', { activeTab: 'settings' });
+  const toPaywall = () => go('paywall');
+
+  const toggleFav = id => update(s => ({
+    ...s,
+    favs: s.favs.includes(id) ? s.favs.filter(x => x !== id) : [...s.favs, id],
+  }));
+
+  // Current screen
+  let content;
+  let showTabBar = false;
+  switch (state.route) {
+    case 'onboarding1':
+      content = <OnboardingWelcome platform={platform} theme={theme}
+        onContinue={() => go('onboarding2')}
+        onSkip={toHome}/>;
+      break;
+    case 'onboarding2':
+      content = <OnboardingMix platform={platform} theme={theme}
+        onContinue={toHome}
+        onSkip={toHome}/>;
+      break;
+    case 'home':
+      showTabBar = true;
+      content = <Home platform={platform} theme={theme}
+        variantB={state.variantB && !state.bannerDismissed}
+        activeCat={state.activeCat}
+        favs={state.favs}
+        onCat={c => update({ activeCat: c })}
+        onCocktail={c => go('detail', { detailId: c.id })}
+        onSearch={() => toast('Search — not wired in proto')}
+        onDismissBanner={() => update({ bannerDismissed: true })}
+        onGetOffer={toPaywall}/>;
+      break;
+    case 'detail': {
+      const c = COCKTAILS.find(x => x.id === state.detailId) || COCKTAILS[0];
+      const locked = c.premium && !state.premium;
+      content = <Detail platform={platform} theme={theme}
+        cocktail={c} locked={locked}
+        isFav={state.favs.includes(c.id)}
+        onBack={() => go(state.prevRoute || 'home')}
+        onFav={() => {
+          toggleFav(c.id);
+          toast(state.favs.includes(c.id) ? 'Removed from favorites' : 'Saved to favorites');
+        }}
+        onStartMixing={() => go('mixing', { mixStep: 0 })}
+        onUnlock={toPaywall}/>;
+      break;
+    }
+    case 'mixing': {
+      const c = COCKTAILS.find(x => x.id === state.detailId) || COCKTAILS[0];
+      content = <MixingMode platform={platform} theme={theme}
+        cocktail={c} step={state.mixStep || 0}
+        onStep={s => update({ mixStep: s })}
+        onDone={() => { toast('Cheers! 🍸'); setTimeout(() => go('detail'), 600); }}
+        onExit={() => go('detail')}/>;
+      break;
+    }
+    case 'favorites':
+      showTabBar = true;
+      content = <Favorites platform={platform} theme={theme}
+        favs={state.favs}
+        onCocktail={c => go('detail', { detailId: c.id })}
+        onUnlock={toPaywall}
+        onBrowse={toHome}/>;
+      break;
+    case 'paywall':
+      content = <Paywall platform={platform} theme={theme}
+        onClose={() => go(state.prevRoute || 'home')}
+        onSelectPlan={p => update({ selectedPlan: p })}
+        onPurchase={() => {
+          update({ premium: true });
+          toast('Purchase successful — Pro unlocked!');
+          setTimeout(() => go(state.prevRoute || 'home'), 600);
+        }}
+        onRestore={() => toast('No purchases to restore')}/>;
+      break;
+    case 'settings':
+      showTabBar = true;
+      content = <Settings platform={platform} theme={theme}
+        loggedIn={state.loggedIn} userId={state.loggedIn ? state.userId : state.userIdInput}
+        onUserIdChange={v => update({ userIdInput: v })}
+        onLogin={v => { update({ loggedIn: true, userId: v }); toast(`Logged in as ${v}`); }}
+        onLogout={() => { update({ loggedIn: false, userId: '' }); toast('Logged out'); }}
+        onRestore={() => toast('No purchases to restore')}
+        onShowOnboarding={() => go('onboarding1')}
+        onShowPaywall={toPaywall}
+        sdkMode={state.sdkMode} onSdkMode={v => update({ sdkMode: v })}
+        appearance={state.appearance} onAppearance={v => {
+          update({ appearance: v, dark: v === 'Dark' ? true : v === 'Light' ? false : state.dark });
+        }}
+        displayMode={state.displayMode} onDisplayMode={v => update({ displayMode: v })}
+        privacy={state.privacy}
+        onTogglePrivacy={k => update(s => ({ privacy: { ...s.privacy, [k]: !(s.privacy[k] !== false) } }))}/>;
+      break;
+    default:
+      content = null;
+  }
+
+  const tabs = showTabBar ? (
+    <TabBar active={state.activeTab} theme={theme} onTab={id => {
+      if (id === 'home') toHome();
+      if (id === 'favorites') toFavs();
+      if (id === 'settings') toSettings();
+    }}/>
+  ) : null;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14 }}>
+      <Frame width={W} height={H} theme={theme}>
+        {content}
+        {tabs}
+        {state.toast && (
+          <div style={{
+            position: 'absolute', bottom: showTabBar ? 100 : 60, left: 20, right: 20, zIndex: 70,
+            padding: '14px 18px', borderRadius: 14,
+            background: 'rgba(15,16,32,0.92)', color: '#fff',
+            fontSize: 14, fontWeight: 500, textAlign: 'center',
+            boxShadow: '0 10px 30px rgba(0,0,0,0.3)', backdropFilter: 'blur(10px)',
+          }}>{state.toast}</div>
+        )}
+      </Frame>
+      <div style={{ fontSize: 11, color: '#9EA2B6', fontWeight: 500, letterSpacing: 0.3 }}>
+        {platform === 'ios' ? 'iOS 17 · iPhone 15 Pro · 390×844' : 'Android 14 · Material 3 · 412×892'}
+      </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Top chrome — nav controls, dark toggle, variant toggle
+// ─────────────────────────────────────────────────────────────
+function Chrome({ state, update }) {
+  const reset = () => {
+    localStorage.removeItem('shaker-proto-state');
+    window.location.reload();
+  };
+  const JumpBtn = ({ to, label, tab }) => (
+    <div onClick={() => update(s => ({ ...s, prevRoute: s.route, route: to, activeTab: tab || s.activeTab }))}
+      style={{
+        padding: '6px 12px', borderRadius: 100,
+        background: state.route === to ? '#2B79E4' : 'rgba(255,255,255,0.08)',
+        color: state.route === to ? '#fff' : '#D8D9E0',
+        fontSize: 12, fontWeight: 600, cursor: 'pointer',
+        border: '1px solid ' + (state.route === to ? '#2B79E4' : 'rgba(255,255,255,0.1)'),
+      }}>{label}</div>
+  );
+  return (
+    <div style={{
+      position: 'sticky', top: 0, zIndex: 100,
+      background: 'rgba(18,19,31,0.88)', backdropFilter: 'blur(12px)',
+      borderBottom: '1px solid rgba(255,255,255,0.08)',
+      padding: '14px 32px', display: 'flex', alignItems: 'center', gap: 24, flexWrap: 'wrap',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 34, height: 34, borderRadius: 8, background: '#3C4876', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ShakerLogo size={22} color="#fff"/>
+        </div>
+        <div>
+          <div style={{ color: '#fff', fontSize: 15, fontWeight: 700, letterSpacing: -0.2 }}>Shaker · Interactive Proto</div>
+          <div style={{ color: '#9EA2B6', fontSize: 11 }}>iOS + Android synced · every tap, every screen</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <JumpBtn to="onboarding1" label="Onboarding"/>
+        <JumpBtn to="home" tab="home" label="Home"/>
+        <JumpBtn to="favorites" tab="favorites" label="Favorites"/>
+        <JumpBtn to="paywall" label="Paywall"/>
+        <JumpBtn to="settings" tab="settings" label="Settings"/>
+      </div>
+
+      <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
+        <ChromeToggle label="Dark" on={state.dark} onToggle={() => update(s => ({ dark: !s.dark, appearance: !s.dark ? 'Dark' : 'Light' }))}/>
+        <ChromeToggle label="A/B Variant B" on={state.variantB} onToggle={() => update(s => ({ variantB: !s.variantB, bannerDismissed: false }))}/>
+        <ChromeToggle label="Pro unlocked" on={state.premium} onToggle={() => update(s => ({ premium: !s.premium }))}/>
+        <div onClick={reset} style={{ padding: '6px 12px', borderRadius: 100, background: 'rgba(255,255,255,0.06)', color: '#fff', fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid rgba(255,255,255,0.12)' }}>Reset</div>
+        <a href="Shaker.html" className="chrome-link" style={{ fontSize: 12, fontWeight: 600 }}>← Back to canvas</a>
+      </div>
+    </div>
+  );
+}
+
+function ChromeToggle({ label, on, onToggle }) {
+  return (
+    <div onClick={onToggle} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+      <div style={{ width: 34, height: 20, borderRadius: 10, background: on ? '#2B79E4' : 'rgba(255,255,255,0.15)', position: 'relative', transition: 'all 0.2s' }}>
+        <div style={{ position: 'absolute', top: 2, left: on ? 16 : 2, width: 16, height: 16, borderRadius: 8, background: '#fff', transition: 'left 0.2s' }}/>
+      </div>
+      <div style={{ color: '#D8D9E0', fontSize: 12, fontWeight: 500, userSelect: 'none' }}>{label}</div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// Root — one shared state drives BOTH platforms
+// ─────────────────────────────────────────────────────────────
+function App() {
+  const [state, update] = useAppState();
+
+  // Register tweaks
+  useEffect(() => {
+    const handler = e => {
+      if (e.data?.type === '__activate_edit_mode') update({ tweaksOpen: true });
+      if (e.data?.type === '__deactivate_edit_mode') update({ tweaksOpen: false });
+    };
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ type: '__edit_mode_available' }, '*');
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
+  return (
+    <div style={{ minHeight: '100vh', background: 'linear-gradient(180deg, #12131F 0%, #1A1C2D 100%)' }}>
+      <Chrome state={state} update={update}/>
+      <div style={{ padding: '48px 32px 80px', display: 'flex', justifyContent: 'center', gap: 64, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+        <PlatformPanel platform="ios" state={state} update={update}/>
+        <PlatformPanel platform="android" state={state} update={update}/>
+      </div>
+      <div style={{ padding: '0 32px 60px', display: 'flex', justifyContent: 'center' }}>
+        <div style={{ maxWidth: 720, padding: 20, background: 'rgba(255,255,255,0.04)', borderRadius: 14, border: '1px solid rgba(255,255,255,0.08)', color: '#A4A9BF', fontSize: 13, lineHeight: 1.6 }}>
+          <div style={{ color: '#fff', fontSize: 12, fontWeight: 700, letterSpacing: 0.4, marginBottom: 8, textTransform: 'uppercase' }}>How it works</div>
+          Both devices share the same app state. Tap through onboarding on either one — the other follows. Tap a cocktail → detail. Hit a padlock → paywall. Purchase unlocks Pro across the board. Toggle dark mode, A/B variant, and Pro from the top chrome; reset wipes the saved state.
+        </div>
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
