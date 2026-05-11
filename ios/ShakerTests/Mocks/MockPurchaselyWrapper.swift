@@ -19,6 +19,7 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
     var setDoubleAttributeCalls: [(value: Double, key: String)] = []
     var incrementAttributeCalls: [String] = []
     var restoreCallCount = 0
+    var userSubscriptionsCallCount = 0
     var restartCallCount = 0
     var closeDisplayedPresentationCallCount = 0
     var revokeConsentCalls: [Set<PLYDataProcessingPurpose>] = []
@@ -81,6 +82,14 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
 
     func incrementUserAttribute(forKey key: String) {
         incrementAttributeCalls.append(key)
+    }
+
+    func userSubscriptions(
+        success: @escaping ([PLYSubscription]?) -> Void,
+        failure: @escaping (Error) -> Void
+    ) {
+        userSubscriptionsCallCount += 1
+        success(nil)
     }
 
     func restoreAllProducts(

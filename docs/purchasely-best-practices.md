@@ -54,7 +54,11 @@ PurchaselyWrapper                          PurchaseManager
     │                                           │
     │ synchronize()                              │
     │ processAction(false)                       │
-    │ onTransactionCompleted?.invoke()           │
+    │ set pendingSuccessfulPurchase = true       │
+    │ closeAllScreens() / closeDisplayedPresentation()
+    │                                            │
+    │ (onTransactionCompleted is deferred until  │
+    │  the chained success_payment screen closes)│
 ```
 
 **Android (Kotlin):**
@@ -100,7 +104,7 @@ enum TransactionResult { case success, cancelled, error(String?), idle }
 
 | Result | Wrapper actions |
 |--------|----------------|
-| Success | synchronize() → processAction(false) → onTransactionCompleted?.invoke() |
+| Success | synchronize() → processAction(false) → set `pendingSuccessfulPurchase = true` → force-dismiss the paywall (closeAllScreens / closeDisplayedPresentation). The flag is consumed by `display()`'s post-dismiss logic, which chains the `success_payment` placement and only then refreshes subscriptions. |
 | Cancelled | processAction(false) |
 | Error | processAction(false) |
 | Idle | ignore |

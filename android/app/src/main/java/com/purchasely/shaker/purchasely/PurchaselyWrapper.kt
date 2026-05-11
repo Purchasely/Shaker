@@ -24,7 +24,6 @@ import io.purchasely.ext.PLYDataProcessingPurpose
 import io.purchasely.ext.PLYProductViewResult
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.fetchPresentation
-import io.purchasely.models.PLYError
 import io.purchasely.models.PLYPlan
 import io.purchasely.google.GoogleStore
 import kotlinx.coroutines.CoroutineScope
@@ -32,8 +31,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
 
 class PurchaselyWrapper(
     private val runningModeRepo: RunningModeRepository,
@@ -51,6 +50,12 @@ class PurchaselyWrapper(
     private var onConfiguredCallback: (() -> Unit)? = null
     private var pendingProcessAction: ((Boolean) -> Unit)? = null
     private var collectionJob: Job? = null
+
+    // PURCHASELY: Flag set when a successful purchase is reported by PurchaseManager
+    // (Observer mode). In Full mode, the SDK reports PURCHASED directly via the
+    // display() callback. In both cases, display() consumes this signal to chain
+    // a "success_payment" placement once the original paywall is dismissed.
+    private var pendingSuccessfulPurchase: Boolean = false
 
     init {
         startTransactionCollection()
@@ -191,8 +196,12 @@ class PurchaselyWrapper(
                 synchronize()
                 pendingProcessAction?.invoke(false)
                 pendingProcessAction = null
-                onTransactionCompleted?.invoke()
-                Log.d(TAG, "[Shaker] Transaction success — synchronized and refreshed")
+                // PURCHASELY: Defer onTransactionCompleted to the success_payment chain.
+                // closeAllScreens() forces the paywall to dismiss; display()'s callback
+                // then sees pendingSuccessfulPurchase=true and opens "success_payment".
+                pendingSuccessfulPurchase = true
+                Purchasely.closeAllScreens()
+                Log.d(TAG, "[Shaker] Transaction success — synchronized; awaiting success_payment dismissal")
             }
             is TransactionResult.Cancelled -> {
                 pendingProcessAction?.invoke(false)
@@ -262,12 +271,51 @@ class PurchaselyWrapper(
     suspend fun display(
         handle: PresentationHandle,
         activity: Activity
-    ): DisplayResult = suspendCoroutine { continuation ->
-        handle.presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
-            when (result) {
-                PLYProductViewResult.PURCHASED -> continuation.resume(DisplayResult.Purchased(plan?.name))
-                PLYProductViewResult.RESTORED -> continuation.resume(DisplayResult.Restored(plan?.name))
-                else -> continuation.resume(DisplayResult.Cancelled)
+    ): DisplayResult {
+        val initial: DisplayResult = suspendCancellableCoroutine { continuation ->
+            handle.presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
+                when (result) {
+                    PLYProductViewResult.PURCHASED -> continuation.resume(DisplayResult.Purchased(plan?.name))
+                    PLYProductViewResult.RESTORED -> continuation.resume(DisplayResult.Restored(plan?.name))
+                    else -> continuation.resume(DisplayResult.Cancelled)
+                }
+            }
+        }
+
+        // PURCHASELY: After the paywall closes, if a purchase succeeded — either
+        // reported directly by the SDK (Full mode) or signaled via pendingSuccessfulPurchase
+        // (Observer mode) — chain a "success_payment" placement, then refresh subscriptions
+        // when that screen closes.
+        val purchaseHappened = initial is DisplayResult.Purchased
+            || initial is DisplayResult.Restored
+            || pendingSuccessfulPurchase
+
+        if (purchaseHappened) {
+            pendingSuccessfulPurchase = false
+            showSuccessPaymentScreen(activity)
+        }
+
+        return initial
+    }
+
+    private suspend fun showSuccessPaymentScreen(activity: Activity) {
+        when (val fetchResult = loadPresentation(SUCCESS_PAYMENT_PLACEMENT)) {
+            is FetchResult.Success -> {
+                // Display the success_payment screen and wait for it to close
+                suspendCancellableCoroutine<Unit> { continuation ->
+                    fetchResult.handle.presentation.display(activity) { _, _ ->
+                        continuation.resume(Unit)
+                    }
+                }
+                // PURCHASELY: After the success_payment screen closes, refresh subscriptions
+                // via the wrapper without forcing the cache. The wrapper -> PremiumManager
+                // wiring (AppModule) routes onTransactionCompleted to userSubscriptions(false, ...).
+                onTransactionCompleted?.invoke()
+            }
+            else -> {
+                // No success_payment placement (deactivated, client, error) — still refresh
+                Log.d(TAG, "[Shaker] success_payment placement unavailable: $fetchResult")
+                onTransactionCompleted?.invoke()
             }
         }
     }
@@ -372,5 +420,6 @@ class PurchaselyWrapper(
 
     companion object {
         private const val TAG = "PurchaselyWrapper"
+        private const val SUCCESS_PAYMENT_PLACEMENT = "success_payment"
     }
 }

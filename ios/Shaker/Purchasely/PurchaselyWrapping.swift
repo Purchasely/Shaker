@@ -36,6 +36,13 @@ protocol PurchaselyWrapping {
     func setUserAttribute(_ value: Double, forKey key: String)
     func incrementUserAttribute(forKey key: String)
 
+    // MARK: - Subscriptions
+
+    func userSubscriptions(
+        success: @escaping ([PLYSubscription]?) -> Void,
+        failure: @escaping (Error) -> Void
+    )
+
     // MARK: - Restore
 
     func restoreAllProducts(

@@ -11,6 +11,15 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     private var pendingProcessAction: ((Bool) -> Void)?
     private var cancellables = Set<AnyCancellable>()
 
+    // PURCHASELY: Flag set when a successful purchase is reported by PurchaseManager
+    // (Observer mode). In Full mode, the SDK reports `.purchased` directly via the
+    // presentation completion. In both cases, the loadPresentation completion consumes
+    // this signal to chain a "success_payment" placement once the original paywall
+    // is dismissed.
+    private var pendingSuccessfulPurchase: Bool = false
+
+    private static let successPaymentPlacement = "success_payment"
+
     private init() {
         // Observe TransactionResult from PurchaseManager
         if #available(iOS 15.0, *) {
@@ -180,8 +189,13 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             synchronize()
             pendingProcessAction?(false)
             pendingProcessAction = nil
-            PremiumManager.shared.refreshPremiumStatus()
-            print("[Shaker] Transaction success — synchronized and refreshed")
+            // PURCHASELY: Defer the premium refresh to the success_payment chain.
+            // closeDisplayedPresentation() forces the paywall to dismiss; the
+            // loadPresentation completion then sees pendingSuccessfulPurchase=true
+            // and opens "success_payment".
+            pendingSuccessfulPurchase = true
+            Purchasely.closeDisplayedPresentation()
+            print("[Shaker] Transaction success — synchronized; awaiting success_payment dismissal")
         case .cancelled:
             pendingProcessAction?(false)
             pendingProcessAction = nil
@@ -236,7 +250,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                         continuation.resume(returning: .success(presentation: presentation))
                     }
                 },
-                completion: { result, plan in
+                completion: { [weak self] result, plan in
                     let displayResult: DisplayResult
                     switch result {
                     case .purchased:
@@ -246,8 +260,22 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                     default:
                         displayResult = .cancelled
                     }
+                    // PURCHASELY: After the paywall closes, if a purchase succeeded —
+                    // either reported directly by the SDK (Full mode) or signaled via
+                    // pendingSuccessfulPurchase (Observer mode) — chain a "success_payment"
+                    // placement. Skip if this IS the success_payment to avoid recursion.
+                    let purchaseHappened: Bool = {
+                        switch displayResult {
+                        case .purchased, .restored: return true
+                        case .cancelled: return self?.pendingSuccessfulPurchase ?? false
+                        }
+                    }()
                     DispatchQueue.main.async {
                         onResult(displayResult)
+                        if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
+                            self?.pendingSuccessfulPurchase = false
+                            self?.showSuccessPaymentScreen()
+                        }
                     }
                 }
             )
@@ -258,6 +286,50 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             PresentationCache.shared.set(result, placementId: placementId, contentId: contentId)
         }
         return result
+    }
+
+    // MARK: - Success Payment Chain
+
+    @MainActor
+    private func showSuccessPaymentScreen() {
+        // PURCHASELY: Fetch directly via the SDK (bypassing PresentationCache) so the
+        // completion below is wired up freshly each time. The cache binds onResult at
+        // first fetch and reuses it across callers, which we want to avoid for the chain.
+        Purchasely.fetchPresentation(
+            for: PurchaselyWrapper.successPaymentPlacement,
+            contentId: nil,
+            fetchCompletion: { [weak self] presentation, error in
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    if let presentation = presentation, presentation.type != .deactivated {
+                        presentation.display(from: nil)
+                    } else {
+                        // No success_payment placement (deactivated, error) — still refresh
+                        print("[Shaker] success_payment placement unavailable: \(error?.localizedDescription ?? "deactivated")")
+                        self.refreshAfterSuccessPayment()
+                    }
+                }
+            },
+            completion: { [weak self] _, _ in
+                DispatchQueue.main.async {
+                    self?.refreshAfterSuccessPayment()
+                }
+            }
+        )
+    }
+
+    private func refreshAfterSuccessPayment() {
+        // PURCHASELY: Refresh subscriptions via the wrapper without forcing the cache
+        // (default invalidateCache: false). The SDK has had time during the success_payment
+        // screen to update its cache after the recent synchronize() call.
+        userSubscriptions(
+            success: { subscriptions in
+                PremiumManager.shared.updatePremium(from: subscriptions)
+            },
+            failure: { error in
+                print("[Shaker] Error refreshing after success_payment: \(error.localizedDescription)")
+            }
+        )
     }
 
     // MARK: - Modal Display
@@ -308,6 +380,17 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     func incrementUserAttribute(forKey key: String) {
         Purchasely.incrementUserAttribute(withKey: key)
+    }
+
+    // MARK: - Subscriptions
+
+    func userSubscriptions(
+        success: @escaping ([PLYSubscription]?) -> Void,
+        failure: @escaping (Error) -> Void
+    ) {
+        // PURCHASELY: Default invalidateCache=false so the SDK returns its cached
+        // subscriptions list. Pass `true` only when you must hit the network.
+        Purchasely.userSubscriptions(success: success, failure: failure)
     }
 
     // MARK: - Restore

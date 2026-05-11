@@ -159,11 +159,14 @@ class PurchaselyWrapperTest {
     // --- TransactionResult observation ---
 
     @Test
-    fun `TransactionResult Success triggers onTransactionCompleted callback`() = runTest {
+    fun `TransactionResult Success defers onTransactionCompleted to success_payment chain`() = runTest {
         wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) {}
         transactionResult.emit(TransactionResult.Success)
         testScope.testScheduler.advanceUntilIdle()
-        verify { onTransactionCompletedCallback.invoke() }
+        // PURCHASELY: onTransactionCompleted is no longer invoked synchronously at
+        // TransactionResult.Success — it is deferred to after the success_payment
+        // screen closes (chained by display() once pendingSuccessfulPurchase is consumed).
+        verify(exactly = 0) { onTransactionCompletedCallback.invoke() }
     }
 
     @Test
