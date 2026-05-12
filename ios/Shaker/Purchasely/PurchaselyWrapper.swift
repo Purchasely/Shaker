@@ -118,7 +118,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     }
 
     func closeDisplayedPresentation() {
-        Purchasely.closeDisplayedPresentation()
+        Purchasely.closeAllScreens()
     }
 
     @objc private func handleSdkModeDidChange() {
@@ -186,16 +186,32 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     private func handleTransactionResult(_ result: TransactionResult) {
         switch result {
         case .success:
-            synchronize()
-            pendingProcessAction?(false)
-            pendingProcessAction = nil
-            // PURCHASELY: Defer the premium refresh to the success_payment chain.
-            // closeDisplayedPresentation() forces the paywall to dismiss; the
-            // loadPresentation completion then sees pendingSuccessfulPurchase=true
-            // and opens "success_payment".
+            // PURCHASELY: Observer mode flow — synchronize() is async with a callback
+            // on iOS, so wait for the SDK to finish processing the receipt before
+            // calling proceed(false) on the interceptor and dismissing the paywall.
+            // Calling closeDisplayedPresentation() too early (while the SDK is still
+            // validating) prevents the paywall from closing. Defer the premium refresh
+            // to the success_payment chain: pendingSuccessfulPurchase=true is then
+            // consumed by the loadPresentation completion to chain "success_payment".
             pendingSuccessfulPurchase = true
-            Purchasely.closeDisplayedPresentation()
-            print("[Shaker] Transaction success — synchronized; awaiting success_payment dismissal")
+            Purchasely.synchronize(success: { [weak self] in
+                PresentationCache.shared.invalidateAll()
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.pendingProcessAction?(false)
+                    self.pendingProcessAction = nil
+                    Purchasely.closeAllScreens()
+                    print("[Shaker] Transaction success — synchronized; presentation closed, awaiting success_payment")
+                }
+            }, failure: { [weak self] error in
+                print("[Shaker] Synchronize failed after transaction: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    guard let self = self else { return }
+                    self.pendingProcessAction?(false)
+                    self.pendingProcessAction = nil
+                    Purchasely.closeAllScreens()
+                }
+            })
         case .cancelled:
             pendingProcessAction?(false)
             pendingProcessAction = nil

@@ -20,7 +20,7 @@ All changes to the Purchasely integration must follow and update this document.
 
 | Category | Methods |
 |----------|---------|
-| **Init & Lifecycle** | `initialize()`, `restart()`, `close()`, `closeDisplayedPresentation()` |
+| **Init & Lifecycle** | `initialize()`, `restart()`, `close()`, `closeAllScreens()` |
 | **Interceptor** | Internal paywall actions interceptor (LOGIN, NAVIGATE, PURCHASE, RESTORE) |
 | **Events** | Internal event listener/delegate |
 | **Presentations** | `loadPresentation()`, `display()`, `getView()` (Android) / `getController()` (iOS) |
@@ -52,14 +52,20 @@ PurchaselyWrapper                          PurchaseManager
     │   ◄────────────────────────────────────   │
     │   TransactionResult                        │
     │                                           │
-    │ synchronize()                              │
-    │ processAction(false)                       │
     │ set pendingSuccessfulPurchase = true       │
-    │ closeAllScreens() / closeDisplayedPresentation()
+    │ synchronize()                              │
+    │   ├─ Android: fire-and-forget (no cb)      │
+    │   └─ iOS: wait for success callback        │
+    │ processAction(false)                       │
+    │ closeAllScreens()                          │
     │                                            │
-    │ (onTransactionCompleted is deferred until  │
-    │  the chained success_payment screen closes)│
+    │ (premium refresh is deferred until the     │
+    │  chained success_payment screen closes)    │
 ```
+
+**Critical iOS detail:** `Purchasely.synchronize(success:, failure:)` is asynchronous on iOS with completion callbacks. `processAction(false)` and `closeAllScreens()` MUST be called from inside the `success`/`failure` callback — calling them synchronously right after `synchronize()` returns will fire while the SDK is still validating the receipt, and the paywall will NOT close. Android's `Purchasely.synchronize()` is parameterless (fire-and-forget), so the dismissal is called in-line.
+
+**Always use `Purchasely.closeAllScreens()`** to force-dismiss the paywall after a successful Observer-mode purchase. Do not use `Purchasely.closeDisplayedPresentation()` for this flow — `closeAllScreens()` is the correct API to chain the `success_payment` placement reliably.
 
 **Android (Kotlin):**
 - `SharedFlow<PurchaseRequest>` — wrapper emits, PurchaseManager collects
@@ -104,7 +110,7 @@ enum TransactionResult { case success, cancelled, error(String?), idle }
 
 | Result | Wrapper actions |
 |--------|----------------|
-| Success | synchronize() → processAction(false) → set `pendingSuccessfulPurchase = true` → force-dismiss the paywall (closeAllScreens / closeDisplayedPresentation). The flag is consumed by `display()`'s post-dismiss logic, which chains the `success_payment` placement and only then refreshes subscriptions. |
+| Success | Set `pendingSuccessfulPurchase = true`, then call `synchronize()`. **Android:** `synchronize()` is fire-and-forget — call `processAction(false)` + `closeAllScreens()` right after. **iOS:** `synchronize(success:, failure:)` has callbacks — call `processAction(false)` + `closeAllScreens()` from inside the callback (calling them synchronously prevents the paywall from closing). The flag is then consumed by `display()`'s post-dismiss logic, which chains the `success_payment` placement and only then refreshes subscriptions. |
 | Cancelled | processAction(false) |
 | Error | processAction(false) |
 | Idle | ignore |
