@@ -1,6 +1,7 @@
 import XCTest
 @testable import Shaker
 
+@MainActor
 final class PurchaselyWrapperTests: XCTestCase {
 
     func testSharedInstanceExists() {

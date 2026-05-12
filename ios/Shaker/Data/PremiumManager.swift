@@ -1,6 +1,7 @@
 import Foundation
-import Purchasely
+@preconcurrency import Purchasely
 
+@MainActor
 class PremiumManager: ObservableObject {
 
     static let shared = PremiumManager()
@@ -15,7 +16,9 @@ class PremiumManager: ObservableObject {
         // Docs: https://docs.purchasely.com/advanced-features/subscription-status
         PurchaselyWrapper.shared.userSubscriptions(
             success: { [weak self] subscriptions in
-                self?.updatePremium(from: subscriptions)
+                Task { @MainActor in
+                    self?.updatePremium(from: subscriptions)
+                }
             },
             failure: { error in
                 print("[Shaker] Error checking premium: \(error.localizedDescription)")
@@ -35,9 +38,7 @@ class PremiumManager: ObservableObject {
             }
         } ?? false
 
-        DispatchQueue.main.async {
-            self.isPremium = premium
-            print("[Shaker] Premium status: \(premium)")
-        }
+        isPremium = premium
+        print("[Shaker] Premium status: \(premium)")
     }
 }

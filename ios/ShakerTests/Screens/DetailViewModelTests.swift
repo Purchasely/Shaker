@@ -1,16 +1,17 @@
 import XCTest
 @testable import Shaker
 
+@MainActor
 final class DetailViewModelTests: XCTestCase {
 
-    private var mockWrapper: MockPurchaselyWrapper!
+    nonisolated(unsafe) private var mockWrapper: MockPurchaselyWrapper!
 
     private let mojito = testCocktail(id: "mojito", name: "Mojito", spirit: "Rum")
     private let margarita = testCocktail(id: "margarita", name: "Margarita", spirit: "Tequila")
 
-    override func setUp() {
-        super.setUp()
-        mockWrapper = MockPurchaselyWrapper()
+    override func setUp() async throws {
+        try await super.setUp()
+        mockWrapper = await MainActor.run { MockPurchaselyWrapper() }
     }
 
     private func createViewModel(cocktailId: String = "mojito") -> DetailViewModel {

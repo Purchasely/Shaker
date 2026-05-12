@@ -1,15 +1,16 @@
 import XCTest
-import Purchasely
+@preconcurrency import Purchasely
 @testable import Shaker
 
+@MainActor
 final class SettingsViewModelTests: XCTestCase {
 
-    private var mockWrapper: MockPurchaselyWrapper!
-    private var defaults: UserDefaults!
+    nonisolated(unsafe) private var mockWrapper: MockPurchaselyWrapper!
+    nonisolated(unsafe) private var defaults: UserDefaults!
 
-    override func setUp() {
-        super.setUp()
-        mockWrapper = MockPurchaselyWrapper()
+    override func setUp() async throws {
+        try await super.setUp()
+        mockWrapper = await MainActor.run { MockPurchaselyWrapper() }
         defaults = UserDefaults(suiteName: "SettingsViewModelTests")!
         defaults.removePersistentDomain(forName: "SettingsViewModelTests")
     }
@@ -213,7 +214,7 @@ final class SettingsViewModelTests: XCTestCase {
     }
 
     func testAllConsentsTrue_revokesEmptySet() {
-        let vm = createViewModel()
+        _ = createViewModel()
         // Init calls applyConsentPreferences with all true
         XCTAssertTrue(mockWrapper.revokeConsentCalls.last?.isEmpty ?? false)
     }

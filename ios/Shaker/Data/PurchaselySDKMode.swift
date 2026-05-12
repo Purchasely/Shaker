@@ -1,5 +1,5 @@
 import Foundation
-import Purchasely
+@preconcurrency import Purchasely
 
 enum PurchaselySDKMode: String, CaseIterable, Identifiable {
     case paywallObserver = "paywallObserver"

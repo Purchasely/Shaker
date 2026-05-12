@@ -1,6 +1,6 @@
 import Foundation
 
-class OnboardingRepository: ObservableObject {
+final class OnboardingRepository: ObservableObject, @unchecked Sendable {
 
     static let shared = OnboardingRepository()
 

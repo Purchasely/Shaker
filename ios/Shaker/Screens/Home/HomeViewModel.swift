@@ -1,16 +1,29 @@
 import UIKit
-import Combine
-import Purchasely
+@preconcurrency import Purchasely
 
+@MainActor
 class HomeViewModel: ObservableObject {
 
     @Published var cocktails: [Cocktail] = []
-    @Published var searchQuery = ""
+    @Published var searchQuery = "" {
+        didSet {
+            if !searchQuery.isEmpty {
+                wrapper.setUserAttribute(true, forKey: "has_used_search")
+            }
+            applyFilters()
+        }
+    }
 
     // Filter state
-    @Published var selectedSpirits: Set<String> = []
-    @Published var selectedCategories: Set<String> = []
-    @Published var selectedDifficulty: String?
+    @Published var selectedSpirits: Set<String> = [] {
+        didSet { applyFilters() }
+    }
+    @Published var selectedCategories: Set<String> = [] {
+        didSet { applyFilters() }
+    }
+    @Published var selectedDifficulty: String? {
+        didSet { applyFilters() }
+    }
 
     // Prefetched presentations
     @Published var inlinePresentation: FetchResult?
@@ -19,7 +32,7 @@ class HomeViewModel: ObservableObject {
 
     private let repository: CocktailRepository
     private let wrapper: PurchaselyWrapping
-    private var cancellables = Set<AnyCancellable>()
+    private let allCocktails: [Cocktail]
 
     var availableSpirits: [String] { repository.spirits() }
     var availableCategories: [String] { repository.categories() }
@@ -44,37 +57,24 @@ class HomeViewModel: ObservableObject {
          wrapper: PurchaselyWrapping = PurchaselyWrapper.shared) {
         self.repository = repository
         self.wrapper = wrapper
-        let allCocktails = repository.allCocktails()
-
-        Publishers.CombineLatest4(
-            $searchQuery.debounce(for: .milliseconds(200), scheduler: RunLoop.main),
-            $selectedSpirits,
-            $selectedCategories,
-            $selectedDifficulty
-        )
-        .handleEvents(receiveOutput: { [weak self] query, _, _, _ in
-            if !query.isEmpty {
-                self?.wrapper.setUserAttribute(true, forKey: "has_used_search")
-            }
-        })
-        .map { query, spirits, categories, difficulty in
-            allCocktails.filter { cocktail in
-                let matchesQuery = query.isEmpty || cocktail.name.localizedCaseInsensitiveContains(query)
-                let matchesSpirit = spirits.isEmpty || spirits.contains(cocktail.spirit)
-                let matchesCategory = categories.isEmpty || categories.contains(cocktail.category)
-                let matchesDifficulty = difficulty == nil || cocktail.difficulty == difficulty
-                return matchesQuery && matchesSpirit && matchesCategory && matchesDifficulty
-            }
-        }
-        .assign(to: &$cocktails)
-
+        self.allCocktails = repository.allCocktails()
         cocktails = allCocktails
+    }
+
+    private func applyFilters() {
+        cocktails = allCocktails.filter { cocktail in
+            let matchesQuery = searchQuery.isEmpty || cocktail.name.localizedCaseInsensitiveContains(searchQuery)
+            let matchesSpirit = selectedSpirits.isEmpty || selectedSpirits.contains(cocktail.spirit)
+            let matchesCategory = selectedCategories.isEmpty || selectedCategories.contains(cocktail.category)
+            let matchesDifficulty = selectedDifficulty == nil || cocktail.difficulty == selectedDifficulty
+            return matchesQuery && matchesSpirit && matchesCategory && matchesDifficulty
+        }
     }
 
     func prefetchPresentations(isPremium: Bool) {
         guard !isPremium else { return }
 
-        Task {
+        Task { @MainActor in
             isFiltersLoading = true
             filtersPresentation = await wrapper.loadPresentation(placementId: "filters") { result in
                 if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
@@ -83,7 +83,7 @@ class HomeViewModel: ObservableObject {
             isFiltersLoading = false
         }
 
-        Task {
+        Task { @MainActor in
             inlinePresentation = await wrapper.loadPresentation(placementId: "inline") { result in
                 if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
                 if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }

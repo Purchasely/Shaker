@@ -1,11 +1,10 @@
 import XCTest
-import Combine
 @testable import Shaker
 
+@MainActor
 final class HomeViewModelTests: XCTestCase {
 
-    private var mockWrapper: MockPurchaselyWrapper!
-    private var cancellables: Set<AnyCancellable>!
+    nonisolated(unsafe) private var mockWrapper: MockPurchaselyWrapper!
 
     private let testCocktails = [
         testCocktail(id: "1", name: "Mojito", spirit: "Rum", category: "Classic", difficulty: "Easy"),
@@ -15,15 +14,9 @@ final class HomeViewModelTests: XCTestCase {
         testCocktail(id: "5", name: "Daiquiri", spirit: "Rum", category: "Tropical", difficulty: "Easy")
     ]
 
-    override func setUp() {
-        super.setUp()
-        mockWrapper = MockPurchaselyWrapper()
-        cancellables = []
-    }
-
-    override func tearDown() {
-        cancellables = nil
-        super.tearDown()
+    override func setUp() async throws {
+        try await super.setUp()
+        mockWrapper = await MainActor.run { MockPurchaselyWrapper() }
     }
 
     private func createViewModel() -> HomeViewModel {
@@ -131,105 +124,61 @@ final class HomeViewModelTests: XCTestCase {
         XCTAssertFalse(vm.hasActiveFilters)
     }
 
-    // MARK: - Filtering logic (via Combine pipeline)
+    // MARK: - Filtering logic
 
     func testSpiritFilterUpdatesResults() {
         let vm = createViewModel()
-        let expectation = expectation(description: "Cocktails filtered")
-
         vm.toggleSpirit("Rum")
 
-        // Wait for Combine pipeline (debounce on searchQuery, immediate on spirits)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let filtered = vm.cocktails
-            XCTAssertEqual(filtered.count, 2)
-            XCTAssertTrue(filtered.allSatisfy { $0.spirit == "Rum" })
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 1.0)
+        let filtered = vm.cocktails
+        XCTAssertEqual(filtered.count, 2)
+        XCTAssertTrue(filtered.allSatisfy { $0.spirit == "Rum" })
     }
 
     func testCategoryFilterUpdatesResults() {
         let vm = createViewModel()
-        let expectation = expectation(description: "Cocktails filtered by category")
-
         vm.toggleCategory("Classic")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let filtered = vm.cocktails
-            XCTAssertEqual(filtered.count, 3)
-            XCTAssertTrue(filtered.allSatisfy { $0.category == "Classic" })
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 1.0)
+        let filtered = vm.cocktails
+        XCTAssertEqual(filtered.count, 3)
+        XCTAssertTrue(filtered.allSatisfy { $0.category == "Classic" })
     }
 
     func testDifficultyFilterUpdatesResults() {
         let vm = createViewModel()
-        let expectation = expectation(description: "Cocktails filtered by difficulty")
-
         vm.selectDifficulty("Easy")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let filtered = vm.cocktails
-            XCTAssertEqual(filtered.count, 3)
-            XCTAssertTrue(filtered.allSatisfy { $0.difficulty == "Easy" })
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 1.0)
+        let filtered = vm.cocktails
+        XCTAssertEqual(filtered.count, 3)
+        XCTAssertTrue(filtered.allSatisfy { $0.difficulty == "Easy" })
     }
 
     func testSearchFilterUpdatesResults() {
         let vm = createViewModel()
-        let expectation = expectation(description: "Cocktails filtered by search")
-
         vm.searchQuery = "Mojito"
 
-        // 200ms debounce + buffer
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            let filtered = vm.cocktails
-            XCTAssertEqual(filtered.count, 1)
-            XCTAssertEqual(filtered.first?.name, "Mojito")
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 1.0)
+        let filtered = vm.cocktails
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(filtered.first?.name, "Mojito")
     }
 
     func testSearchSetsUserAttribute() {
         let vm = createViewModel()
-        let expectation = expectation(description: "User attribute set")
-
         vm.searchQuery = "test"
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-            XCTAssertTrue(self.mockWrapper.setBoolAttributeCalls.contains(where: {
-                $0.key == "has_used_search" && $0.value == true
-            }))
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 1.0)
+        XCTAssertTrue(mockWrapper.setBoolAttributeCalls.contains(where: {
+            $0.key == "has_used_search" && $0.value == true
+        }))
     }
 
     func testCombinedSpiritAndCategoryFilter() {
         let vm = createViewModel()
-        let expectation = expectation(description: "Combined filter")
-
         vm.toggleSpirit("Rum")
         vm.toggleCategory("Classic")
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            let filtered = vm.cocktails
-            XCTAssertEqual(filtered.count, 1)
-            XCTAssertEqual(filtered.first?.name, "Mojito")
-            expectation.fulfill()
-        }
-
-        wait(for: [expectation], timeout: 1.0)
+        let filtered = vm.cocktails
+        XCTAssertEqual(filtered.count, 1)
+        XCTAssertEqual(filtered.first?.name, "Mojito")
     }
 
     // MARK: - Prefetch

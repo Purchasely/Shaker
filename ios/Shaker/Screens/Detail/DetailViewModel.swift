@@ -1,6 +1,7 @@
 import Foundation
 import UIKit
 
+@MainActor
 class DetailViewModel: ObservableObject {
 
     @Published var cocktail: Cocktail?
@@ -35,7 +36,7 @@ class DetailViewModel: ObservableObject {
     // MARK: - Prefetch Presentations
 
     func prefetchRecipePresentation(contentId: String) {
-        Task {
+        Task { @MainActor in
             // PURCHASELY: Prefetch the "recipe_detail" paywall with a contentId for context
             // The contentId lets the paywall content reference the specific cocktail being viewed
             // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
@@ -54,7 +55,7 @@ class DetailViewModel: ObservableObject {
     }
 
     func prefetchFavoritesPresentation() {
-        Task {
+        Task { @MainActor in
             // PURCHASELY: Prefetch the "favorites" paywall when the user views a detail screen
             // Docs: https://docs.purchasely.com/quick-start/sdk-implementation/display-placements
             favoritesFetchResult = await wrapper.loadPresentation(

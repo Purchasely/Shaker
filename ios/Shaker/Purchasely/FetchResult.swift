@@ -1,4 +1,4 @@
-import Purchasely
+@preconcurrency import Purchasely
 
 enum FetchResult {
     case success(presentation: PLYPresentation)

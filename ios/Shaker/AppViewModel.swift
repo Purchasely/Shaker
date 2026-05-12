@@ -1,6 +1,7 @@
 import Foundation
-import Purchasely
+@preconcurrency import Purchasely
 
+@MainActor
 class AppViewModel: ObservableObject {
 
     @Published var isSDKReady = false
@@ -25,7 +26,7 @@ class AppViewModel: ObservableObject {
             appUserId: storedUserId,
             logLevel: sdkLogLevel
         ) { [weak self] success, error in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 self?.isSDKReady = success
                 self?.sdkError = success ? nil : error?.localizedDescription
             }

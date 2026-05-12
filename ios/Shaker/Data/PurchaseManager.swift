@@ -1,16 +1,11 @@
 import Foundation
 import StoreKit
-import Combine
 
 @available(iOS 15.0, *)
-class PurchaseManager {
+@MainActor
+final class PurchaseManager {
 
     static let shared = PurchaseManager()
-
-    /// Subjects for reactive communication (set by PurchaselyWrapper)
-    var purchaseSubject = PassthroughSubject<PurchaseRequest, Never>()
-    var restoreSubject = PassthroughSubject<Void, Never>()
-    let resultSubject = PassthroughSubject<TransactionResult, Never>()
 
     /// Anonymous user ID provider — injected to avoid direct PurchaselyWrapper dependency
     var anonymousUserIdProvider: (() -> String)?
@@ -18,65 +13,27 @@ class PurchaseManager {
     /// Sign promo offer — injected to avoid direct PurchaselyWrapper dependency
     var signPromotionalOfferProvider: ((_ productId: String, _ offerId: String, _ success: @escaping (PLYOfferSignatureData) -> Void, _ failure: @escaping (Error) -> Void) -> Void)?
 
-    private var cancellables = Set<AnyCancellable>()
-
-    private init() {
-        purchaseSubject
-            .sink { [weak self] request in
-                Task { [weak self] in
-                    await self?.handlePurchase(productId: request.productId)
-                }
-            }
-            .store(in: &cancellables)
-
-        restoreSubject
-            .sink { [weak self] in
-                Task { [weak self] in
-                    await self?.handleRestore()
-                }
-            }
-            .store(in: &cancellables)
-    }
+    private init() {}
 
     // MARK: - Purchase
 
-    private func handlePurchase(productId: String) async {
+    func purchase(productId: String) async -> TransactionResult {
         do {
             let products = try await Product.products(for: [productId])
             guard let product = products.first else {
-                resultSubject.send(.error("Product not found in the App Store"))
-                return
+                return .error("Product not found in the App Store")
             }
 
-            var options: Set<Product.PurchaseOption> = []
-            if let userId = anonymousUserIdProvider?().lowercased(),
-               let uuid = UUID(uuidString: userId) {
-                options.insert(.appAccountToken(uuid))
-            }
-
-            let result = try await product.purchase(options: options)
-
-            switch result {
-            case .success(let verification):
-                let transaction = try checkVerified(verification)
-                await transaction.finish()
-                print("[Shaker] Observer mode: native purchase successful")
-                resultSubject.send(.success)
-            case .userCancelled:
-                resultSubject.send(.cancelled)
-            case .pending:
-                resultSubject.send(.error("Purchase pending approval"))
-            @unknown default:
-                resultSubject.send(.error("Unknown purchase result"))
-            }
+            let result = try await product.purchase(options: purchaseOptions())
+            return await resolve(result, label: "native purchase")
         } catch {
-            resultSubject.send(.error(error.localizedDescription))
+            return .error(error.localizedDescription)
         }
     }
 
     // MARK: - Restore
 
-    private func handleRestore() async {
+    func restore() async -> TransactionResult {
         var restoredCount = 0
         for await result in Transaction.currentEntitlements {
             if let transaction = try? checkVerified(result) {
@@ -85,69 +42,81 @@ class PurchaseManager {
             }
         }
         print("[Shaker] Observer mode: restored \(restoredCount) transactions")
-        resultSubject.send(restoredCount > 0 ? .success : .cancelled)
+        return restoredCount > 0 ? .success : .cancelled
     }
 
-    // MARK: - Promo Offer Purchase (public for direct calls)
+    // MARK: - Promo Offer Purchase
 
     func purchaseWithPromoOffer(
         productId: String,
         storeOfferId: String
-    ) async throws {
+    ) async -> TransactionResult {
         guard let signProvider = signPromotionalOfferProvider else {
-            resultSubject.send(.error("Promo offer signing not available"))
-            return
+            return .error("Promo offer signing not available")
         }
 
-        let products = try await Product.products(for: [productId])
-        guard let product = products.first else {
-            resultSubject.send(.error("Product not found in the App Store"))
-            return
-        }
+        do {
+            let products = try await Product.products(for: [productId])
+            guard let product = products.first else {
+                return .error("Product not found in the App Store")
+            }
 
-        let signature = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<PLYOfferSignatureData, Error>) in
-            signProvider(productId, storeOfferId, { sig in
-                continuation.resume(returning: sig)
-            }, { error in
-                continuation.resume(throwing: error)
-            })
-        }
+            let signature: PLYOfferSignatureData = try await withCheckedThrowingContinuation { continuation in
+                signProvider(productId, storeOfferId, { sig in
+                    continuation.resume(returning: sig)
+                }, { error in
+                    continuation.resume(throwing: error)
+                })
+            }
 
+            var options = purchaseOptions()
+            if let decodedSignature = Data(base64Encoded: signature.signature) {
+                options.insert(.promotionalOffer(
+                    offerID: signature.identifier,
+                    keyID: signature.keyIdentifier,
+                    nonce: signature.nonce,
+                    signature: decodedSignature,
+                    timestamp: Int(signature.timestamp)
+                ))
+            }
+
+            let result = try await product.purchase(options: options)
+            return await resolve(result, label: "promo offer purchase")
+        } catch {
+            return .error(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func purchaseOptions() -> Set<Product.PurchaseOption> {
         var options: Set<Product.PurchaseOption> = []
         if let userId = anonymousUserIdProvider?().lowercased(),
            let uuid = UUID(uuidString: userId) {
             options.insert(.appAccountToken(uuid))
         }
-
-        if let decodedSignature = Data(base64Encoded: signature.signature) {
-            let offerOption: Product.PurchaseOption = .promotionalOffer(
-                offerID: signature.identifier,
-                keyID: signature.keyIdentifier,
-                nonce: signature.nonce,
-                signature: decodedSignature,
-                timestamp: Int(signature.timestamp)
-            )
-            options.insert(offerOption)
-        }
-
-        let result = try await product.purchase(options: options)
-
-        switch result {
-        case .success(let verification):
-            let transaction = try checkVerified(verification)
-            await transaction.finish()
-            print("[Shaker] Observer mode: promo offer purchase successful")
-            resultSubject.send(.success)
-        case .userCancelled:
-            resultSubject.send(.cancelled)
-        case .pending:
-            resultSubject.send(.error("Purchase pending approval"))
-        @unknown default:
-            resultSubject.send(.error("Unknown purchase result"))
-        }
+        return options
     }
 
-    // MARK: - Verification
+    private func resolve(_ result: Product.PurchaseResult, label: String) async -> TransactionResult {
+        switch result {
+        case .success(let verification):
+            do {
+                let transaction = try checkVerified(verification)
+                await transaction.finish()
+                print("[Shaker] Observer mode: \(label) successful")
+                return .success
+            } catch {
+                return .error(error.localizedDescription)
+            }
+        case .userCancelled:
+            return .cancelled
+        case .pending:
+            return .error("Purchase pending approval")
+        @unknown default:
+            return .error("Unknown purchase result")
+        }
+    }
 
     private func checkVerified<T>(_ result: VerificationResult<T>) throws -> T {
         switch result {

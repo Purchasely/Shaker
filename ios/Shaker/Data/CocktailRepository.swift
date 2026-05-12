@@ -1,6 +1,6 @@
 import Foundation
 
-class CocktailRepository {
+final class CocktailRepository: @unchecked Sendable {
 
     static let shared = CocktailRepository()
 

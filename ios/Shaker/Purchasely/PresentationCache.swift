@@ -17,7 +17,7 @@ import Foundation
 ///   - any user attribute set/removed (via `PLYUserAttributeDelegate`)
 ///   - successful `synchronize()`
 ///   - SDK mode restart (Full ↔ Observer)
-final class PresentationCache {
+final class PresentationCache: @unchecked Sendable {
 
     static let shared = PresentationCache()
 

@@ -36,26 +36,28 @@ All changes to the Purchasely integration must follow and update this document.
 
 ---
 
-## 2. Observer Mode: Reactive Purchase Flow
+## 2. Observer Mode: Purchase Flow
 
-**Rule: In Observer mode, purchases and restores are decoupled from the SDK via reactive flows. `PurchaseManager` has zero Purchasely imports.**
+**Rule: In Observer mode, purchases and restores are decoupled from the SDK. `PurchaseManager` has zero Purchasely imports.**
 
 ### Architecture
 
 ```
 PurchaselyWrapper                          PurchaseManager
     │                                           │
-    │ PURCHASE (observer) ──────────────────►   │
-    │   emit PurchaseRequest                     │
+    │ PURCHASE (observer)                        │
+    │   Android: emit PurchaseRequest ───────►   │
+    │   iOS: await purchase(productId:) ─────►   │
     │                                           │ Native billing
     │                                           │ (Play Billing / StoreKit 2)
-    │   ◄────────────────────────────────────   │
-    │   TransactionResult                        │
+    │                                           │
+    │   Android: collect TransactionResult ◄──   │
+    │   iOS: return TransactionResult ───────◄   │
     │                                           │
     │ set pendingSuccessfulPurchase = true       │
     │ synchronize()                              │
     │   ├─ Android: fire-and-forget (no cb)      │
-    │   └─ iOS: wait for success callback        │
+    │   └─ iOS: await synchronizeReceipt()       │
     │ processAction(false)                       │
     │ closeAllScreens()                          │
     │                                            │
@@ -63,9 +65,38 @@ PurchaselyWrapper                          PurchaseManager
     │  chained success_payment screen closes)    │
 ```
 
-**Critical iOS detail:** `Purchasely.synchronize(success:, failure:)` is asynchronous on iOS with completion callbacks. `processAction(false)` and `closeAllScreens()` MUST be called from inside the `success`/`failure` callback — calling them synchronously right after `synchronize()` returns will fire while the SDK is still validating the receipt, and the paywall will NOT close. Android's `Purchasely.synchronize()` is parameterless (fire-and-forget), so the dismissal is called in-line.
+**SDK rules (both platforms):**
+- `processAction(false)` MUST be called BEFORE `closeAllScreens()` — the interceptor needs to know not to proceed before the paywall tears down.
+- `Purchasely.closeAllScreens()` is safe to call at any time, no need to wait for anything.
+- `Purchasely.synchronize()` runs in the background — by default you do **not** need to await it before dismissing the paywall.
+
+**Why Shaker awaits `synchronize()` anyway:** Shaker chains a `success_payment` placement after a successful purchase to show a thank-you screen. That placement targets users based on their (now-active) subscription state, so we wait for `synchronize()` to finish before we tear the paywall down — otherwise the `success_payment` fetch can resolve against stale subscription state and show the wrong screen (or get deactivated).
+
+**iOS implementation:** the wrapper exposes a private `synchronizeReceipt() async throws` that wraps `Purchasely.synchronize(success:, failure:)` via `withCheckedThrowingContinuation`. The post-purchase flow is linear:
+
+```swift
+do {
+    try await synchronizeReceipt()      // wait — needed for success_payment targeting
+    PresentationCache.shared.invalidateAll()
+    proceed(false)                       // tell interceptor we handled it
+    Purchasely.closeAllScreens()         // dismiss
+} catch {
+    proceed(false)                       // dismiss anyway on sync error
+    Purchasely.closeAllScreens()
+}
+```
+
+**Android:** `Purchasely.synchronize()` is parameterless (fire-and-forget) — there is no callback to await. The wrapper calls `synchronize()`, then `processAction(false)`, then `closeAllScreens()` in-line. The risk of stale state for `success_payment` exists but is mitigated by Android's faster cache refresh.
 
 **Always use `Purchasely.closeAllScreens()`** to force-dismiss the paywall after a successful Observer-mode purchase. Do not use `Purchasely.closeDisplayedPresentation()` for this flow — `closeAllScreens()` is the correct API to chain the `success_payment` placement reliably.
+
+**SDK version requirements for `closeAllScreens()`:**
+- **iOS:** Purchasely SDK **5.7.5+** required. The method is `@MainActor`-isolated, so any call from a non-isolated synchronous context (e.g. inside `DispatchQueue.main.async`, `synchronize(success:)` callbacks) must be wrapped:
+  ```swift
+  Task { @MainActor in Purchasely.closeAllScreens() }
+  ```
+  Calling `Purchasely.closeAllScreens()` directly from a non-isolated context produces the compile error: *"Call to main actor-isolated class method 'closeAllScreens()' in a synchronous nonisolated context."*
+- **Android:** Purchasely SDK **5.7.4+** required. No actor/threading constraint — call directly.
 
 **Android (Kotlin):**
 - `SharedFlow<PurchaseRequest>` — wrapper emits, PurchaseManager collects
@@ -73,11 +104,21 @@ PurchaselyWrapper                          PurchaseManager
 - `SharedFlow<TransactionResult>` — PurchaseManager emits, wrapper collects
 - PurchaseManager takes a `billingClientFactory` lambda (testable, no hardcoded BillingClient)
 
-**iOS (Swift):**
-- `PassthroughSubject<PurchaseRequest, Never>` — wrapper sends, PurchaseManager sinks
-- `PassthroughSubject<Void, Never>` — wrapper sends restore trigger
-- `PassthroughSubject<TransactionResult, Never>` — PurchaseManager sends, wrapper sinks
-- PurchaseManager uses injected closures for `anonymousUserId` and `signPromotionalOffer` (no wrapper reference)
+**iOS (Swift) — pure Swift Concurrency, no Combine:**
+- `PurchaseManager` exposes async methods directly — no subjects, no sinks, no `cancellables`:
+  - `func purchase(productId: String) async -> TransactionResult`
+  - `func restore() async -> TransactionResult`
+  - `func purchaseWithPromoOffer(productId:, storeOfferId:) async -> TransactionResult`
+- `PurchaselyWrapper` interceptor `.purchase` / `.restore` cases dispatch in one shot:
+  ```swift
+  Task { @MainActor [weak self] in
+      let result = await PurchaseManager.shared.purchase(productId: productId)
+      await self?.handleTransactionResult(result, proceed: processAction)
+  }
+  ```
+- `proceed` is captured directly in the running task — no `pendingProcessAction` field.
+- The wrapper keeps a single `observerActionTask` guard. If another purchase/restore interceptor action arrives while one is already running, the new action calls `proceed(false)` and is ignored. This prevents overlapping StoreKit flows and double-calling independent interceptor closures.
+- `PurchaseManager` uses injected closures for `anonymousUserId` and `signPromotionalOffer` (no wrapper reference). Same as before, but without Combine plumbing around them.
 
 **Types:**
 
@@ -90,27 +131,28 @@ sealed class TransactionResult { Success, Cancelled, Error(message), Idle }
 
 ```swift
 // iOS
-struct PurchaseRequest { let productId: String }
 enum TransactionResult { case success, cancelled, error(String?), idle }
 ```
 
-**processAction callback:** The wrapper stores a single `pendingProcessAction: ((Boolean) -> Unit)?` when emitting a purchase/restore request. When TransactionResult arrives, it invokes the callback and nullifies it. **Race guard:** Before storing a new `pendingProcessAction`, the wrapper cancels any existing one by calling `pendingProcessAction?.invoke(false)` — this prevents a second interceptor action from silently overwriting and orphaning the first callback.
+**processAction callback:**
+- **Android:** the wrapper stores a single `pendingProcessAction: ((Boolean) -> Unit)?` when emitting a purchase/restore request. When `TransactionResult` arrives, it invokes the callback and nullifies it. **Race guard:** before storing a new `pendingProcessAction`, the wrapper cancels any existing one by calling `pendingProcessAction?.invoke(false)` — prevents orphaning the first callback.
+- **iOS:** `proceed` is captured directly inside the task created for that interceptor invocation. The wrapper does not store callbacks, but it does store `observerActionTask` as a concurrency guard: one Observer purchase/restore at a time.
 
 **Interceptor rules:**
 
-| Action | Observer mode | Full mode |
-|--------|--------------|-----------|
-| PURCHASE | Store processAction, emit PurchaseRequest | proceed(true) |
-| RESTORE | Store processAction, emit RestoreRequest | proceed(true) |
-| LOGIN | proceed(false) | proceed(false) |
-| NAVIGATE | Open URL, proceed(false) | Open URL, proceed(false) |
-| Other | proceed(true) | proceed(true) |
+| Action | Observer mode (Android) | Observer mode (iOS) | Full mode |
+|--------|------------------------|---------------------|-----------|
+| PURCHASE | Store processAction, emit `PurchaseRequest` | Guard `observerActionTask`, then `await PurchaseManager.shared.purchase(productId:)` | proceed(true) |
+| RESTORE | Store processAction, emit `RestoreRequest` | Guard `observerActionTask`, then `await PurchaseManager.shared.restore()` | proceed(true) |
+| LOGIN | proceed(false) | proceed(false) | proceed(false) |
+| NAVIGATE | Open URL, proceed(false) | `Task { @MainActor in UIApplication.shared.open(url) }`, proceed(false) | proceed(false) |
+| Other | proceed(true) | proceed(true) | proceed(true) |
 
 **TransactionResult handling:**
 
 | Result | Wrapper actions |
 |--------|----------------|
-| Success | Set `pendingSuccessfulPurchase = true`, then call `synchronize()`. **Android:** `synchronize()` is fire-and-forget — call `processAction(false)` + `closeAllScreens()` right after. **iOS:** `synchronize(success:, failure:)` has callbacks — call `processAction(false)` + `closeAllScreens()` from inside the callback (calling them synchronously prevents the paywall from closing). The flag is then consumed by `display()`'s post-dismiss logic, which chains the `success_payment` placement and only then refreshes subscriptions. |
+| Success | Set `pendingSuccessfulPurchase = true`. **Both platforms:** the order is `processAction(false)` → `closeAllScreens()`. The difference is whether `synchronize()` is awaited first: **Android** fire-and-forget (no callback to await); **iOS** awaits `synchronizeReceipt()` so subscription state is fresh before `loadPresentation`'s post-dismiss logic fetches the `success_payment` placement. The flag is then consumed by `loadPresentation`'s `completion` closure, which chains the `success_payment` placement (`showSuccessPaymentScreen()`) and only then refreshes subscriptions. |
 | Cancelled | processAction(false) |
 | Error | processAction(false) |
 | Idle | ignore |
@@ -129,11 +171,11 @@ The wrapper internally configures:
 2. Event listener/delegate
 3. Paywall actions interceptor
 4. Deeplink readiness
-5. Combine/Flow subscriptions for Observer purchase flow
+5. **Android only:** Flow subscriptions for the Observer purchase flow. **iOS:** the interceptor dispatches `Task { @MainActor in await PurchaseManager.shared.purchase(...) }` directly — no Combine subjects, no init-time subscriptions.
 
 **Restart:** When the SDK mode changes, `wrapper.restart()` is called:
 - **Android:** `SettingsViewModel` calls `purchaselyWrapper.restart()` directly. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection.
-- **iOS:** `SettingsViewModel` posts `.purchaselySdkModeDidChange` notification, wrapper observes it and calls `restart()` internally
+- **iOS:** `SettingsViewModel` posts `.purchaselySdkModeDidChange` notification, wrapper observes it and calls `restart()` internally on the main actor
 
 ---
 
@@ -311,10 +353,15 @@ Always handle all `FetchResult` variants:
 - `display()` — wraps the callback-based `display(activity)` with `suspendCoroutine`
 - `getView()` — keeps callbacks because `buildView()` returns a `View?` synchronously; the callback fires later on purchase events
 
-**iOS (Swift):**
-- `loadPresentation()` — uses `async/await` with `withCheckedContinuation` to bridge `fetchPresentation(for:, fetchCompletion:, completion:)`; the `onResult` callback is bound at fetch time via the `completion` closure
-- `display()` — synchronous, calls `presentation.display(from:)` on main thread; result delivered through the `onResult` callback from fetch
+**iOS (Swift) — Swift 6 / Swift Concurrency throughout, no Combine, no `DispatchQueue.main.async` in production Purchasely code:**
+- `loadPresentation()` — `async/await` with `withCheckedContinuation` to bridge `fetchPresentation(for:, fetchCompletion:, completion:)`; the `onResult` callback is bound at fetch time via the `completion` closure
+- `display()` — `@MainActor` synchronous, calls `presentation.display(from:)` directly
 - `getController()` — returns the presentation's `UIViewController` for embedding
+- `synchronizeReceipt()` — private `async throws` wrapper around `Purchasely.synchronize(success:, failure:)` via `withCheckedThrowingContinuation`
+- `PurchaselyWrapping`, `PurchaselyWrapper`, Purchasely-facing ViewModels, and UI-state managers are `@MainActor` isolated. `PLYEventDelegate` / `PLYUserAttributeDelegate` callbacks stay `nonisolated` and only do thread-safe work (logging + `PresentationCache.invalidateAll()`).
+- SDK callbacks that fire on unknown threads hop to the main actor via `Task { @MainActor [weak self] in … }`, never `DispatchQueue.main.async`.
+- `NotificationCenter` observer for `.purchaselySdkModeDidChange` dispatches via `Task { @MainActor in self?.restart() }` (not `addObserver(forName:queue: .main)`)
+- Use `@preconcurrency import Purchasely` where needed because the current SDK exposes Objective-C class properties/callback types without full Swift 6 concurrency annotations.
 
 ---
 
@@ -352,12 +399,14 @@ Always handle all `FetchResult` variants:
 
 ### iOS (SwiftUI)
 
-- `PurchaselyWrapper` is a Swift singleton (`PurchaselyWrapper.shared`) conforming to `PurchaselyWrapping`
+- `PurchaselyWrapper` is a `@MainActor` Swift singleton (`PurchaselyWrapper.shared`) conforming to the `@MainActor` `PurchaselyWrapping` protocol
 - `AppViewModel.init()` calls `wrapper.initialize(apiKey:, appUserId:, logLevel:, onReady:)` — nothing else
-- ViewModels accept `PurchaselyWrapping` via init with default `.shared`
-- Async operations use Swift `async/await` (`withCheckedContinuation` to bridge callbacks)
+- ViewModels accept `PurchaselyWrapping` via init with default `.shared` and are `@MainActor` isolated when they mutate UI state or call wrapper APIs
+- **No Combine in the wrapper or in PurchaseManager.** Pure Swift Concurrency: `async/await`, `Task { @MainActor in … }`, `withCheckedContinuation`/`withCheckedThrowingContinuation` to bridge SDK callbacks
+- **No `DispatchQueue.main.async` in production Purchasely code.** Hops to main go through `Task { @MainActor in … }` to keep one consistent concurrency model
+- The whole `PurchaselyWrapping` protocol is `@MainActor`, so protocol call sites do not accidentally cross actor boundaries.
+- `HomeViewModel` no longer uses Combine for filtering; filtering is synchronous state derivation from `@Published` properties. Tests should not rely on debounce timing for filter assertions.
 - `loadPresentation()` is `async` and takes an `onResult` callback for purchase/dismiss events
-- `display()` is synchronous — calls `presentation.display(from: viewController)` on main thread
 - `getController()` returns `PLYPresentationViewController?` for embedding via `UIViewControllerRepresentable`
 - `EmbeddedScreenBanner` is a `UIViewControllerRepresentable` wrapping the presentation's controller
 - Screen resolves a `UIViewController` via `ViewControllerResolver` for modal display
@@ -380,8 +429,11 @@ Always handle all `FetchResult` variants:
 - [ ] Uses `presentation.height` (dp/points) for embedded view sizing
 - [ ] No crashes on SDK errors — nothing shown if fetch fails
 - [ ] SDK init and interceptor are in PurchaselyWrapper.initialize() — NOT in App class
-- [ ] Observer mode purchases flow through PurchaseManager via reactive subjects (not direct wrapper calls)
+- [ ] Observer mode purchases flow through PurchaseManager — **Android:** via `SharedFlow` subjects; **iOS:** via direct `async` calls (`PurchaseManager.shared.purchase(productId:)`)
 - [ ] PurchaseManager has zero Purchasely/SDK imports
+- [ ] **iOS:** no `import Combine` in `PurchaselyWrapper` or `PurchaseManager`; no `DispatchQueue.main.async` in production Purchasely code (use `Task { @MainActor in … }`)
+- [ ] **iOS:** `PurchaselyWrapping`, `PurchaselyWrapper`, and Purchasely-facing ViewModels are `@MainActor`; SDK delegate callbacks that remain nonisolated do only thread-safe work
+- [ ] **iOS:** Observer purchase/restore path guards against overlapping StoreKit flows with a single in-flight task
 - [ ] Login/logout, restore, consent, synchronize go through wrapper in ViewModels
 - [ ] SDK types (PLYRunningMode, PLYDataProcessingPurpose, etc.) are tolerated as direct imports
 - [ ] Android Screens use `collectAsStateWithLifecycle()` (not `collectAsState()`) for lifecycle-aware collection

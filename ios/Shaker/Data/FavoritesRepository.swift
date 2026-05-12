@@ -1,6 +1,6 @@
 import Foundation
 
-class FavoritesRepository: ObservableObject {
+final class FavoritesRepository: ObservableObject, @unchecked Sendable {
 
     static let shared = FavoritesRepository()
 

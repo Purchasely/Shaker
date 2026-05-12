@@ -1,6 +1,7 @@
 import Foundation
-import Purchasely
+@preconcurrency import Purchasely
 
+@MainActor
 class SettingsViewModel: ObservableObject {
 
     @Published var userId: String?
@@ -62,7 +63,7 @@ class SettingsViewModel: ObservableObject {
     }
 
     func prefetchOnboardingPresentation() {
-        Task {
+        Task { @MainActor in
             onboardingFetchResult = await wrapper.loadPresentation(placementId: "onboarding") { result in
                 if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
                 if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }
@@ -102,14 +103,14 @@ class SettingsViewModel: ObservableObject {
         restoreMessage = nil
         wrapper.restoreAllProducts(
             success: { [weak self] in
-                PremiumManager.shared.refreshPremiumStatus()
-                DispatchQueue.main.async {
+                Task { @MainActor in
+                    PremiumManager.shared.refreshPremiumStatus()
                     self?.restoreMessage = "Purchases restored successfully!"
                 }
                 print("[Shaker] Restore success")
             },
             failure: { [weak self] error in
-                DispatchQueue.main.async {
+                Task { @MainActor in
                     self?.restoreMessage = error.localizedDescription
                 }
                 print("[Shaker] Restore error: \(error.localizedDescription)")

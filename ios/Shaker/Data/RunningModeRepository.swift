@@ -1,7 +1,7 @@
 import Foundation
-import Purchasely
+@preconcurrency import Purchasely
 
-class RunningModeRepository {
+final class RunningModeRepository: @unchecked Sendable {
 
     static let shared = RunningModeRepository()
 

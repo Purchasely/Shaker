@@ -1,5 +1,5 @@
 import UIKit
-import Purchasely
+@preconcurrency import Purchasely
 @testable import Shaker
 
 /// Mock implementation of PurchaselyWrapping for unit tests.
@@ -32,7 +32,6 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
 
     // MARK: - PurchaselyWrapping
 
-    @MainActor
     func loadPresentation(
         placementId: String,
         contentId: String?,

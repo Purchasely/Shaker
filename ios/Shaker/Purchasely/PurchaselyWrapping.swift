@@ -1,13 +1,13 @@
 import UIKit
-import Purchasely
+@preconcurrency import Purchasely
 
 /// Protocol abstracting PurchaselyWrapper for testability.
 /// ViewModels depend on this protocol rather than the concrete wrapper.
+@MainActor
 protocol PurchaselyWrapping {
 
     // MARK: - Presentation Loading
 
-    @MainActor
     func loadPresentation(
         placementId: String,
         contentId: String?,
@@ -67,7 +67,6 @@ protocol PurchaselyWrapping {
 // MARK: - Default parameter for contentId
 
 extension PurchaselyWrapping {
-    @MainActor
     func loadPresentation(
         placementId: String,
         onResult: @escaping @MainActor (DisplayResult) -> Void
