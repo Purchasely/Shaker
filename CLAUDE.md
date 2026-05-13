@@ -58,12 +58,14 @@ open Shaker.xcodeproj
 
 ## Purchasely SDK Documentation
 
-**When implementing Purchasely SDK features, always refer to these complete platform guides:**
+**When implementing Purchasely SDK features, always refer to the official platform docs:**
 
-| Platform | Reference File | Description |
-|----------|---------------|-------------|
-| Android/Kotlin | `Documentation/platform/android.md` | Complete Android SDK integration guide |
-| iOS/Swift | `Documentation/platform/ios.md` | Complete iOS SDK integration guide |
+| Platform | Reference | Description |
+|----------|-----------|-------------|
+| Android/Kotlin | https://docs.purchasely.com/quick-start/android | Complete Android SDK integration guide |
+| iOS/Swift | https://docs.purchasely.com/quick-start/ios | Complete iOS SDK integration guide |
+
+In-repo, see also [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) and [`docs/purchasely-best-practices.md`](docs/purchasely-best-practices.md).
 
 ### Verified SDK APIs (from actual SDK inspection)
 
@@ -133,6 +135,6 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 - iOS `Purchasely.synchronize()` requires `success:` and `failure:` closures — Android version is parameterless
 - Android `PLYPlan` uses `store_product_id` (not `productId`) to get the Google Play product ID
 
-## Plan
+## History
 
-See `docs/plans/2026-02-06-feat-shaker-sample-app-plan.md` for the full implementation plan.
+For past architecture decisions (Android refactor 2026-04), see [`android/docs/plans/`](android/docs/plans/).

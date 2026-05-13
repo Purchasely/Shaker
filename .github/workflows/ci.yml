@@ -9,7 +9,7 @@ on:
 
 jobs:
   build-android:
-    name: Build Android
+    name: Build & Test Android
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -24,10 +24,21 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - run: ./gradlew :app:assembleDebug
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest
+
+      - name: Assemble debug APK
+        run: ./gradlew :app:assembleDebug
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: android/app/build/reports/tests/
 
   build-ios:
-    name: Build iOS
+    name: Build & Test iOS
     runs-on: macos-15
     defaults:
       run:
@@ -38,7 +49,8 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - run: xcodegen generate
+      - name: Generate Xcode project
+        run: xcodegen generate
 
       - name: Resolve Swift packages
         run: |
@@ -46,9 +58,18 @@ jobs:
             -project Shaker.xcodeproj \
             -scheme Shaker
 
-      - run: |
+      - name: Build
+        run: |
           xcodebuild build \
             -project Shaker.xcodeproj \
             -scheme Shaker \
             -destination 'generic/platform=iOS Simulator' \
+            -quiet
+
+      - name: Unit tests
+        run: |
+          xcodebuild test \
+            -project Shaker.xcodeproj \
+            -scheme Shaker \
+            -destination 'platform=iOS Simulator,name=iPhone 16,OS=latest' \
             -quiet

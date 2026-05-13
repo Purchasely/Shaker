@@ -17,6 +17,9 @@ android {
     compileSdk = 35
 
     signingConfigs {
+        // Fallback values below are placeholders for the public sample.
+        // For any real distribution, provide signing.storePassword / signing.keyPassword
+        // in `local.properties` (untracked) and ship your own `shaker-release.jks`.
         create("release") {
             storeFile = rootProject.file("shaker-release.jks")
             storePassword = localProperties.getProperty("signing.storePassword", "shaker2026")
@@ -32,6 +35,8 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
+        // Public demo Purchasely API key (safe to ship in the sample).
+        // Override locally by setting `purchasely.apiKey=...` in `local.properties`.
         buildConfigField(
             "String",
             "PURCHASELY_API_KEY",

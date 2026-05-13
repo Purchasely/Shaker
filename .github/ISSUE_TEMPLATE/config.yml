@@ -1,0 +1,14 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Purchasely SDK issue (iOS)
+    url: https://github.com/Purchasely/Purchasely-iOS/issues
+    about: For bugs or feature requests in the iOS SDK itself.
+  - name: Purchasely SDK issue (Android)
+    url: https://github.com/Purchasely/Purchasely-Android/issues
+    about: For bugs or feature requests in the Android SDK itself.
+  - name: Purchasely documentation
+    url: https://docs.purchasely.com
+    about: Integration guides, dashboard, and API reference.
+  - name: Purchasely support
+    url: https://www.purchasely.com/contact
+    about: For account, billing, or production-related questions.

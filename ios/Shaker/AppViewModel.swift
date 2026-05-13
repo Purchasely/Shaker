@@ -12,6 +12,8 @@ class AppViewModel: ObservableObject {
     init() {
         let apiKey = (Bundle.main.object(forInfoDictionaryKey: "PURCHASELY_API_KEY") as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        // Public demo Purchasely API key (safe to ship in the sample).
+        // Override locally by setting `PURCHASELY_API_KEY=...` in `ios/Config.xcconfig`.
         let resolvedApiKey = apiKey.isEmpty ? "6cda6b92-d63c-4444-bd55-5a164c989bd4" : apiKey
         let storedUserId = UserDefaults.standard.string(forKey: "user_id")
 
