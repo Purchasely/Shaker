@@ -1,7 +1,10 @@
 # Purchasely SDK — Best Practices
 
-This document defines the integration standards for the Purchasely SDK in Shaker.
-All changes to the Purchasely integration must follow and update this document.
+**Shaker is Purchasely's official demo / reference app.** It is the canonical example of how to integrate the Purchasely SDK on iOS and Android, so the patterns documented here are not just "what works for one team" — they are the recommendations Purchasely shows to its customers.
+
+This document defines the integration standards as currently implemented in Shaker. **Every change to the Purchasely integration must follow these rules and update this document in the same PR** so the reference app stays a trustworthy source. When the SDK evolves (new APIs, deprecations, new patterns), update Shaker first, then propagate the change here so the doc reflects the current shipping app.
+
+External readers integrating Purchasely in their own app can pick what fits — naming, app prefix, log tags, and infra choices (`KeyValueStore`, repository names, etc.) are Shaker-specific. The architectural rules (wrapper boundary, Observer mode flow, `closeAllScreens()`/`processAction(false)` ordering, `success_payment` chain, audience cache invalidation, …) are platform-wide best practices.
 
 ---
 
@@ -412,6 +415,236 @@ Always handle all `FetchResult` variants:
 - Screen resolves a `UIViewController` via `ViewControllerResolver` for modal display
 - `presentation.height` is in points (use as `CGFloat` directly in `.frame(height:)`)
 - Prefetch is triggered from `onAppear` since `@StateObject` init doesn't have access to `@EnvironmentObject`
+
+---
+
+## 13. Diagnostic & Troubleshooting
+
+When something looks wrong (paywall doesn't close, wrong screen reappears, purchase doesn't unlock premium…), do **not** start patching code. The Purchasely SDK emits a detailed log stream, and Shaker adds its own `[Shaker]` log lines — read them first, the answer is almost always there.
+
+### Log sources
+
+| Prefix | Source | What it tells you |
+|--------|--------|-------------------|
+| `[Purchasely][YYYY-MM-DD HH:MM:SS.mmm]<Level>` | SDK internal logs | SDK lifecycle (config, fetch, validation, receipt status) |
+| `[Purchasely] Event: <NAME>` | SDK analytics events | Every paywall view, purchase, restore, dismiss, error |
+| `[Shaker] Event: <NAME> \| Properties: {…}` | App-side mirror of SDK events (via `PLYEventDelegate` / `EventListener`) | Same events, with the full property bag — useful to inspect targeting context |
+| `[Shaker] …` | App-side instrumentation in `PurchaselyWrapper` | Local decisions (chain `success_payment`, sync result, observer mode dispatch) |
+
+> `[Purchasely]` is emitted by the SDK and is identical in every integration — that is your grep target (`grep "\[Purchasely\]"`) when debugging any Purchasely-powered app. `[Shaker]` is **specific to this demo app** — in your own integration, replace it with your app's log tag (e.g. `[YourApp]`) but keep the same markers around the same decision points (chain trigger, sync result, fetch outcome) so a teammate can reproduce this diagnostic workflow.
+
+Set the SDK log level to `.debug` (iOS) / `LogLevel.DEBUG` (Android) during development — defaults in Shaker.
+
+### Key SDK events to watch
+
+The SDK fires these named events. Each carries a property bag (placement_id, displayed_presentation, flow_id, step_id, plan, …). They are the source of truth for *what the SDK actually did*.
+
+| Event | Fires when | Useful properties |
+|-------|------------|-------------------|
+| `APP_CONFIGURED` | After `Purchasely.start(...)` completes successfully | `sdk_version`, `running_mode`, `storekit_version` |
+| `APP_STARTED` | After the SDK has finished its full startup (config + initial fetches) | `session_id`, `session_count` |
+| `PRESENTATION_LOADED` | A paywall is fetched and ready to render. **Fires once per prefetched placement at startup, plus on every fetch** | `placement_id`, `displayed_presentation`, `internal_presentation_id`, `flow_id`, `display_mode`, `paywall_request_duration_in_ms` |
+| `PRESENTATION_VIEWED` | A paywall is on screen | same + `paywall_rendering_time_in_ms`, `display_method` |
+| `PRESENTATION_CLOSED` | A paywall is dismissed (any reason) | same + `screen_duration` |
+| `PLAN_SELECTED` | User taps a plan | `plan`, `purchasely_plan_id`, `store_product_id` |
+| `IN_APP_PURCHASING` | Purchase tap, billing flow opens | `plan` |
+| `IN_APP_PURCHASED` | Native purchase succeeds (before validation) | `plan`, `transaction_id` |
+| `RECEIPT_CREATED` | SDK builds the receipt payload, about to validate | `receipt_status` |
+| `RECEIPT_VALIDATED` | Server validation succeeded | `receipt_status: completed` |
+| `RECEIPT_FAILED` | Server validation refused the receipt (sandbox issues, expired, invalid signature) | `error` |
+| `IN_APP_PURCHASE_FAILED` | Whole purchase attempt failed (network, receipt, billing) | `error` |
+| `IN_APP_RENEWED` | Receipt confirms an active subscription | `running_subscriptions`, `plan` |
+| `IN_APP_RESTORED` | Restore flow finds an active receipt | `plan` |
+| `IN_APP_DEFERRED` / `IN_APP_NOT_PURCHASED` | Pending / cancelled | `plan` |
+
+### How to read a purchase log trace
+
+Real Shaker log slice for one Observer-mode purchase on the `onboarding` placement (annotated):
+
+```
+[Purchasely] Receipt status: transmitting          ← SDK starts validating the receipt
+[Purchasely] Successfully retrieved subscriptions.
+[Purchasely] Receipt status: completed             ← receipt validated
+[Purchasely] Event: RECEIPT_VALIDATED
+[Shaker] Event: RECEIPT_VALIDATED | Properties: {  ← Shaker mirrors via PLYEventDelegate
+  placement_id: "onboarding",
+  flow_id: "onboarding_flow",
+  displayed_presentation: "onboarding_step_3",
+  plan: "premiumbasicmonthly",
+  running_subscriptions: [{ plan, product }],      ← user is now subscribed ✓
+  …
+}
+[Purchasely] Event: IN_APP_RENEWED                 ← subscription confirmed active
+[Shaker] Transaction success — synchronized; presentation closed, awaiting success_payment
+                                                   ↑ Shaker's own log from
+                                                     handleTransactionResult(.success)
+[Purchasely] Interceptor executed action purchase. Skipping SDK execution.
+                                                   ↑ proceed(false) acknowledged — SDK won't
+                                                     try to purchase via its own flow
+[Purchasely] Event: PRESENTATION_CLOSED            ← paywall dismissed
+[Shaker] Event: PRESENTATION_CLOSED | Properties: { placement_id: "onboarding", … }
+[Shaker] loadPresentation completion — placement=onboarding displayResult=cancelled pendingSuccessfulPurchase=true
+                                                   ↑ Shaker logs the chain decision: pending=true,
+                                                     so success_payment will be triggered next
+[Shaker] Chaining success_payment after onboarding
+[Purchasely] Successfully retrieved presentation Optional("new_screen").
+[Shaker] success_payment fetchCompletion — id=new_screen type=PLYPresentationType(rawValue: 0) error=none
+[Purchasely] Event: PRESENTATION_LOADED            ← success_payment paywall loaded
+[Purchasely] Event: PRESENTATION_VIEWED            ← shown on screen
+```
+
+The trace tells you three things, in order:
+1. **Receipt validated** (`RECEIPT_VALIDATED`, `IN_APP_RENEWED`) — purchase succeeded server-side.
+2. **Paywall dismissed** (`PRESENTATION_CLOSED`) — `proceed(false)` + `closeAllScreens()` worked.
+3. **Chain fired** (`Chaining success_payment` → `PRESENTATION_VIEWED` for the new placement).
+
+If any of those three is missing, you have a defined symptom — see the table below.
+
+### Symptom → likely cause
+
+| Symptom (in logs) | Likely cause | Where to look |
+|-------------------|--------------|---------------|
+| No `RECEIPT_VALIDATED` event | Receipt failed server-side validation | Check `[Purchasely] Receipt status: …` lines — `failed` / `error` → check StoreKit config, sandbox account, server clock |
+| `IN_APP_PURCHASED` but no `IN_APP_RENEWED` | Receipt validated but no active subscription state — server didn't see entitlement | Dashboard → Subscribers → look up the transaction; check store product config |
+| `PRESENTATION_CLOSED` never fires after a successful purchase | `closeAllScreens()` not called, or called before `proceed(false)` | iOS: `PurchaselyWrapper.handleTransactionResult(.success)` order. Android: same in Kotlin |
+| `[Shaker] loadPresentation completion — … pendingSuccessfulPurchase=false` after a real purchase | The flag was never set (handleTransactionResult didn't run, or wrong mode) | iOS: check interceptor `.purchase` case took the Observer branch. Android: same |
+| `[Shaker] Chaining success_payment` fires, but `success_payment fetchCompletion` returns `type=deactivated` or `error=…` | Placement `success_payment` missing / typo / deactivated on dashboard | Dashboard → Placements → `success_payment`. Common gotcha: **typo** in placement_id (we hit `sucess_payment` once — see Shaker history) |
+| `success_payment fetchCompletion` returns a presentation, but the rendered paywall is "the onboarding one again" | The flow that hosts the original placement chains a post-purchase step that points to the wrong paywall | The event's `flow_id` and `displayed_presentation` will reveal the chained step. Dashboard → Flows → inspect `<flow_id>` post-purchase branches |
+| `IN_APP_RESTORED` but premium UI doesn't update | `userSubscriptions(...)` not called after the chain, or callback's `PremiumManager.shared.updatePremium(...)` not wired | iOS: `refreshAfterSuccessPayment()` in `PurchaselyWrapper`. Android: `PremiumManagerImpl.onTransactionCompleted` |
+| `is_fallback_presentation: true` on `PRESENTATION_LOADED` | Audience targeting failed, SDK served the default — usually a stale presentation cache | Trigger an attribute change → `PLYUserAttributeDelegate` invalidates cache. Or call `PresentationCache.shared.invalidateAll()` explicitly |
+
+### Reading event property bags
+
+Every `[Shaker] Event: <NAME> | Properties: {…}` carries the full SDK context. Useful fields when debugging:
+
+- `placement_id` + `internal_placement_id` — which placement the SDK was working on
+- `displayed_presentation` + `internal_presentation_id` + `template` — which paywall design was rendered (template ID matches the Console > Paywalls listing)
+- `flow_id` + `flow_session_id` + `internal_flow_id` + `step_id` + `from_step_id` — flow position. Useful to detect when a flow continues into a post-purchase step (the bug we hit with `new_screen` chained inside `onboarding_flow`)
+- `is_fallback_presentation: true` — SDK fell back to the default paywall instead of resolving via audience targeting
+- `display_mode` — `full_screen` / `push` — reveals how the SDK is rendering (e.g. a `push` after `full_screen` indicates a flow step continuation)
+- `purchasable_plans` — the plans offered. Empty array on `success_payment` is normal (no purchase action expected)
+- `running_subscriptions` (on `IN_APP_RENEWED`) — confirms which entitlement is active after the validation
+- `paywall_request_duration_in_ms` + `paywall_rendering_time_in_ms` — performance budget for the paywall
+
+### App-side `[Shaker]` log markers added by the wrapper
+
+These are the lines we **deliberately** print to make the integration debuggable. Don't remove them unless you've stopped using `PurchaselyWrapper`:
+
+| Line | Where | Tells you |
+|------|-------|-----------|
+| `[Shaker] Transaction success — synchronized; presentation closed, awaiting success_payment` | `handleTransactionResult(.success)` after `synchronizeReceipt()` | Sync finished, dismissal sequence ran |
+| `[Shaker] Synchronize failed after transaction: <err>` | `handleTransactionResult(.success)` catch | Sync errored — we dismissed anyway |
+| `[Shaker] Transaction cancelled` / `[Shaker] Transaction error: …` | other `handleTransactionResult` cases | Non-success outcomes from Observer mode |
+| `[Shaker] loadPresentation completion — placement=<id> displayResult=<r> pendingSuccessfulPurchase=<b>` | `loadPresentation` SDK completion | Snapshot of state when paywall dismissed |
+| `[Shaker] Chaining success_payment after <placement>` | Same, just before triggering the chain | Confirms chain decision |
+| `[Shaker] success_payment fetchCompletion — id=<id> type=<t> error=<e>` | `showSuccessPaymentScreen` fetch | What the success_payment placement actually resolves to |
+| `[Shaker] success_payment placement unavailable: <err>` | Same, no presentation returned | Placement is missing or deactivated |
+| `[Shaker] Error refreshing after success_payment: …` | `refreshAfterSuccessPayment` failure | Subscriptions refresh failed — UI may show stale premium state |
+| `[Shaker] Event: <NAME> \| Properties: …` | `PLYEventDelegate.eventTriggered` | Every SDK event mirrored to the app log |
+| `[Shaker] User attribute set: <k>=<v> (source: …)` / `[Shaker] User attribute removed: …` | `PLYUserAttributeDelegate` | Audience-affecting changes — presentation cache is invalidated here |
+
+### Reading SDK lifecycle logs (startup)
+
+> Every SDK log line is tagged `[Purchasely][YYYY-MM-DD HH:MM:SS.mmm]<Level>` — that tag is the easiest way to slice them out of the console (`grep "\[Purchasely\]"`). App-side mirroring is tagged `[Shaker]`.
+
+Real Shaker startup slice (annotated):
+
+```
+[Purchasely] 1 products declared: premium-basic                          ← SDK reads its configured products
+[Purchasely] [AppStore][Storekit2] Fetching app store products:          ← StoreKit2 fetches App Store metadata
+              premium.basic.nonrenewing,
+              com.purchasely.shaker.basic.semester,
+              com.purchasely.shaker.basic.monthly
+[Purchasely] Successfully retrieved presentation Optional("new_screen")  ← prefetched paywalls (one log per placement)
+[Purchasely] Successfully retrieved presentation Optional("inline_2")
+[Purchasely] [AppStore][Storekit2] Fetched app store products and found  ← all store products resolved
+              premium.basic.nonrenewing,
+              com.purchasely.shaker.basic.monthly,
+              com.purchasely.shaker.basic.semester
+[Purchasely] 1 products available for sale: premium-basic                ← product mapping resolved
+[Purchasely] 3 plans available for sale: premiumbasicmonthly,
+              premiumbasicyearly,
+              premiumbasicsemester
+[Purchasely] Event: APP_CONFIGURED                                       ← ✓ Purchasely.start() succeeded
+[Purchasely] Event: PRESENTATION_LOADED                                  ← one event per prefetched placement
+[Purchasely] Event: PRESENTATION_LOADED
+[Purchasely] Event: PRESENTATION_LOADED
+[Purchasely] Event: PRESENTATION_LOADED
+[Purchasely] Event: PRESENTATION_VIEWED                                  ← the onboarding paywall shown to user
+[Purchasely] Event: APP_STARTED                                          ← ✓ initial fetches done, SDK fully ready
+[Purchasely] Successfully retrieved subscriptions.                       ← first subscriptions() poll
+[Purchasely] Successfully retrieved subscriptions.                       ← (may fire several times — initial sync passes)
+[Purchasely] Successfully retrieved subscriptions.
+```
+
+**Order matters:**
+1. **Products fetch** from the App Store / Play Store (before any paywall can show real prices)
+2. **Presentations fetch** in parallel (one `Successfully retrieved presentation Optional("…")` per prefetched placement)
+3. **`APP_CONFIGURED`** — SDK marks itself as ready; `onReady`/`onConfigured` fires
+4. **`PRESENTATION_LOADED` × N** — one event per prefetched placement; useful to confirm all your placements were resolved
+5. **`PRESENTATION_VIEWED`** — first paywall actually shown
+6. **`APP_STARTED`** — full startup completed (the SDK considers itself fully bootstrapped)
+7. **Initial `userSubscriptions` polls** — SDK refreshes subscription state
+
+**Red flags at startup:**
+- `APP_CONFIGURED` never fires → `start(...)` failed. Check API key, network, the `onReady`/`onConfigured` callback's `error` argument.
+- `0 products available for sale` → product IDs in the Console don't match any store products. Check Console > Products and store consoles (App Store Connect / Play Console).
+- `0 plans available for sale` → plans configured but no store products bound. Console > Products > plan → store binding.
+- Paywall `PRESENTATION_LOADED` missing for a placement you expect → placement undefined / deactivated / wrong audience targeting on dashboard.
+- `is_fallback_presentation: true` on `PRESENTATION_VIEWED` → audience targeting failed, default paywall served.
+
+### Reading receipt validation logs
+
+Receipt processing has its own log stream — useful when a purchase succeeds locally (StoreKit confirms) but Purchasely doesn't recognise the subscription. **The validation can fail without aborting the StoreKit transaction**, so always check both sides.
+
+Sandbox-failure trace (annotated):
+
+```
+[Purchasely] [AppStore][Storekit2][Listener] Transaction verified:       ← StoreKit verified the transaction locally
+              com.purchasely.shaker.basic.monthly
+[Purchasely] Receipt created.                                            ← receipt payload built
+[Purchasely] Event: RECEIPT_CREATED
+[Purchasely] Refreshing receipt status for validation.
+[Purchasely] Checking receipt status (single attempt).
+[Purchasely] Receipt status: verifying                                   ← server-side validation in progress
+[Purchasely] Receipt is still being processed (status: verifying)
+[Purchasely] Refreshing receipt status for validation.                   ← SDK polls
+[Purchasely] Checking receipt status (single attempt).
+[Purchasely] Receipt status: failed                                      ← ⛔ server refused
+[Purchasely] ⛔️ Receipt validation failed.                               ← human-readable cause
+              [Sandbox error] The receipt sent by Apple doesn't
+              contain a valid purchase. To force Apple to make a
+              new purchase, try the following procedure: …
+[Purchasely] Event: RECEIPT_FAILED                                       ← analytics event for the failure
+[Purchasely] Event: IN_APP_PURCHASE_FAILED                               ← overall purchase attempt marked failed
+[Purchasely] [AppStore][Storekit2][Listener] Transaction verified:       ← StoreKit retries / fires the entitlement again
+              com.purchasely.shaker.basic.monthly
+[Purchasely] Event: IN_APP_RENEWED                                       ← ✓ eventually recovers
+```
+
+**How to read `Receipt status`:** the SDK polls until a terminal status is reached.
+
+| Status | Meaning |
+|--------|---------|
+| `transmitting` | Receipt being uploaded to Purchasely's server |
+| `verifying` | Server validating with Apple / Google |
+| `completed` | Validated, entitlement granted ✓ |
+| `failed` | Validation refused — see the error message that follows |
+
+**Common `failed` causes (App Store sandbox):**
+- Sandbox account not signed in / mismatched
+- StoreKit Configuration file used in Xcode (local testing) but receipt sent to real Apple servers
+- Receipt from a different bundle ID / environment
+- Clock skew (server vs device > a few minutes)
+- For real prod issues: check Apple / Google service status before debugging code
+
+### Quick diagnostic checklist
+
+When a teammate says "paywall is broken", ask in this order:
+1. **Which platform** and **which placement_id**? (iOS / Android, `onboarding` / `recipe_detail` / …)
+2. **Console grep** : `grep -E "\[Purchasely\]|\[Shaker\]"` over the run
+3. **First red flag** : missing `APP_CONFIGURED` (config) ? Missing `PRESENTATION_LOADED` (placement/audience) ? `is_fallback_presentation: true` (cache) ?
+4. **Dashboard cross-check** : does the placement exist? Is it deactivated? Which paywall is attached? Is it in a flow that chains elsewhere?
 
 ---
 

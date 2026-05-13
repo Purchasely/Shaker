@@ -306,15 +306,18 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                     // pendingSuccessfulPurchase (Observer mode) — chain a "success_payment"
                     // placement. Skip if this IS the success_payment to avoid recursion.
                     Task { @MainActor [weak self] in
+                        let pending = self?.pendingSuccessfulPurchase ?? false
+                        print("[Shaker] loadPresentation completion — placement=\(placementId) displayResult=\(displayResult) pendingSuccessfulPurchase=\(pending)")
                         onResult(displayResult)
                         let purchaseHappened: Bool = {
                             switch displayResult {
                             case .purchased, .restored: return true
-                            case .cancelled: return self?.pendingSuccessfulPurchase ?? false
+                            case .cancelled: return pending
                             }
                         }()
                         if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
                             self?.pendingSuccessfulPurchase = false
+                            print("[Shaker] Chaining success_payment after \(placementId)")
                             self?.showSuccessPaymentScreen()
                         }
                     }
@@ -342,6 +345,9 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             fetchCompletion: { [weak self] presentation, error in
                 Task { @MainActor [weak self] in
                     guard let self else { return }
+                    let presentationId = presentation?.id ?? "nil"
+                    let presentationType = presentation.map { "\($0.type)" } ?? "nil"
+                    print("[Shaker] success_payment fetchCompletion — id=\(presentationId) type=\(presentationType) error=\(error?.localizedDescription ?? "none")")
                     if let presentation, presentation.type != .deactivated {
                         presentation.display(from: nil)
                     } else {
