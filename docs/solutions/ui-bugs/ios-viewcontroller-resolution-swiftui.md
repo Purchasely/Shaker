@@ -9,6 +9,8 @@ symptoms:
   - "Paywall doesn't present from Settings/List screens"
 severity: medium
 date_solved: 2026-02-06
+last_reviewed: 2026-05-13
+sdk: "Purchasely 5.7"
 ---
 
 # iOS ViewControllerResolver fails in List/TabView contexts

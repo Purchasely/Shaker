@@ -3,12 +3,14 @@ title: "Toggle Purchasely SDK running mode from Settings"
 category: integration-issues
 tags: [purchasely, android, ios, settings, running-mode, paywallObserver, full]
 module: SDK Integration
+sdk: "Purchasely 5.7"
 symptoms:
   - "Need to switch SDK between full and paywallObserver at runtime"
   - "Mode choice should persist across app relaunch"
   - "Need restart behavior and user guidance after mode change"
 severity: medium
 date_solved: 2026-02-17
+last_reviewed: 2026-05-13
 ---
 
 # Toggle Purchasely SDK running mode from Settings
@@ -35,38 +37,35 @@ Implemented a shared behavior on Android and iOS:
 
 ## Android implementation
 
-- New enum and storage contract:
+- Storage layer is now a dedicated repository (`RunningModeRepository`):
+  - `android/app/src/main/java/com/purchasely/shaker/data/RunningModeRepository.kt`
   - `android/app/src/main/java/com/purchasely/shaker/data/PurchaselySdkMode.kt`
-- SDK init now resolves running mode from storage:
-  - `android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt`
-- Added explicit restart path:
-  - `ShakerApp.restartPurchaselySdk()` -> `Purchasely.close()` then `initPurchasely()`
+- `PurchaselyWrapper` reads the mode from the repository inside `initialize()` and `restart()`:
+  - `android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt`
+- Restart path is the wrapper's own `restart()` method (closes the SDK, then re-builds and re-starts it).
 - Settings ViewModel:
-  - reads/writes `purchasely_sdk_mode`
-  - calls app restart when mode changes
+  - reads/writes via `RunningModeRepository`
+  - calls `purchaselyWrapper.restart()` when the mode changes
   - exposes restart-required alert state
   - file: `android/app/src/main/java/com/purchasely/shaker/ui/screen/settings/SettingsViewModel.kt`
 - Settings UI:
-  - new "Purchasely SDK" segmented control
+  - "Purchasely SDK" segmented control
   - restart-required `AlertDialog`
   - file: `android/app/src/main/java/com/purchasely/shaker/ui/screen/settings/SettingsScreen.kt`
 
 ## iOS implementation
 
-- Added mode enum + storage helpers:
-  - `ios/Shaker/AppViewModel.swift`
-  - key: `purchasely_sdk_mode`
-  - default: `.paywallObserver`
-- SDK initialization now uses stored mode:
-  - `Purchasely.start(... runningMode: selectedMode.runningMode, ...)`
+- Storage layer is now a dedicated `RunningModeRepository` (UserDefaults-backed):
+  - `ios/Shaker/Data/RunningModeRepository.swift`
+- `PurchaselyWrapper.initialize()` reads `PurchaselySDKMode.current()` (which consults the repository) before calling `Purchasely.start(...)`.
 - Restart behavior:
-  - Settings posts `.purchaselySdkModeDidChange`
-  - `AppViewModel` observes notification and restarts SDK (`closeDisplayedPresentation()` + `start(...)`)
+  - Settings calls `wrapper.restart()`
+  - `restart()` invalidates `PresentationCache` (mode change → previous fetches are stale), closes any displayed presentation, then re-starts the SDK with the new running mode.
 - Settings ViewModel:
-  - persists mode and emits restart message
+  - persists mode through the repository and emits restart message
   - file: `ios/Shaker/Screens/Settings/SettingsViewModel.swift`
 - Settings UI:
-  - new "Purchasely SDK" segmented picker
+  - "Purchasely SDK" segmented picker
   - restart-required alert
   - file: `ios/Shaker/Screens/Settings/SettingsScreen.swift`
 

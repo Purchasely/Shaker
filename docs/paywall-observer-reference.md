@@ -1,5 +1,8 @@
 # Purchasely PaywallObserver Mode - Complete API Reference
 
+> **SDK version:** Purchasely **5.7** (iOS + Android). Last reviewed: 2026-05-13.
+> Code samples are minimal: see Shaker's `PurchaseManager.swift` / `PurchaseManager.kt` and `PurchaselyWrapper` for a production-ready Observer integration with reactive decoupling (no `Purchasely` imports inside `PurchaseManager`).
+
 ## 1. SDK Initialization
 
 ### iOS (Swift)
@@ -111,12 +114,20 @@ Purchasely.setPaywallActionsInterceptor { info, action, parameters, processActio
 
 ## 3. Synchronize
 
-Call `Purchasely.synchronize()` after every successful purchase or restore to sync receipts with Purchasely for analytics.
+Call `Purchasely.synchronize()` after every successful purchase or restore to sync receipts with Purchasely for analytics. **Wait for the success callback before closing the paywall** so the SDK has time to upload the receipt — Shaker's wrapper does this for you.
 
 ### iOS
 
 ```swift
-Purchasely.synchronize()
+// The 5.7 SDK requires both closures.
+Purchasely.synchronize(
+    success: { _ in
+        // safe to close the paywall and refresh entitlements
+    },
+    failure: { error in
+        print("synchronize failed: \(error.localizedDescription)")
+    }
+)
 ```
 
 ### Android
@@ -125,7 +136,7 @@ Purchasely.synchronize()
 Purchasely.synchronize()
 ```
 
-**When to call:** After EVERY successful purchase and restore, before or after calling `proceed(false)` / `processAction(false)`.
+**When to call:** After EVERY successful purchase and restore, before or after calling `proceed(false)` / `processAction(false)`. The Shaker iOS wrapper additionally invalidates `PresentationCache` on success — subscription state may have changed, which affects audience targeting.
 
 ---
 

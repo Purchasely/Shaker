@@ -3,21 +3,25 @@
 > This guide walks through every Purchasely SDK feature demonstrated in the Shaker sample app.
 > Code snippets are taken directly from the app — see the referenced files for full context.
 >
-> **Architecture note:** Shaker wraps all SDK calls in `PurchaselyWrapper`. ViewModels and Screens never import the Purchasely SDK directly. See `docs/purchasely-best-practices.md` for the full architecture rationale.
+> **SDK version:** Purchasely **5.7** (Android SDK 5.7.x, iOS SDK 5.7.x).
+>
+> **Architecture note:** Shaker wraps all SDK calls in `PurchaselyWrapper`. ViewModels and Screens never import the Purchasely SDK directly. The wrapper is a *recommendation* — not a requirement — but it makes the rest of this guide consistent. See `docs/purchasely-best-practices.md` for the full architecture rationale.
 
 ## Table of Contents
 
 1. [SDK Initialization](#1-sdk-initialization)
 2. [Displaying Paywalls](#2-displaying-paywalls)
-3. [Paywall Actions Interceptor](#3-paywall-actions-interceptor)
-4. [Observer Mode: Native Purchase Flow](#4-observer-mode-native-purchase-flow)
-5. [User Authentication](#5-user-authentication)
-6. [Subscription Status](#6-subscription-status)
-7. [User Attributes](#7-user-attributes)
-8. [Events & Analytics](#8-events--analytics)
-9. [Deeplinks](#9-deeplinks)
-10. [GDPR & Privacy](#10-gdpr--privacy)
-11. [Restore Purchases](#11-restore-purchases)
+3. [Inline / Embedded Paywalls](#3-inline--embedded-paywalls)
+4. [Chained `success_payment` placement](#4-chained-success_payment-placement)
+5. [Paywall Actions Interceptor](#5-paywall-actions-interceptor)
+6. [Observer Mode: Native Purchase Flow](#6-observer-mode-native-purchase-flow)
+7. [User Authentication](#7-user-authentication)
+8. [Subscription Status](#8-subscription-status)
+9. [User Attributes](#9-user-attributes)
+10. [Events & Analytics](#10-events--analytics)
+11. [Deeplinks](#11-deeplinks)
+12. [GDPR & Privacy](#12-gdpr--privacy)
+13. [Restore Purchases](#13-restore-purchases)
 
 ---
 
@@ -110,23 +114,27 @@ Purchasely.setPaywallActionsInterceptor { [weak self] action, params, info, proc
 
 **What it does:** The `loadPresentation()` + `display()` two-step pattern fetches a paywall configured in the Purchasely Console for a given **placement**, then renders it modally. A `contentId` can be passed to personalise the paywall for a specific content item (e.g. a cocktail recipe).
 
-Shaker uses four placements:
+Shaker uses six placements:
 
-| Placement ID    | Trigger                                   |
-|-----------------|-------------------------------------------|
-| `onboarding`    | First launch, before the main UI appears  |
-| `recipe_detail` | Tapping a locked recipe (with `contentId`)|
-| `favorites`     | Tapping the favorites heart when not premium |
-| `filters`       | Tapping the filter button when not premium|
+| Placement ID      | Trigger                                                       |
+|-------------------|---------------------------------------------------------------|
+| `onboarding`      | First launch + Settings re-launch                             |
+| `recipe_detail`   | Tapping a locked recipe (with `contentId = cocktail id`)      |
+| `favorites`       | Tapping the favorites heart / opening the favorites tab       |
+| `filters`         | Tapping the filter button when not premium                    |
+| `inline`          | Embedded banner on Home (see section 3)                       |
+| `success_payment` | Chained automatically after any successful purchase (section 4) |
 
 ### Android (Kotlin) — via PurchaselyWrapper
 
 Source: `android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt`
 
 ```kotlin
-// Wrapper provides a suspend API returning type-safe FetchResult
+// Wrapper exposes a suspend API returning type-safe FetchResult.
+// PresentationHandle is a `@JvmInline value class` wrapping PLYPresentation
+// so the raw SDK type never leaks into the UI layer.
 suspend fun loadPresentation(placementId: String, contentId: String? = null): FetchResult
-suspend fun display(presentation: PLYPresentation, activity: Activity): DisplayResult
+suspend fun display(handle: PresentationHandle, activity: Activity): DisplayResult
 ```
 
 ViewModel usage:
@@ -137,25 +145,35 @@ viewModelScope.launch {
     _filtersPresentation.value = purchaselyWrapper.loadPresentation("filters")
 }
 
-// Display when user taps
-val presentation = pendingPresentation ?: return
-val result = purchaselyWrapper.display(presentation, activity)
-when (result) {
-    is DisplayResult.Purchased, is DisplayResult.Restored -> premiumManager.refreshPremiumStatus()
-    else -> {}
+// Display when the user taps
+val handle = (filtersPresentation.value as? FetchResult.Success)?.handle ?: return
+when (val result = purchaselyWrapper.display(handle, activity)) {
+    is DisplayResult.Purchased,
+    is DisplayResult.Restored -> premiumManager.refreshPremiumStatus()
+    is DisplayResult.Cancelled -> {}
 }
 ```
+
+`FetchResult` is a sealed class with four states: `Success(handle, height)`, `Client(handle)`, `Deactivated`, `Error(message)`. The `height` carried by `Success` is the suggested pixel height of an inline / embedded presentation (used by `EmbeddedScreenBanner`).
 
 ### iOS (Swift) — via PurchaselyWrapper
 
 Source: `ios/Shaker/Purchasely/PurchaselyWrapper.swift`
 
 ```swift
-// Wrapper provides async API with onResult callback for purchase events
+// async API with onResult callback for purchase events.
+// loadPresentation is annotated @MainActor — the result enters the
+// PresentationCache so subsequent callers with the same (placementId, contentId)
+// short-circuit the network fetch.
 @MainActor
-func loadPresentation(placementId: String, contentId: String? = nil,
-                       onResult: @escaping @MainActor (DisplayResult) -> Void) async -> FetchResult
+func loadPresentation(
+    placementId: String,
+    contentId: String? = nil,
+    onResult: @escaping @MainActor (DisplayResult) -> Void
+) async -> FetchResult
+
 func display(presentation: PLYPresentation, from viewController: UIViewController?)
+func getController(presentation: PLYPresentation) -> PLYPresentationViewController?
 ```
 
 ViewModel usage:
@@ -165,14 +183,27 @@ ViewModel usage:
 recipeFetchResult = await wrapper.loadPresentation(
     placementId: "recipe_detail", contentId: cocktailId
 ) { result in
-    if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
-    if case .restored = result { PremiumManager.shared.refreshPremiumStatus() }
+    switch result {
+    case .purchased, .restored: PremiumManager.shared.refreshPremiumStatus()
+    case .cancelled: break
+    }
 }
 
 // Display
-guard case .success(let presentation) = recipeFetchResult else { return }
-wrapper.display(presentation: presentation, from: viewController)
+if case .success(let presentation) = recipeFetchResult {
+    wrapper.display(presentation: presentation, from: viewController)
+}
 ```
+
+#### Presentation cache (iOS)
+
+`PresentationCache` (singleton in `ios/Shaker/Purchasely/PresentationCache.swift`) keys results by `placementId` + `contentId`. The cache is invalidated:
+
+- on every `synchronize()` success (subscription state changed → targeting may differ),
+- when any user attribute changes (via `setUserAttributeDelegate`),
+- on SDK restart (Full ↔ Observer mode toggle).
+
+The Android wrapper does not maintain an explicit cache — the SDK's internal cache is enough for the current placements.
 
 ### Console Setup
 
@@ -183,12 +214,109 @@ wrapper.display(presentation: presentation, from: viewController)
 ### Common Pitfalls
 
 - Always handle `FetchResult.Deactivated` (no-op) and `FetchResult.Error` (log, don't crash).
-- On iOS, `presentation.display(from:)` must be called on the **main thread**.
+- On iOS, `presentation.display(from:)` must be called on the **main thread** — the wrapper is already `@MainActor`.
 - On Android, pass an `Activity` (not a `Context`) to `display()`.
+- Don't use convenience APIs like `presentationView` / `presentationController` — they bypass the fetch/display split that Shaker relies on for `success_payment` chaining and inline placements.
 
 ---
 
-## 3. Paywall Actions Interceptor
+## 3. Inline / Embedded Paywalls
+
+**What it does:** A placement of type `inline` (sometimes called *nested view*) is rendered inside the host screen — no modal. Shaker uses the `inline` placement as a horizontal banner above the cocktail list on Home.
+
+### Android (Kotlin)
+
+Source: `android/app/src/main/java/com/purchasely/shaker/purchasely/EmbeddedScreenBanner.kt` (Composable wrapper) + `PurchaselyWrapper.getView()`.
+
+```kotlin
+// PurchaselyWrapper
+fun getView(
+    handle: PresentationHandle,
+    context: Context,
+    onResult: (DisplayResult) -> Unit
+): View? = handle.presentation.buildView(
+    context = context,
+    callback = { result, plan -> /* map to DisplayResult */ }
+)
+```
+
+The `EmbeddedScreenBanner` Composable wraps `getView()` in an `AndroidView` and uses the `height` carried by `FetchResult.Success` to size itself.
+
+### iOS (Swift)
+
+```swift
+// PurchaselyWrapper
+func getController(presentation: PLYPresentation) -> PLYPresentationViewController? {
+    Purchasely.controller(for: presentation)
+}
+```
+
+`EmbeddedScreenBanner` (SwiftUI) hosts the returned `UIViewController` via `UIViewControllerRepresentable`. Shaker fetches it with:
+
+```swift
+inlinePresentation = await wrapper.loadPresentation(placementId: "inline") { result in
+    if case .purchased = result { PremiumManager.shared.refreshPremiumStatus() }
+}
+```
+
+### Common Pitfalls
+
+- Configure the placement in the Console as a `inline` / `nested` placement — otherwise `presentation.type` will be `.normal` and the SDK will expect a modal display.
+- Inline placements still emit purchase events through the same `onResult` callback as modal ones.
+
+---
+
+## 4. Chained `success_payment` placement
+
+**What it does:** After every successful purchase or restore, Shaker fetches a second placement named `success_payment` and displays it once the original paywall closes. Typical use cases: thank-you screen, cross-sell, paywall-internal welcome flow.
+
+### How the chain fires
+
+1. The user purchases (or restores) from any placement (`onboarding`, `recipe_detail`, `favorites`, `filters`, `inline`).
+2. `loadPresentation()`'s SDK completion fires with `.purchased` / `.restored`.
+3. The wrapper notes the success **and** clears `pendingSuccessfulPurchase` (used by Observer mode — see section 6).
+4. The wrapper fetches `success_payment` and displays it.
+5. When `success_payment` closes, `PremiumManager` is refreshed.
+
+The chain is skipped if `placementId == "success_payment"` (recursion guard) or the `success_payment` placement is deactivated / errors.
+
+### Android
+
+```kotlin
+// PurchaselyWrapper.display(handle, activity)
+val purchaseHappened = initial is DisplayResult.Purchased
+    || initial is DisplayResult.Restored
+    || pendingSuccessfulPurchase
+
+if (purchaseHappened) {
+    pendingSuccessfulPurchase = false
+    showSuccessPaymentScreen(activity)   // fetch + display "success_payment"
+}
+```
+
+### iOS
+
+```swift
+// Inside the SDK's display completion in loadPresentation
+if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
+    self?.pendingSuccessfulPurchase = false
+    self?.showSuccessPaymentScreen()
+}
+```
+
+### Console setup
+
+- Create a placement named exactly `success_payment`.
+- Audience targeting on this placement decides whether anything is shown — leaving the placement deactivated is a safe default.
+
+### Common Pitfalls
+
+- Don't re-enter the chain from inside `success_payment` itself.
+- If you skip the chain (e.g. inline banner only), refresh `PremiumManager` manually — Shaker does it in the wrapper's chain completion.
+
+---
+
+## 5. Paywall Actions Interceptor
 
 **What it does:** Intercepts specific button actions triggered from inside a paywall before they are processed. Use it to implement a custom login flow (`LOGIN` action) or to handle in-paywall navigation links (`NAVIGATE` action).
 
@@ -244,7 +372,7 @@ internal func handlePaywallAction(action, parameters, info, processAction) {
 
 ---
 
-## 4. Observer Mode: Native Purchase Flow
+## 6. Observer Mode: Native Purchase Flow
 
 **What it does:** In Observer mode, the app handles purchases natively (Google Play Billing / StoreKit 2) while Purchasely only observes transactions for analytics and paywall display. Shaker uses a **reactive decoupling** pattern where `PurchaseManager` has zero Purchasely SDK imports.
 
@@ -323,12 +451,14 @@ PurchaseManager.shared.resultSubject.sink { result in handleTransactionResult(re
 ### Common Pitfalls
 
 - In Observer mode, `synchronize()` must be called after every successful purchase so Purchasely can track it. The wrapper handles this automatically on `TransactionResult.Success`.
+- On iOS, `synchronize()` is parameter-less in the wrapper, but the underlying SDK call requires `success:` and `failure:` closures (`Purchasely.synchronize(success:failure:)` is wrapped behind an `async` helper). After every success the wrapper invalidates `PresentationCache`.
 - The `processAction(false)` callback must be called for **every** outcome (success, cancel, error) — otherwise the paywall freezes.
+- The Observer-mode purchase chain sets `pendingSuccessfulPurchase = true` so the wrapper still triggers the `success_payment` chain (section 4) even when the SDK reports `.cancelled` (because the native flow handled the purchase, not the SDK).
 - `PurchaseManager` must never import or reference the Purchasely SDK — it uses injected closures for `anonymousUserId` and `signPromotionalOffer`.
 
 ---
 
-## 5. User Authentication
+## 7. User Authentication
 
 **What it does:** Associates the current app user with a Purchasely user ID so that subscriptions are correctly attributed and can be restored across devices.
 
@@ -371,7 +501,7 @@ PremiumManager.shared.refreshPremiumStatus()
 
 ---
 
-## 6. Subscription Status
+## 8. Subscription Status
 
 **What it does:** Queries the user's active subscriptions from Purchasely's server. Shaker uses `userSubscriptions()` to determine whether the user is premium.
 
@@ -431,7 +561,7 @@ Purchasely.userSubscriptions(
 
 ---
 
-## 7. User Attributes
+## 9. User Attributes
 
 **What it does:** Sends typed key-value attributes to Purchasely for audience segmentation, A/B test targeting, and personalisation.
 
@@ -465,12 +595,13 @@ wrapper.setUserAttribute("Rum", forKey: "favorite_spirit")
 
 ### Common Pitfalls
 
-- On iOS, the method name varies by type: `withStringValue:`, `withBoolValue:`, `withIntValue:`. The wrapper unifies this behind `setUserAttribute(_:forKey:)` overloads.
+- On iOS, the raw SDK method name varies by type: `setUserAttribute(withStringValue:forKey:)`, `setUserAttribute(withBoolValue:forKey:)`, `setUserAttribute(withIntValue:forKey:)`. The wrapper unifies this behind overloaded `setUserAttribute(_:forKey:)`.
 - `incrementUserAttribute` increments from the last known server value — avoid calling it multiple times for the same event.
+- **iOS only — cache invalidation:** `PurchaselyWrapper` conforms to `PLYUserAttributeDelegate` and invalidates `PresentationCache` on every attribute change, because audience targeting depends on attributes and cached paywalls would otherwise be stale.
 
 ---
 
-## 8. Events & Analytics
+## 10. Events & Analytics
 
 **What it does:** The SDK emits named `PLYEvent` objects at key points. The event listener/delegate is configured inside `PurchaselyWrapper.initialize()`.
 
@@ -506,11 +637,11 @@ extension PurchaselyWrapper: PLYEventDelegate {
 ### Common Pitfalls
 
 - Set the listener **after** `start()` but in the same initialization block.
-- On iOS, `properties` is nullable — do not force-unwrap it.
+- On iOS, `eventTriggered(_:properties:)` declares `properties` as **optional** (`[String: Any]?`) — never force-unwrap it.
 
 ---
 
-## 9. Deeplinks
+## 11. Deeplinks
 
 **What it does:** Allows Purchasely paywalls to be opened directly from a URL. `readyToOpenDeeplink(true)` is called inside `PurchaselyWrapper.initialize()`.
 
@@ -548,7 +679,7 @@ func isDeeplinkHandled(deeplink: URL) -> Bool
 
 ---
 
-## 10. GDPR & Privacy
+## 12. GDPR & Privacy
 
 **What it does:** `revokeDataProcessingConsent(for:)` tells the SDK which data processing purposes the user has opted out of. Shaker exposes five toggles in Settings.
 
@@ -593,7 +724,7 @@ wrapper.revokeDataProcessingConsent(for: revoked)
 
 ---
 
-## 11. Restore Purchases
+## 13. Restore Purchases
 
 **What it does:** Triggers a server-side restore of all purchases. In Full mode, goes through the wrapper. In Observer mode, the reactive flow handles it automatically via `PurchaseManager`.
 

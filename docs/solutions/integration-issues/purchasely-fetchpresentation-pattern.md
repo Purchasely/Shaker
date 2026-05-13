@@ -3,13 +3,18 @@ title: "Use fetchPresentation + display() for Purchasely paywalls"
 category: integration-issues
 tags: [purchasely, android, ios, paywalls, flows, fetchPresentation]
 module: SDK Integration
+sdk: "Purchasely 5.7"
 symptoms:
   - "Purchasely flows don't work"
   - "Paywall displays but flow sequence doesn't trigger"
   - "presentationView doesn't support flows"
+  - "success_payment chain never fires"
 severity: high
 date_solved: 2026-02-06
+last_reviewed: 2026-05-13
 ---
+
+> **Note (SDK 5.7):** Shaker's `PurchaselyWrapper` already implements the fetch + display split (see `loadPresentation` / `display`). This document describes the underlying SDK contract — use the wrapper in Shaker code instead of calling these APIs directly.
 
 # Use fetchPresentation + display() for Purchasely paywalls
 
@@ -139,3 +144,5 @@ Purchasely.fetchPresentation(
 ## Prevention
 
 Always use `fetchPresentation` + `display()` for any new paywall integration. Never use `presentationView` (Android) or `presentationController` (iOS) -- these convenience methods do not support Purchasely flows.
+
+In Shaker, the wrapper centralises this: call `purchaselyWrapper.loadPresentation(placementId, contentId)` and then `purchaselyWrapper.display(handle, activity)` (Android) or `wrapper.display(presentation:from:)` (iOS). The wrapper also chains the `success_payment` placement automatically after a purchase — using the convenience APIs would bypass this chain.

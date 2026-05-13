@@ -2,17 +2,18 @@
 title: "Shaker manual validation matrix"
 category: testing
 tags: [shaker, manual-tests, android, ios, purchasely, paywall]
-date: 2026-02-17
+date: 2026-05-13
+sdk: "Purchasely 5.7"
 ---
 
 # Shaker manual validation matrix
 
 ## Purpose
 
-Validate Purchasely integration parity between Android and iOS for:
+Validate Purchasely **5.7** integration parity between Android and iOS for:
 - user states: free, premium, expired
-- placements: `onboarding`, `recipe_detail`, `favorites`, `filters`
-- supporting flows: login/logout, restore, deep links, GDPR toggles
+- placements: `onboarding`, `recipe_detail`, `favorites`, `filters`, `inline`, `success_payment`
+- supporting flows: login/logout, restore, deep links, GDPR toggles, success_payment chain
 
 ## Preconditions
 
@@ -25,6 +26,8 @@ Validate Purchasely integration parity between Android and iOS for:
   - `recipe_detail`
   - `favorites`
   - `filters`
+  - `inline` (configured as a *nested* / *inline* placement)
+  - `success_payment` (a deactivated placement is acceptable — the chain will gracefully no-op)
 - At least one subscription plan grants `SHAKER_PREMIUM`.
 - Sandbox/test products are configured for iOS and Android stores.
 
@@ -70,6 +73,10 @@ Validate Purchasely integration parity between Android and iOS for:
 | T16 | Event logging | any | Trigger paywall, purchase/restore, login/logout | Console logs events with `[Shaker]` prefix | PASS (code-path) | PASS (code-path) | `Shaker/android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt:50`, `Shaker/ios/Shaker/AppViewModel.swift:63` | - |
 | T17 | Paywall action interceptor login | free_user | Trigger paywall action `.login` | Login flow/sheet opens instead of default action | FAIL | FAIL | Interceptor blocks default action but does not route to login UI. `Shaker/android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt:60`, `Shaker/ios/Shaker/AppViewModel.swift:44` | ACTION-P3-03 |
 | T18 | Paywall action interceptor navigate | any | Trigger paywall action `.navigate` with URL | URL opened by app; no crash | PASS (code-path) | PASS (code-path) | `Shaker/android/app/src/main/java/com/purchasely/shaker/ShakerApp.kt:65`, `Shaker/ios/Shaker/AppViewModel.swift:47` | - |
+| T19 | Inline paywall banner | free_user | Open Home as a non-premium user | `inline` placement renders as a banner above the cocktail grid; tap leads to a modal display | PASS (code-path) | PASS (code-path) | `Shaker/android/app/src/main/java/com/purchasely/shaker/ui/screen/home/HomeViewModel.kt:86`, `Shaker/ios/Shaker/Screens/Home/HomeViewModel.swift:87` | - |
+| T20 | success_payment chain | free_user | Buy from any placement (e.g. `recipe_detail`) | After the buy paywall closes, `success_payment` is fetched and displayed once; when it closes, `PremiumManager` refreshes | PASS (code-path) | PASS (code-path) | `Shaker/android/app/src/main/java/com/purchasely/shaker/purchasely/PurchaselyWrapper.kt:285`, `Shaker/ios/Shaker/Purchasely/PurchaselyWrapper.swift:337` | - |
+| T21 | success_payment deactivated | free_user | Buy from any placement with `success_payment` deactivated in Console | No second paywall is shown; `PremiumManager` still refreshes | PASS (code-path) | PASS (code-path) | `PurchaselyWrapper.showSuccessPaymentScreen()` else branch on both platforms | - |
+| T22 | Observer-mode synchronize | premium_user (Observer mode) | Toggle Settings → Observer mode → buy through native StoreKit/Billing | `synchronize()` completes successfully before the paywall closes; subscription state refreshes | BLOCKED (needs sandbox account) | BLOCKED (needs sandbox account) | `PurchaselyWrapper.synchronize()` invalidates `PresentationCache` on iOS | ACTION-P3-04 |
 
 ## Platform-specific notes to capture during execution
 

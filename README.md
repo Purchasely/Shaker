@@ -4,15 +4,17 @@
 Clone it. Build it. See a full integration in 5 minutes.
 
 [![Platforms](https://img.shields.io/badge/platforms-iOS%20%7C%20Android-blue)]()
-[![Purchasely SDK](https://img.shields.io/badge/Purchasely%20SDK-5.6-orange)]()
+[![Purchasely SDK](https://img.shields.io/badge/Purchasely%20SDK-5.7-orange)]()
 [![License](https://img.shields.io/badge/license-MIT-green)]()
 
 ## Features
 
 ### SDK Integration
 - [x] SDK initialization (Full & PaywallObserver modes)
-- [x] Paywall display via `fetchPresentation()` + `display()`
-- [x] 4 placements: onboarding, recipe detail, favorites, filters
+- [x] Paywall display via `fetchPresentation()` + `display()` (with in-memory cache)
+- [x] 6 placements: onboarding, recipe_detail, favorites, filters, inline, success_payment
+- [x] Inline / embedded paywall banner on Home
+- [x] Chained `success_payment` placement after every successful purchase
 - [x] Paywall action interceptor (login, navigate, purchase, restore)
 - [x] User authentication (`userLogin` / `userLogout`)
 - [x] Subscription status checking
@@ -103,6 +105,8 @@ cocktails.json → CocktailRepository → ViewModel → UI (Compose / SwiftUI)
 | `recipe_detail` | Detail screen | Unlock full recipe (with `contentId`) |
 | `favorites` | Favorites tab + Detail | Unlock favorites feature |
 | `filters` | Home toolbar | Unlock filter feature |
+| `inline` | Home (embedded banner) | Inline / nested paywall view |
+| `success_payment` | Chained after a successful purchase | Thank-you / cross-sell paywall |
 
 ## Integration Guide
 
@@ -113,10 +117,10 @@ See [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) for a complete walk
 To use your own Purchasely account:
 
 1. Create an app in the [Purchasely Console](https://console.purchasely.io)
-2. Create the 4 placements listed above
+2. Create the 6 placements listed above
 3. Configure your store products and plans
-4. **Android**: Replace the API key in `app/build.gradle.kts`
-5. **iOS**: Replace the API key in `AppViewModel.swift`
+4. **Android**: Set `purchasely.apiKey=...` in `android/local.properties`
+5. **iOS**: Set `PURCHASELY_API_KEY=...` in `ios/Config.xcconfig`
 
 ## Contributing
 

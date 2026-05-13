@@ -1,6 +1,6 @@
 # Purchasely SDK - Complete Feature Inventory
 
-> Generated 2026-03-30 from Context7 docs + local platform guides (`Documentation/platform/android.md`, `Documentation/platform/ios.md`)
+> SDK reference for **Purchasely 5.7** (iOS + Android). Cross-checked against the Shaker source code (`PurchaselyWrapper.kt` / `.swift`) and the platform guides (`Documentation/platform/android.md`, `Documentation/platform/ios.md`). Last reviewed: 2026-05-13.
 
 ---
 
@@ -43,6 +43,8 @@
 |---------|------------|---------|
 | Display placement | `Purchasely.presentationView(context, PLYPresentationProperties(placementId, contentId, onClose))` | `Purchasely.presentationController(for:, contentId:, completion:)` |
 | Display with loading handler | N/A | `Purchasely.presentationController(for:, contentId:, loaded:, completion:)` |
+
+> **Shaker uses `fetchPresentation()` + `display()` exclusively** (no convenience helpers). The fetch/display split is required to chain the `success_payment` placement after a successful purchase and to support inline placements.
 
 ### 2c. Nested/Embedded Views
 
@@ -143,8 +145,8 @@ The `refresh` callback on login indicates the user has subscriptions from a prev
 
 | Feature | Android API | iOS API |
 |---------|------------|---------|
-| Get subscriptions | `Purchasely.userSubscriptions(onSuccess: { subscriptions -> }, onError: { error -> })` | `Purchasely.userSubscriptions { subscriptions, error in }` (also `success:, failure:` variant) |
-| Check entitlement | `subscription.plan?.hasEntitlement("entitlement_id")` | `subscription.plan?.hasEntitlement("entitlement_id")` |
+| Get subscriptions | `Purchasely.userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener)` | `Purchasely.userSubscriptions(success: { subscriptions in }, failure: { error in })` |
+| Check entitlement | inspect `subscription.plan?.attributes` / app-level logic (no `hasEntitlement()` helper on `PLYPlan` 5.7) | inspect `subscription.plan?.attributes` / app-level logic |
 
 ### Subscription Object Properties
 
@@ -152,6 +154,7 @@ The `refresh` callback on login indicates the user has subscriptions from a prev
 - `subscription.product?.name` - Product name
 - `subscription.subscriptionSource?.nextRenewalDate` - Next renewal date
 - `subscription.status` (iOS) - `PLYSubscriptionStatus` enum
+- `subscription.data.subscriptionStatus?.isExpired()` (Android) - nullable + function call
 
 ### PLYSubscriptionStatus (iOS)
 
@@ -209,7 +212,7 @@ The `refresh` callback on login indicates the user has subscriptions from a prev
 
 | Android | iOS |
 |---------|-----|
-| `Purchasely.setEventListener(object : EventListener { override fun onEvent(event: PLYEvent) {} })` | `Purchasely.setEventDelegate(self)` + `PLYEventDelegate.eventTriggered(_ event: PLYEvent, properties: [String: Any]?)` |
+| `Purchasely.eventListener = object : EventListener { override fun onEvent(event: PLYEvent) {} }` | `Purchasely.setEventDelegate(self)` + `PLYEventDelegate.eventTriggered(_ event: PLYEvent, properties: [String: Any]?)` — `properties` is **optional** |
 
 Each `PLYEvent` has:
 - `.name` - Event name string
@@ -240,14 +243,14 @@ Callbacks:
 
 | Feature | Android API | iOS API |
 |---------|------------|---------|
-| Synchronize | `Purchasely.synchronize()` | `Purchasely.synchronize()` |
+| Synchronize | `Purchasely.synchronize()` (no params) | `Purchasely.synchronize(success: { _ in }, failure: { _ in })` — the iOS call **requires** both closures |
 
 ---
 
 ## 10. Restore Purchases
 
-- In **Full mode**: handled automatically by `RESTORE` action (just `processAction(true)`)
-- In **PaywallObserver mode**: intercept `RESTORE` action, call your own restore, then `Purchasely.synchronize()`
+- In **Full mode**: handled automatically by `RESTORE` action (just `processAction(true)`), or programmatically via `Purchasely.restoreAllProducts(success:, failure:)` (iOS) / `Purchasely.restoreAllProducts(onSuccess: { plan -> ... }, onError: { ... })` (Android — receives a `PLYPlan?`).
+- In **PaywallObserver mode**: intercept `RESTORE` action, call your own restore, then `Purchasely.synchronize()`.
 
 ---
 
