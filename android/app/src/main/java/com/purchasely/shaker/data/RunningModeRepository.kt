@@ -23,7 +23,7 @@ class RunningModeRepository(private val store: KeyValueStore) {
         }
 
     val isObserverMode: Boolean
-        get() = runningMode == PLYRunningMode.PaywallObserver
+        get() = runningMode == PLYRunningMode.Observer
 
     companion object {
         private const val KEY_RUNNING_MODE = "running_mode"

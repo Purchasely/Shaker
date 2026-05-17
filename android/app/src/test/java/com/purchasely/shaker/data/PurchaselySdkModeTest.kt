@@ -49,7 +49,7 @@ class PurchaselySdkModeTest {
 
     @Test
     fun `runningMode maps correctly`() {
-        assertEquals(PLYRunningMode.PaywallObserver, PurchaselySdkMode.PAYWALL_OBSERVER.runningMode)
+        assertEquals(PLYRunningMode.Observer, PurchaselySdkMode.PAYWALL_OBSERVER.runningMode)
         assertEquals(PLYRunningMode.Full, PurchaselySdkMode.FULL.runningMode)
     }
 

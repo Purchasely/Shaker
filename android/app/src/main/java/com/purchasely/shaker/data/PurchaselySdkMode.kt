@@ -10,7 +10,7 @@ enum class PurchaselySdkMode(
     PAYWALL_OBSERVER(
         storageValue = "paywallObserver",
         label = "Paywall Observer",
-        runningMode = PLYRunningMode.PaywallObserver
+        runningMode = PLYRunningMode.Observer
     ),
     FULL(
         storageValue = "full",

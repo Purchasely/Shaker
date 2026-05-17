@@ -8,17 +8,20 @@ import com.purchasely.shaker.data.purchase.TransactionResult
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import io.purchasely.ext.PLYPresentation
-import io.purchasely.ext.PLYPresentationAction
-import io.purchasely.ext.PLYPresentationActionParameters
-import io.purchasely.ext.PLYPresentationInfo
+import io.purchasely.ext.PLYInterceptResult
+import io.purchasely.ext.PLYInterceptorInfo
 import io.purchasely.ext.PLYRunningMode
+import io.purchasely.ext.presentation.PLYPresentation
+import io.purchasely.ext.presentation.PLYPresentationAction
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -34,7 +37,10 @@ import org.junit.Test
 class PurchaselyWrapperTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
-    private val testScope = TestScope(testDispatcher)
+
+    // Wrapper gets a standalone scope so its long-lived collectionJob does not
+    // keep runTest's scope busy after each test.
+    private lateinit var wrapperScope: CoroutineScope
 
     private lateinit var onTransactionCompletedCallback: (() -> Unit)
     private lateinit var runningModeRepo: RunningModeRepository
@@ -46,9 +52,10 @@ class PurchaselyWrapperTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        wrapperScope = CoroutineScope(testDispatcher + Job())
         onTransactionCompletedCallback = mockk(relaxed = true)
         runningModeRepo = mockk {
-            every { runningMode } returns PLYRunningMode.PaywallObserver
+            every { runningMode } returns PLYRunningMode.Observer
             every { isObserverMode } returns true
         }
         purchaseRequests = MutableSharedFlow()
@@ -59,7 +66,7 @@ class PurchaselyWrapperTest {
             purchaseRequests = purchaseRequests,
             restoreRequests = restoreRequests,
             transactionResult = transactionResult,
-            scope = testScope
+            scope = wrapperScope
         ).also {
             it.onTransactionCompleted = onTransactionCompletedCallback
         }
@@ -67,26 +74,28 @@ class PurchaselyWrapperTest {
 
     @After
     fun tearDown() {
+        wrapperScope.cancel()
         Dispatchers.resetMain()
     }
 
     // --- Interceptor: PURCHASE in Observer mode ---
 
     @Test
-    fun `handlePaywallAction PURCHASE in observer mode emits PurchaseRequest`() = runTest {
+    fun `handlePurchase in observer mode emits PurchaseRequest`() = runTest(testDispatcher) {
         val mockActivity = mockk<Activity>()
         val mockPlan = mockk<io.purchasely.models.PLYPlan> {
             every { store_product_id } returns "com.test.product"
         }
-        val mockOffer = mockk<io.purchasely.ext.PLYSubscriptionOffer> {
+        val mockOffer = mockk<io.purchasely.ext.presentation.PLYSubscriptionOffer> {
             every { offerToken } returns "token-123"
         }
-        val mockInfo = mockk<PLYPresentationInfo> {
+        val mockInfo = mockk<PLYInterceptorInfo> {
             every { activity } returns mockActivity
         }
-        val mockParams = mockk<PLYPresentationActionParameters> {
+        val purchase = mockk<PLYPresentationAction.Purchase> {
             every { plan } returns mockPlan
             every { subscriptionOffer } returns mockOffer
+            every { offer } returns null
         }
 
         var emittedRequest: PurchaseRequest? = null
@@ -94,115 +103,94 @@ class PurchaselyWrapperTest {
             emittedRequest = purchaseRequests.first()
         }
 
-        wrapper.handlePaywallAction(mockInfo, PLYPresentationAction.PURCHASE, mockParams) {}
+        // handlePurchase suspends until pendingResult is resolved. Run it in a
+        // child coroutine so the test can keep observing the emitted request.
+        val interceptJob = async(testDispatcher) {
+            wrapper.handlePurchase(mockInfo, purchase)
+        }
         collectJob.join()
 
         assertNotNull(emittedRequest)
         assertEquals("com.test.product", emittedRequest?.productId)
         assertEquals("token-123", emittedRequest?.offerToken)
+
+        // Clean up: resolve the suspending interceptor so the async coroutine completes.
+        transactionResult.emit(TransactionResult.Cancelled)
+        interceptJob.await()
     }
 
     @Test
-    fun `handlePaywallAction PURCHASE in full mode calls proceed true`() {
+    fun `handlePurchase in full mode returns NOT_HANDLED`() = runTest(testDispatcher) {
         every { runningModeRepo.isObserverMode } returns false
-        var proceededWith: Boolean? = null
-
-        wrapper.handlePaywallAction(null, PLYPresentationAction.PURCHASE, null) { proceededWith = it }
-
-        assertEquals(true, proceededWith)
+        val purchase = mockk<PLYPresentationAction.Purchase>(relaxed = true)
+        val result = wrapper.handlePurchase(null, purchase)
+        assertEquals(PLYInterceptResult.NOT_HANDLED, result)
     }
 
     // --- Interceptor: RESTORE in Observer mode ---
 
     @Test
-    fun `handlePaywallAction RESTORE in observer mode emits RestoreRequest`() = runTest {
+    fun `handleRestore in observer mode emits RestoreRequest`() = runTest(testDispatcher) {
         var emittedRestore = false
         val collectJob = launch(testDispatcher) {
             restoreRequests.first()
             emittedRestore = true
         }
 
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) {}
+        val interceptJob = async(testDispatcher) {
+            wrapper.handleRestore()
+        }
         collectJob.join()
 
         assertTrue(emittedRestore)
+
+        transactionResult.emit(TransactionResult.Cancelled)
+        interceptJob.await()
     }
 
     @Test
-    fun `handlePaywallAction RESTORE in full mode calls proceed true`() {
+    fun `handleRestore in full mode returns NOT_HANDLED`() = runTest(testDispatcher) {
         every { runningModeRepo.isObserverMode } returns false
-        var proceededWith: Boolean? = null
-
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) { proceededWith = it }
-
-        assertEquals(true, proceededWith)
-    }
-
-    // --- Interceptor: LOGIN ---
-
-    @Test
-    fun `handlePaywallAction LOGIN calls proceed false`() {
-        var proceededWith: Boolean? = null
-        wrapper.handlePaywallAction(null, PLYPresentationAction.LOGIN, null) { proceededWith = it }
-        assertEquals(false, proceededWith)
-    }
-
-    // --- Interceptor: other actions ---
-
-    @Test
-    fun `handlePaywallAction CLOSE calls proceed true`() {
-        var proceededWith: Boolean? = null
-        wrapper.handlePaywallAction(null, PLYPresentationAction.CLOSE, null) { proceededWith = it }
-        assertEquals(true, proceededWith)
+        val result = wrapper.handleRestore()
+        assertEquals(PLYInterceptResult.NOT_HANDLED, result)
     }
 
     // --- TransactionResult observation ---
 
     @Test
-    fun `TransactionResult Success defers onTransactionCompleted to success_payment chain`() = runTest {
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) {}
+    fun `TransactionResult Success defers onTransactionCompleted to success_payment chain`() = runTest(testDispatcher) {
+        val subscriber = launch(testDispatcher) { restoreRequests.first() }
+        val interceptJob = wrapperScope.async { wrapper.handleRestore() }
+        subscriber.join()
+
         transactionResult.emit(TransactionResult.Success)
-        testScope.testScheduler.advanceUntilIdle()
+        val result = interceptJob.await()
+
         // PURCHASELY: onTransactionCompleted is no longer invoked synchronously at
         // TransactionResult.Success — it is deferred to after the success_payment
         // screen closes (chained by display() once pendingSuccessfulPurchase is consumed).
         verify(exactly = 0) { onTransactionCompletedCallback.invoke() }
+        assertEquals(PLYInterceptResult.SUCCESS, result)
     }
 
     @Test
-    fun `TransactionResult Success calls pendingProcessAction with false`() = runTest {
-        var proceededWith: Boolean? = null
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) { proceededWith = it }
-        transactionResult.emit(TransactionResult.Success)
-        testScope.testScheduler.advanceUntilIdle()
-        assertEquals(false, proceededWith)
-    }
+    fun `TransactionResult Cancelled resolves pendingResult with NOT_HANDLED`() = runTest(testDispatcher) {
+        val subscriber = launch(testDispatcher) { restoreRequests.first() }
+        val interceptJob = wrapperScope.async { wrapper.handleRestore() }
+        subscriber.join()
 
-    @Test
-    fun `TransactionResult Cancelled calls pendingProcessAction with false`() = runTest {
-        var proceededWith: Boolean? = null
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) { proceededWith = it }
         transactionResult.emit(TransactionResult.Cancelled)
-        testScope.testScheduler.advanceUntilIdle()
-        assertEquals(false, proceededWith)
+        assertEquals(PLYInterceptResult.NOT_HANDLED, interceptJob.await())
     }
 
     @Test
-    fun `TransactionResult Error calls pendingProcessAction with false`() = runTest {
-        var proceededWith: Boolean? = null
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) { proceededWith = it }
+    fun `TransactionResult Error resolves pendingResult with FAILED`() = runTest(testDispatcher) {
+        val subscriber = launch(testDispatcher) { restoreRequests.first() }
+        val interceptJob = wrapperScope.async { wrapper.handleRestore() }
+        subscriber.join()
+
         transactionResult.emit(TransactionResult.Error("fail"))
-        testScope.testScheduler.advanceUntilIdle()
-        assertEquals(false, proceededWith)
-    }
-
-    @Test
-    fun `TransactionResult Idle is ignored`() = runTest {
-        var proceededWith: Boolean? = null
-        wrapper.handlePaywallAction(null, PLYPresentationAction.RESTORE, null) { proceededWith = it }
-        transactionResult.emit(TransactionResult.Idle)
-        testScope.testScheduler.advanceUntilIdle()
-        assertEquals(null, proceededWith)
+        assertEquals(PLYInterceptResult.FAILED, interceptJob.await())
     }
 
     // --- Existing API contract ---
