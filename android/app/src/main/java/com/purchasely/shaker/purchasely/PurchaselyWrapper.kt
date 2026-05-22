@@ -86,14 +86,17 @@ class PurchaselyWrapper(
 
         val mode = runningModeRepo.runningMode
 
-        Purchasely.Builder(application)
-            .apiKey(apiKey)
-            .logLevel(logLevel)
-            .allowDeeplink(true)
-            .runningMode(mode)
-            .stores(listOf(GoogleStore()))
-            .build()
-            .start { error ->
+        // PURCHASELY (v6): use the Kotlin DSL entrypoint. `Purchasely { ... }` configures
+        // and starts the SDK in one call — no .build()/.start() chain. For Java callers,
+        // fall back to the fluent Purchasely.Builder(...).build().start { ... }.
+        Purchasely {
+            context(application)
+            apiKey(apiKey)
+            logLevel(logLevel)
+            allowDeeplink(true)
+            runningMode(mode)
+            stores(listOf(GoogleStore()))
+            onInitialized { error ->
                 if (error == null) {
                     Log.d(TAG, "[Shaker] Purchasely SDK configured successfully")
                     onConfigured?.invoke()
@@ -101,6 +104,7 @@ class PurchaselyWrapper(
                     Log.e(TAG, "[Shaker] Purchasely configuration error: ${error.message}")
                 }
             }
+        }
 
         eventListener = object : EventListener {
             override fun onEvent(event: io.purchasely.ext.PLYEvent) {
@@ -197,8 +201,8 @@ class PurchaselyWrapper(
 
     /**
      * Bridges the legacy "processAction" callback style to v6's suspend interceptor:
-     * the interceptor lambda suspends until [resolvePendingResult] is called from
-     * [handleTransactionResult] with the outcome reported by the host app.
+     * the interceptor lambda suspends until the pending result callback is invoked
+     * from [handleTransactionResult] with the outcome reported by the host app.
      */
     private suspend fun awaitPendingResult(
         register: ((PLYInterceptResult) -> Unit) -> Unit
