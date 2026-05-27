@@ -22,7 +22,7 @@ enum PurchaselySDKMode: String, CaseIterable, Identifiable {
     var runningMode: PLYRunningMode {
         switch self {
         case .paywallObserver:
-            return .paywallObserver
+            return .observer
         case .full:
             return .full
         }

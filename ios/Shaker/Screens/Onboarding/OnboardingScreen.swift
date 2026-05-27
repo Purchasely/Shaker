@@ -18,7 +18,11 @@ struct OnboardingScreen: View {
                 .frame(width: 0, height: 0)
             )
             .onAppear {
-                fetchPresentation()
+                if showOnboarding {
+                    fetchPresentation()
+                } else {
+                    onComplete()
+                }
             }
     }
 
@@ -32,11 +36,6 @@ struct OnboardingScreen: View {
                     break
                 }
                 onComplete()
-            }
-
-            guard showOnboarding else {
-                onComplete()
-                return
             }
 
             guard case .success(let presentation) = result else {

@@ -8,8 +8,9 @@ options:
 
 packages:
   Purchasely:
-    url: https://github.com/Purchasely/Purchasely-iOS
-    from: 5.7.5
+    # Purchasely-iOS-Sources/develop has no Package.swift at the repository root,
+    # so Shaker uses a tiny local Swift package that symlinks to ../iOS/Purchasely.
+    path: LocalPackages/Purchasely
 
 settings:
   base:
@@ -60,3 +61,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.purchasely.shaker.tests
         GENERATE_INFOPLIST_FILE: "YES"
+        # XCTestCase is non-Sendable and predates async/await, so Swift 6 complete
+        # strict concurrency flags every `try await super.setUp()`. Keep production
+        # code on `complete` and relax tests to `minimal`.
+        SWIFT_STRICT_CONCURRENCY: minimal

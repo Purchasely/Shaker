@@ -8,7 +8,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     private var apiKey: String = ""
     private var logLevel: PLYLogger.PLYLogLevel = .debug
-    private var observerActionTask: Task<Void, Never>?
+    private var isObserverActionRunning = false
 
     // PURCHASELY: Flag set when a successful purchase is reported by PurchaseManager
     // (Observer mode). In Full mode, the SDK reports `.purchased` directly via the
@@ -62,33 +62,37 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         apiKey: String,
         appUserId: String? = nil,
         logLevel: PLYLogger.PLYLogLevel = .debug,
-        onReady: @escaping (Bool, Error?) -> Void
+        onReady: @escaping @Sendable (Bool, Error?) -> Void
     ) {
         self.apiKey = apiKey
         self.logLevel = logLevel
 
         let selectedMode = PurchaselySDKMode.current()
-        let storekitSettings: StorekitSettings = .storeKit2
+        // SDK v6 develop currently performs StoreKit 2 transaction scans before
+        // calling the initialization callback. In the sample app we keep native
+        // Observer-mode purchases on StoreKit 2 through PurchaseManager, and start
+        // Purchasely itself with StoreKit 1 so the demo UI can become ready reliably.
+        let storekitSettings: StorekitSettings = .storeKit1
 
-        Purchasely.start(
-            withAPIKey: apiKey,
-            appUserId: appUserId,
-            runningMode: selectedMode.runningMode,
-            storekitSettings: storekitSettings,
-            logLevel: logLevel
-        ) { success, error in
-            if success {
-                print("[Shaker] Purchasely SDK configured successfully (mode: \(selectedMode.title))")
-                Task { @MainActor in
-                    PremiumManager.shared.refreshPremiumStatus()
+        Purchasely.apiKey(apiKey)
+            .appUserId(appUserId)
+            .runningMode(selectedMode.runningMode)
+            .storekitSettings(storekitSettings)
+            .logLevel(logLevel)
+            .start { error in
+                if let error {
+                    print("[Shaker] Purchasely configuration error: \(error.localizedDescription)")
+                    onReady(false, error)
+                } else {
+                    print("[Shaker] Purchasely SDK configured successfully (mode: \(selectedMode.title))")
+                    Task { @MainActor in
+                        PremiumManager.shared.refreshPremiumStatus()
+                    }
+                    onReady(true, nil)
                 }
-            } else {
-                print("[Shaker] Purchasely configuration error: \(error?.localizedDescription ?? "unknown")")
             }
-            onReady(success, error)
-        }
 
-        Purchasely.readyToOpenDeeplink(true)
+        Purchasely.allowDeeplink(true)
 
         Purchasely.setEventDelegate(self)
 
@@ -97,9 +101,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         // when any attribute changes. Docs: https://docs.purchasely.com/docs/listener-delegate
         Purchasely.setUserAttributeDelegate(self)
 
-        Purchasely.setPaywallActionsInterceptor { [weak self] action, parameters, info, proceed in
-            self?.handlePaywallAction(action: action, parameters: parameters, info: info, processAction: proceed)
-        }
+        registerActionInterceptors()
     }
 
     @MainActor
@@ -124,120 +126,116 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     // MARK: - Interceptor Logic
 
-    internal func handlePaywallAction(
-        action: PLYPresentationAction,
-        parameters: PLYPresentationActionParameters?,
-        info: PLYPresentationInfo?,
-        processAction: @escaping (Bool) -> Void
-    ) {
-        switch action {
-        case .login:
-            print("[Shaker] Paywall login action intercepted")
-            processAction(false)
+    private func registerActionInterceptors() {
+        Purchasely.removeAllActionInterceptors()
 
-        case .navigate:
+        Purchasely.interceptAction(.login) { _, _ in
+            print("[Shaker] Paywall login action intercepted")
+            return .success
+        }
+
+        Purchasely.interceptAction(.navigate) { _, parameters in
             if let url = parameters?.url {
                 print("[Shaker] Paywall navigate action: \(url)")
-                Task { @MainActor in UIApplication.shared.open(url) }
+                await MainActor.run { UIApplication.shared.open(url) }
             }
-            processAction(false)
+            return .success
+        }
 
-        case .purchase:
-            handleObserverAction(processAction: processAction, fallback: true) {
-                guard let productId = parameters?.plan?.appleProductId else {
-                    print("[Shaker] Observer mode purchase: missing product ID")
-                    return .error("Missing product ID")
-                }
-                return await PurchaseManager.shared.purchase(productId: productId)
+        Purchasely.interceptAction(.purchase) { [weak self] _, parameters in
+            guard let self else { return .notHandled }
+            return await self.handlePurchase(parameters: parameters)
+        }
+
+        Purchasely.interceptAction(.restore) { [weak self] _, _ in
+            guard let self else { return .notHandled }
+            return await self.handleRestore()
+        }
+    }
+
+    @MainActor
+    internal func handlePurchase(parameters: PLYPresentationActionParameters?) async -> PLYInterceptResult {
+        await handleObserverAction {
+            guard let productId = parameters?.plan?.appleProductId else {
+                print("[Shaker] Observer mode purchase: missing product ID")
+                return .error("Missing product ID")
             }
-
-        case .restore:
-            handleObserverAction(processAction: processAction, fallback: true) {
-                await PurchaseManager.shared.restore()
+            if let promoOffer = parameters?.promoOffer {
+                return await PurchaseManager.shared.purchaseWithPromoOffer(
+                    productId: productId,
+                    storeOfferId: promoOffer.storeOfferId
+                )
             }
+            return await PurchaseManager.shared.purchase(productId: productId)
+        }
+    }
 
-        default:
-            processAction(true)
+    @MainActor
+    internal func handleRestore() async -> PLYInterceptResult {
+        await handleObserverAction {
+            await PurchaseManager.shared.restore()
         }
     }
 
     /// Routes purchase/restore through the native PurchaseManager in Observer mode,
-    /// or hands control back to the SDK in Full mode.
+    /// or returns `.notHandled` so the SDK owns the action in Full mode.
+    @MainActor
     private func handleObserverAction(
-        processAction: @escaping (Bool) -> Void,
-        fallback: Bool,
         run: @escaping () async -> TransactionResult
-    ) {
+    ) async -> PLYInterceptResult {
         guard PurchaselySDKMode.current() == .paywallObserver else {
-            processAction(fallback)
-            return
+            return .notHandled
         }
         guard #available(iOS 15.0, *) else {
-            processAction(false)
-            return
+            return .notHandled
         }
-        Task { @MainActor [weak self] in
-            guard let self else {
-                processAction(false)
-                return
-            }
-            guard self.observerActionTask == nil else {
-                print("[Shaker] Observer mode action ignored: another transaction is already running")
-                processAction(false)
-                return
-            }
-            let task = Task { @MainActor [weak self] in
-                defer { self?.observerActionTask = nil }
-                guard let self else {
-                    processAction(false)
-                    return
-                }
-                let result = await run()
-                await self.handleTransactionResult(result, proceed: processAction)
-            }
-            self.observerActionTask = task
+        guard !isObserverActionRunning else {
+            print("[Shaker] Observer mode action ignored: another transaction is already running")
+            return .notHandled
         }
+
+        isObserverActionRunning = true
+        defer { isObserverActionRunning = false }
+
+        let result = await run()
+        return await handleTransactionResult(result)
     }
 
     // MARK: - Transaction Result Handling
 
     @MainActor
-    private func handleTransactionResult(
-        _ result: TransactionResult,
-        proceed: @escaping (Bool) -> Void
-    ) async {
+    private func handleTransactionResult(_ result: TransactionResult) async -> PLYInterceptResult {
         switch result {
         case .success:
             // PURCHASELY: Observer mode flow — we await synchronize() not because closing
             // is blocked otherwise (closeAllScreens is safe to call anytime), but because
             // we chain a success_payment placement next; that placement's audience targeting
             // depends on the just-activated subscription, so we want the SDK's state fresh
-            // before loadPresentation's completion fetches it. Order matters: proceed(false)
-            // BEFORE closeAllScreens(). Premium refresh is deferred to the success_payment
-            // chain via pendingSuccessfulPurchase.
+            // before the success screen fetches it. Premium refresh is deferred to the
+            // success_payment chain via pendingSuccessfulPurchase.
             pendingSuccessfulPurchase = true
             do {
                 try await synchronizeReceipt()
                 PresentationCache.shared.invalidateAll()
-                proceed(false)
                 Purchasely.closeAllScreens()
                 print("[Shaker] Transaction success — synchronized; presentation closed, awaiting success_payment")
+                return .success
             } catch {
                 print("[Shaker] Synchronize failed after transaction: \(error.localizedDescription)")
-                proceed(false)
                 Purchasely.closeAllScreens()
+                return .failed
             }
 
         case .cancelled:
-            proceed(false)
             print("[Shaker] Transaction cancelled")
+            return .notHandled
 
         case .error(let message):
-            proceed(false)
             print("[Shaker] Transaction error: \(message ?? "unknown")")
+            return .failed
 
         case .idle:
-            break
+            return .notHandled
         }
     }
 
@@ -254,7 +252,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     @discardableResult
     func isDeeplinkHandled(deeplink: URL) -> Bool {
-        Purchasely.isDeeplinkHandled(deeplink: deeplink)
+        Purchasely.handleDeeplink(deeplink)
     }
 
     // MARK: - Presentation Loading
@@ -274,55 +272,65 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         }
 
         let result: FetchResult = await withCheckedContinuation { continuation in
-            Purchasely.fetchPresentation(
-                for: placementId,
-                contentId: contentId,
-                fetchCompletion: { presentation, error in
-                    guard let presentation = presentation else {
-                        continuation.resume(returning: .error(error))
-                        return
-                    }
-                    switch presentation.type {
-                    case .deactivated:
-                        continuation.resume(returning: .deactivated)
-                    case .client:
-                        continuation.resume(returning: .client(presentation: presentation))
-                    default:
-                        continuation.resume(returning: .success(presentation: presentation))
-                    }
-                },
-                completion: { [weak self] result, plan in
-                    let displayResult: DisplayResult
-                    switch result {
-                    case .purchased:
-                        displayResult = .purchased(planName: plan?.name)
-                    case .restored:
-                        displayResult = .restored(planName: plan?.name)
-                    default:
-                        displayResult = .cancelled
-                    }
-                    // PURCHASELY: After the paywall closes, if a purchase succeeded —
-                    // either reported directly by the SDK (Full mode) or signaled via
-                    // pendingSuccessfulPurchase (Observer mode) — chain a "success_payment"
-                    // placement. Skip if this IS the success_payment to avoid recursion.
-                    Task { @MainActor [weak self] in
-                        let pending = self?.pendingSuccessfulPurchase ?? false
-                        print("[Shaker] loadPresentation completion — placement=\(placementId) displayResult=\(displayResult) pendingSuccessfulPurchase=\(pending)")
-                        onResult(displayResult)
-                        let purchaseHappened: Bool = {
-                            switch displayResult {
-                            case .purchased, .restored: return true
-                            case .cancelled: return pending
-                            }
-                        }()
-                        if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
-                            self?.pendingSuccessfulPurchase = false
-                            print("[Shaker] Chaining success_payment after \(placementId)")
-                            self?.showSuccessPaymentScreen()
+            let builder = PLYPresentationBuilder.from(placementId: placementId)
+            if let contentId {
+                builder.contentId(contentId)
+            }
+            var didFinishPresentation = false
+            let finishPresentation: (DisplayResult) -> Void = { [weak self] displayResult in
+                // PURCHASELY: After the paywall closes, if a purchase succeeded —
+                // either reported directly by the SDK (Full mode) or signaled via
+                // pendingSuccessfulPurchase (Observer mode) — chain a "success_payment"
+                // placement. Skip if this IS the success_payment to avoid recursion.
+                Task { @MainActor [weak self] in
+                    guard !didFinishPresentation else { return }
+                    didFinishPresentation = true
+                    let pending = self?.pendingSuccessfulPurchase ?? false
+                    print("[Shaker] loadPresentation finished — placement=\(placementId) displayResult=\(displayResult) pendingSuccessfulPurchase=\(pending)")
+                    onResult(displayResult)
+                    let purchaseHappened: Bool = {
+                        switch displayResult {
+                        case .purchased, .restored: return true
+                        case .cancelled: return pending
                         }
+                    }()
+                    if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
+                        self?.pendingSuccessfulPurchase = false
+                        print("[Shaker] Chaining success_payment after \(placementId)")
+                        self?.showSuccessPaymentScreen()
                     }
                 }
-            )
+            }
+            builder.onClose {
+                finishPresentation(.cancelled)
+            }
+            builder.onDismissed { outcome in
+                finishPresentation(PurchaselyWrapper.displayResult(from: outcome))
+            }
+
+            builder.build().preload { presentation, error in
+                guard let presentation else {
+                    continuation.resume(returning: .error(error))
+                    return
+                }
+                // SDK v6 exposes lifecycle callbacks on the loaded presentation.
+                // Re-assign them after preload as a defensive measure because the
+                // builder-seeded callbacks are not fired by all develop snapshots.
+                presentation.onClose = {
+                    finishPresentation(.cancelled)
+                }
+                presentation.onDismissed = { outcome in
+                    finishPresentation(PurchaselyWrapper.displayResult(from: outcome))
+                }
+                switch presentation.type {
+                case .deactivated:
+                    continuation.resume(returning: .deactivated)
+                case .client:
+                    continuation.resume(returning: .client(presentation: presentation))
+                default:
+                    continuation.resume(returning: .success(presentation: presentation))
+                }
+            }
         }
 
         // Cache everything except errors (errors should be retried on next call)
@@ -337,17 +345,21 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     @MainActor
     private func showSuccessPaymentScreen() {
         // PURCHASELY: Fetch directly via the SDK (bypassing PresentationCache) so the
-        // completion below is wired up freshly each time. The cache binds onResult at
-        // first fetch and reuses it across callers, which we want to avoid for the chain.
-        Purchasely.fetchPresentation(
-            for: PurchaselyWrapper.successPaymentPlacement,
-            contentId: nil,
-            fetchCompletion: { [weak self] presentation, error in
+        // dismissal callback below is wired up freshly each time. The cache binds onResult
+        // at first fetch and reuses it across callers, which we want to avoid for the chain.
+        PLYPresentationBuilder.from(placementId: PurchaselyWrapper.successPaymentPlacement)
+            .onDismissed { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.refreshAfterSuccessPayment()
+                }
+            }
+            .build()
+            .preload { [weak self] presentation, error in
                 Task { @MainActor [weak self] in
                     guard let self else { return }
                     let presentationId = presentation?.id ?? "nil"
                     let presentationType = presentation.map { "\($0.type)" } ?? "nil"
-                    print("[Shaker] success_payment fetchCompletion — id=\(presentationId) type=\(presentationType) error=\(error?.localizedDescription ?? "none")")
+                    print("[Shaker] success_payment preload — id=\(presentationId) type=\(presentationType) error=\(error?.localizedDescription ?? "none")")
                     if let presentation, presentation.type != .deactivated {
                         presentation.display(from: nil)
                     } else {
@@ -356,13 +368,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                         self.refreshAfterSuccessPayment()
                     }
                 }
-            },
-            completion: { [weak self] _, _ in
-                Task { @MainActor [weak self] in
-                    self?.refreshAfterSuccessPayment()
-                }
             }
-        )
     }
 
     private func refreshAfterSuccessPayment() {
@@ -379,6 +385,17 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                 print("[Shaker] Error refreshing after success_payment: \(error.localizedDescription)")
             }
         )
+    }
+
+    private static func displayResult(from outcome: PLYPresentationOutcome) -> DisplayResult {
+        switch outcome.purchaseResult {
+        case .purchased:
+            return .purchased(planName: outcome.plan?.name)
+        case .restored:
+            return .restored(planName: outcome.plan?.name)
+        default:
+            return .cancelled
+        }
     }
 
     // MARK: - Modal Display

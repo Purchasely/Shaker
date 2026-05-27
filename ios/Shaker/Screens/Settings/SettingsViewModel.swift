@@ -175,7 +175,7 @@ class SettingsViewModel: ObservableObject {
 
     func setRunningMode(_ mode: String) {
         runningMode = mode
-        RunningModeRepository.shared.runningMode = mode == "observer" ? .paywallObserver : .full
+        RunningModeRepository.shared.runningMode = mode == "observer" ? .observer : .full
         print("[Shaker] Running mode changed to: \(mode)")
     }
 
