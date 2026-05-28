@@ -191,7 +191,9 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         }
         guard !isObserverActionRunning else {
             print("[Shaker] Observer mode action ignored: another transaction is already running")
-            return .notHandled
+            // Block the SDK's default flow (Observer mode owns purchases). .notHandled would
+            // let the SDK launch its own purchase for this duplicate/ignored action.
+            return .success
         }
 
         isObserverActionRunning = true
@@ -228,7 +230,10 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
         case .cancelled:
             print("[Shaker] Transaction cancelled")
-            return .notHandled
+            // Observer mode owns the transaction: block the SDK's default purchase/restore
+            // flow on cancellation (v5 processAction(false)). .notHandled maps to
+            // processAction(true) and would let the SDK run its own flow.
+            return .success
 
         case .error(let message):
             print("[Shaker] Transaction error: \(message ?? "unknown")")

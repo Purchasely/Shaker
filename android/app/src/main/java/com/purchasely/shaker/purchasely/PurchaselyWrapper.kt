@@ -235,7 +235,11 @@ class PurchaselyWrapper(
                 Log.d(TAG, "[Shaker] Transaction success — synchronized; awaiting success_payment dismissal")
             }
             is TransactionResult.Cancelled -> {
-                pendingResult?.invoke(PLYInterceptResult.NOT_HANDLED)
+                // Observer mode owns the transaction, so we must block the SDK's default
+                // purchase/restore flow even on cancellation (the v5 equivalent of
+                // processAction(false)). NOT_HANDLED would map to processAction(true) and
+                // let the SDK launch its own purchase. See docs/paywall-observer-reference.md.
+                pendingResult?.invoke(PLYInterceptResult.SUCCESS)
                 pendingResult = null
                 Log.d(TAG, "[Shaker] Transaction cancelled")
             }
