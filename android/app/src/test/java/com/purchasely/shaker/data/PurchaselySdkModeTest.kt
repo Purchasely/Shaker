@@ -7,9 +7,9 @@ import org.junit.Test
 class PurchaselySdkModeTest {
 
     @Test
-    fun `fromStorage returns PAYWALL_OBSERVER for paywallObserver`() {
+    fun `fromStorage returns OBSERVER for legacy paywallObserver`() {
         val mode = PurchaselySdkMode.fromStorage("paywallObserver")
-        assertEquals(PurchaselySdkMode.PAYWALL_OBSERVER, mode)
+        assertEquals(PurchaselySdkMode.OBSERVER, mode)
     }
 
     @Test
@@ -31,25 +31,25 @@ class PurchaselySdkModeTest {
     }
 
     @Test
-    fun `DEFAULT is PAYWALL_OBSERVER`() {
-        assertEquals(PurchaselySdkMode.PAYWALL_OBSERVER, PurchaselySdkMode.DEFAULT)
+    fun `DEFAULT is OBSERVER`() {
+        assertEquals(PurchaselySdkMode.OBSERVER, PurchaselySdkMode.DEFAULT)
     }
 
     @Test
     fun `storageValue matches expected strings`() {
-        assertEquals("paywallObserver", PurchaselySdkMode.PAYWALL_OBSERVER.storageValue)
+        assertEquals("observer", PurchaselySdkMode.OBSERVER.storageValue)
         assertEquals("full", PurchaselySdkMode.FULL.storageValue)
     }
 
     @Test
     fun `label matches expected strings`() {
-        assertEquals("Paywall Observer", PurchaselySdkMode.PAYWALL_OBSERVER.label)
+        assertEquals("Presentation Observer", PurchaselySdkMode.OBSERVER.label)
         assertEquals("Full", PurchaselySdkMode.FULL.label)
     }
 
     @Test
     fun `runningMode maps correctly`() {
-        assertEquals(PLYRunningMode.Observer, PurchaselySdkMode.PAYWALL_OBSERVER.runningMode)
+        assertEquals(PLYRunningMode.Observer, PurchaselySdkMode.OBSERVER.runningMode)
         assertEquals(PLYRunningMode.Full, PurchaselySdkMode.FULL.runningMode)
     }
 

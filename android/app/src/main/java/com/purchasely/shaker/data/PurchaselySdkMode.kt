@@ -23,8 +23,11 @@ enum class PurchaselySdkMode(
         const val KEY = "purchasely_sdk_mode"
         val DEFAULT = OBSERVER
 
+        /** Storage value persisted by pre-v6 versions, when OBSERVER was named "paywallObserver". */
+        private const val LEGACY_PAYWALL_OBSERVER = "paywallObserver"
+
         fun fromStorage(value: String?): PurchaselySdkMode {
-            if (value == "pay" + "wallObserver") return OBSERVER
+            if (value == LEGACY_PAYWALL_OBSERVER) return OBSERVER
             return values().firstOrNull { it.storageValue == value } ?: DEFAULT
         }
     }

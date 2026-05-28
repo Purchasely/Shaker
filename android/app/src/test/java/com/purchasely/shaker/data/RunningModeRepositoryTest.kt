@@ -30,10 +30,10 @@ class RunningModeRepositoryTest {
     }
 
     @Test
-    fun `setting to PaywallObserver persists paywallObserver string`() {
+    fun `setting to Observer persists observer string`() {
         val repo = RunningModeRepository(store)
         repo.runningMode = PLYRunningMode.Observer
-        assertEquals("paywallObserver", store.getString("running_mode"))
+        assertEquals("observer", store.getString("running_mode"))
     }
 
     @Test

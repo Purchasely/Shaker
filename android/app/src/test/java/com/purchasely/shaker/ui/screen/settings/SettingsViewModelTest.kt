@@ -293,7 +293,7 @@ class SettingsViewModelTest {
     fun `setSdkMode calls wrapper restart`() {
         settingsRepo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
         val vm = createViewModel()
-        vm.setSdkMode(PurchaselySdkMode.PAYWALL_OBSERVER)
+        vm.setSdkMode(PurchaselySdkMode.OBSERVER)
         verify { wrapper.restart() }
     }
 
