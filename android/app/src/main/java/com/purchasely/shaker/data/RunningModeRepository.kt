@@ -10,7 +10,7 @@ class RunningModeRepository(private val store: KeyValueStore) {
             val stored = store.getString(KEY_RUNNING_MODE, PurchaselySdkMode.DEFAULT.storageValue)
             // Support legacy "observer" value from previous versions
             val mode = if (stored == LEGACY_OBSERVER) {
-                PurchaselySdkMode.PAYWALL_OBSERVER
+                PurchaselySdkMode.OBSERVER
             } else {
                 PurchaselySdkMode.fromStorage(stored)
             }

@@ -25,6 +25,7 @@ import io.purchasely.ext.presentation.PLYPresentationAction
 import io.purchasely.ext.presentation.PLYPresentationOutcome
 import io.purchasely.ext.presentation.PLYPresentationType
 import io.purchasely.ext.presentation.PLYPurchaseResult
+import io.purchasely.ext.presentation.display
 import io.purchasely.ext.presentation.preload
 import io.purchasely.google.GoogleStore
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +56,7 @@ class PurchaselyWrapper(
     // PURCHASELY: Flag set when a successful purchase is reported by PurchaseManager
     // (Observer mode). In Full mode, the SDK reports PURCHASED directly via the
     // display() callback. In both cases, display() consumes this signal to chain
-    // a "success_payment" placement once the original paywall is dismissed.
+    // a "success_payment" placement once the original presentation is dismissed.
     private var pendingSuccessfulPurchase: Boolean = false
 
     init {
@@ -136,14 +137,14 @@ class PurchaselyWrapper(
 
     private fun registerActionInterceptors() {
         Purchasely.interceptAction<PLYPresentationAction.Login> { _, _ ->
-            Log.d(TAG, "[Shaker] Paywall login action intercepted")
+            Log.d(TAG, "[Shaker] Presentation login action intercepted")
             PLYInterceptResult.SUCCESS
         }
 
         Purchasely.interceptAction<PLYPresentationAction.Navigate> { _, navigate ->
             val url = navigate.url
             if (url != null) {
-                Log.d(TAG, "[Shaker] Paywall navigate action: $url")
+                Log.d(TAG, "[Shaker] Presentation navigate action: $url")
                 val intent = Intent(Intent.ACTION_VIEW, url)
                 intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 application?.startActivity(intent)
@@ -227,7 +228,7 @@ class PurchaselyWrapper(
                 pendingResult?.invoke(PLYInterceptResult.SUCCESS)
                 pendingResult = null
                 // PURCHASELY: Defer onTransactionCompleted to the success_payment chain.
-                // closeAllScreens() forces the paywall to dismiss; display()'s callback
+                // closeAllScreens() forces the presentation to dismiss; display()'s callback
                 // then sees pendingSuccessfulPurchase=true and opens "success_payment".
                 pendingSuccessfulPurchase = true
                 Purchasely.closeAllScreens()
@@ -262,13 +263,37 @@ class PurchaselyWrapper(
     // MARK: - Presentation Loading
 
     suspend fun loadPresentation(
-        placementId: String,
-        contentId: String? = null
+        placementId: String? = null,
+        screenId: String? = null,
+        contentId: String? = null,
+        flowId: String? = null,
+        useDemoChrome: Boolean = false,
     ): FetchResult {
         return try {
+            val requestedPlacementId = placementId
+            val requestedScreenId = screenId
+            val requestedContentId = contentId
+            val requestedFlowId = flowId
             val prepared = PLYPresentation {
-                placementId(placementId)
-                if (contentId != null) contentId(contentId)
+                requestedPlacementId?.let { placementId(it) }
+                requestedScreenId?.let { screenId(it) }
+                requestedContentId?.let { contentId(it) }
+                requestedFlowId?.let { flowId(it) }
+                if (useDemoChrome) {
+                    backgroundColor(0xFF101820.toInt())
+                    progressColor(0xFFFFC857.toInt())
+                    displayCloseButton(true)
+                    displayBackButton(true)
+                }
+                onPresented { presentation, error ->
+                    Log.d(
+                        TAG,
+                        "[Shaker] Presentation onPresented screenId=${presentation?.screenId}, error=${error?.message}"
+                    )
+                }
+                onCloseRequested {
+                    Log.d(TAG, "[Shaker] Presentation close requested")
+                }
             }
             val presentation = prepared.preload()
                 ?: return FetchResult.Error("Presentation preload returned null")
@@ -284,6 +309,45 @@ class PurchaselyWrapper(
         }
     }
 
+    suspend fun loadPresentationByScreenId(
+        screenId: String,
+        contentId: String? = null,
+    ): FetchResult = loadPresentation(
+        screenId = screenId,
+        contentId = contentId,
+        useDemoChrome = true,
+    )
+
+    suspend fun displayPreparedPresentation(
+        placementId: String,
+        flowId: String? = null,
+        activity: Activity,
+    ): DisplayResult = suspendCancellableCoroutine { continuation ->
+        val requestedPlacementId = placementId
+        val requestedFlowId = flowId
+        PLYPresentation {
+            placementId(requestedPlacementId)
+            requestedFlowId?.let { flowId(it) }
+            onPresented { presentation, error ->
+                Log.d(
+                    TAG,
+                    "[Shaker] Prepared display triggered screenId=${presentation?.screenId}, error=${error?.message}"
+                )
+            }
+            onCloseRequested {
+                Log.d(TAG, "[Shaker] Prepared presentation close requested")
+            }
+        }.display(
+            context = activity,
+            presentation = { presentation ->
+                Log.d(TAG, "[Shaker] Prepared presentation loaded: ${presentation.screenId}")
+            },
+            callback = { outcome ->
+                if (continuation.isActive) continuation.resume(outcome.toDisplayResult())
+            }
+        )
+    }
+
     // MARK: - Modal Display
 
     suspend fun display(
@@ -296,7 +360,7 @@ class PurchaselyWrapper(
             }
         }
 
-        // PURCHASELY: After the paywall closes, if a purchase succeeded — either
+        // PURCHASELY: After the presentation closes, if a purchase succeeded — either
         // reported directly by the SDK (Full mode) or signaled via pendingSuccessfulPurchase
         // (Observer mode) — chain a "success_payment" placement, then refresh subscriptions
         // when that screen closes.

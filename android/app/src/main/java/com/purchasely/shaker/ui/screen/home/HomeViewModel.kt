@@ -66,9 +66,9 @@ class HomeViewModel(
     private val _isFiltersLoading = MutableStateFlow(false)
     val isFiltersLoading: StateFlow<Boolean> = _isFiltersLoading.asStateFlow()
 
-    // Signal Screen to display filters paywall
-    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
-    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
+    // Signal Screen to display filters presentation
+    private val _requestPresentationDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPresentationDisplay: SharedFlow<PresentationHandle> = _requestPresentationDisplay.asSharedFlow()
 
     init {
         _cocktails.value = getFilteredCocktails()
@@ -99,7 +99,7 @@ class HomeViewModel(
         if (isPremium.value) return
         val result = _filtersPresentation.value
         if (result is FetchResult.Success) {
-            viewModelScope.launch { _requestPaywallDisplay.emit(result.handle) }
+            viewModelScope.launch { _requestPresentationDisplay.emit(result.handle) }
         }
     }
 
@@ -133,7 +133,7 @@ class HomeViewModel(
         updateHasActiveFilters()
     }
 
-    fun onPaywallDismissed() {
+    fun onPresentationDismissed() {
         premiumRepository.refreshPremiumStatus()
     }
 

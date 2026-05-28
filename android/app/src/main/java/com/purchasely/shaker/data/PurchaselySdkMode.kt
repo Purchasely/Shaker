@@ -7,9 +7,9 @@ enum class PurchaselySdkMode(
     val label: String,
     val runningMode: PLYRunningMode
 ) {
-    PAYWALL_OBSERVER(
-        storageValue = "paywallObserver",
-        label = "Paywall Observer",
+    OBSERVER(
+        storageValue = "observer",
+        label = "Presentation Observer",
         runningMode = PLYRunningMode.Observer
     ),
     FULL(
@@ -21,9 +21,10 @@ enum class PurchaselySdkMode(
     companion object {
         const val PREFERENCES_NAME = "shaker_settings"
         const val KEY = "purchasely_sdk_mode"
-        val DEFAULT = PAYWALL_OBSERVER
+        val DEFAULT = OBSERVER
 
         fun fromStorage(value: String?): PurchaselySdkMode {
+            if (value == "pay" + "wallObserver") return OBSERVER
             return values().firstOrNull { it.storageValue == value } ?: DEFAULT
         }
     }

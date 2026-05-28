@@ -66,9 +66,9 @@ class SettingsViewModel(
     private val _displayMode = MutableStateFlow(settingsRepo.displayMode)
     val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
-    // Signal Screen to display onboarding paywall
-    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
-    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
+    // Signal Screen to display onboarding presentation
+    private val _requestPresentationDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPresentationDisplay: SharedFlow<PresentationHandle> = _requestPresentationDisplay.asSharedFlow()
 
     val sdkVersion: String get() = purchaselyWrapper.sdkVersion
 
@@ -97,7 +97,7 @@ class SettingsViewModel(
         _userId.value = userId
         settingsRepo.userId = userId
 
-        // PURCHASELY: Store the user ID as a custom attribute for paywall targeting/personalization
+        // PURCHASELY: Store the user ID as a custom attribute for presentation targeting/personalization
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         purchaselyWrapper.setUserAttribute("user_id", userId)
     }
@@ -138,11 +138,11 @@ class SettingsViewModel(
         premiumRepository.refreshPremiumStatus()
     }
 
-    fun showOnboardingPaywall() {
+    fun showOnboardingPresentation() {
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
                 is FetchResult.Success -> {
-                    _requestPaywallDisplay.emit(result.handle)
+                    _requestPresentationDisplay.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding placement — build custom UI here")

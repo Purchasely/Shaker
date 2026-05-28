@@ -31,9 +31,9 @@ class FavoritesViewModel(
     private val _favorites = MutableStateFlow<List<Cocktail>>(emptyList())
     val favorites: StateFlow<List<Cocktail>> = _favorites.asStateFlow()
 
-    // Signal Screen to display favorites paywall
-    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
-    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
+    // Signal Screen to display favorites presentation
+    private val _requestPresentationDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPresentationDisplay: SharedFlow<PresentationHandle> = _requestPresentationDisplay.asSharedFlow()
 
     init {
         viewModelScope.launch {
@@ -47,11 +47,11 @@ class FavoritesViewModel(
         favoritesRepository.removeFavorite(cocktailId)
     }
 
-    fun showFavoritesPaywall() {
+    fun showFavoritesPresentation() {
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("favorites")) {
                 is FetchResult.Success -> {
-                    _requestPaywallDisplay.emit(result.handle)
+                    _requestPresentationDisplay.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d(TAG, "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
@@ -66,7 +66,7 @@ class FavoritesViewModel(
         }
     }
 
-    fun onPaywallDismissed() {
+    fun onPresentationDismissed() {
         premiumRepository.refreshPremiumStatus()
     }
 

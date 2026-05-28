@@ -87,11 +87,11 @@ fun HomeScreen(
     var showFilterSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect { handle ->
+        viewModel.requestPresentationDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
             val result = purchaselyWrapper.display(handle, activity)
             when (result) {
-                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
                 else -> {}
             }
         }
@@ -157,7 +157,7 @@ fun HomeScreen(
                     }
                     EmbeddedScreenBanner(
                         fetchResult = inlineResult,
-                        onResult = { viewModel.onPaywallDismissed() },
+                        onResult = { viewModel.onPresentationDismissed() },
                         modifier = Modifier
                             .fillMaxWidth()
                             .then(mod)

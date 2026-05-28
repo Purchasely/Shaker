@@ -59,11 +59,11 @@ fun FavoritesScreen(
     val purchaselyWrapper: PurchaselyWrapper = koinInject()
 
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect { handle ->
+        viewModel.requestPresentationDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
             val result = purchaselyWrapper.display(handle, activity)
             when (result) {
-                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
                 else -> {}
             }
         }
@@ -80,7 +80,7 @@ fun FavoritesScreen(
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
         )
         if (favorites.isEmpty()) {
-            EmptyState(isPremium = isPremium, onUnlock = { viewModel.showFavoritesPaywall() })
+            EmptyState(isPremium = isPremium, onUnlock = { viewModel.showFavoritesPresentation() })
         } else {
             Text(
                 "${favorites.size} saved",
