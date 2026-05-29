@@ -270,9 +270,9 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `showOnboardingPaywall calls loadPresentation`() = runTest {
+    fun `showOnboardingPresentation calls loadPresentation`() = runTest {
         val vm = createViewModel()
-        vm.showOnboardingPaywall()
+        vm.showOnboardingPresentation()
         coVerify { wrapper.loadPresentation("onboarding", null) }
     }
 

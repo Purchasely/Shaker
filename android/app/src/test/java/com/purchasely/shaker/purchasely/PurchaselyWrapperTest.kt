@@ -174,13 +174,15 @@ class PurchaselyWrapperTest {
     }
 
     @Test
-    fun `TransactionResult Cancelled resolves pendingResult with NOT_HANDLED`() = runTest(testDispatcher) {
+    fun `TransactionResult Cancelled resolves pendingResult with SUCCESS`() = runTest(testDispatcher) {
         val subscriber = launch(testDispatcher) { restoreRequests.first() }
         val interceptJob = wrapperScope.async { wrapper.handleRestore() }
         subscriber.join()
 
         transactionResult.emit(TransactionResult.Cancelled)
-        assertEquals(PLYInterceptResult.NOT_HANDLED, interceptJob.await())
+        // Observer mode resolves a cancelled transaction with SUCCESS to block the SDK's
+        // default purchase/restore flow (v6 equivalent of v5 processAction(false)).
+        assertEquals(PLYInterceptResult.SUCCESS, interceptJob.await())
     }
 
     @Test

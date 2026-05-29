@@ -258,9 +258,9 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `onPaywallDismissed refreshes premium status`() {
+    fun `onPresentationDismissed refreshes premium status`() {
         val vm = createViewModel()
-        vm.onPaywallDismissed()
+        vm.onPresentationDismissed()
         verify { premiumRepository.refreshPremiumStatus() }
     }
 
