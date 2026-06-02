@@ -127,6 +127,21 @@ class PurchaselyWrapperTest {
         assertEquals(PLYInterceptResult.NOT_HANDLED, result)
     }
 
+    @Test
+    fun `handlePurchase in observer mode returns FAILED when required purchase data is missing`() = runTest(testDispatcher) {
+        val mockPlan = mockk<io.purchasely.models.PLYPlan> {
+            every { store_product_id } returns null
+        }
+        val purchase = mockk<PLYPresentationAction.Purchase> {
+            every { plan } returns mockPlan
+            every { subscriptionOffer } returns null
+        }
+
+        val result = wrapper.handlePurchase(null, purchase)
+
+        assertEquals(PLYInterceptResult.FAILED, result)
+    }
+
     // --- Interceptor: RESTORE in Observer mode ---
 
     @Test
@@ -146,6 +161,22 @@ class PurchaselyWrapperTest {
 
         transactionResult.emit(TransactionResult.Cancelled)
         interceptJob.await()
+    }
+
+    @Test
+    fun `starting a second observer action blocks SDK fallback for previous pending action`() = runTest(testDispatcher) {
+        val firstSubscriber = launch(testDispatcher) { restoreRequests.first() }
+        val firstIntercept = wrapperScope.async { wrapper.handleRestore() }
+        firstSubscriber.join()
+
+        val secondSubscriber = launch(testDispatcher) { restoreRequests.first() }
+        val secondIntercept = wrapperScope.async { wrapper.handleRestore() }
+        secondSubscriber.join()
+
+        assertEquals(PLYInterceptResult.SUCCESS, firstIntercept.await())
+
+        transactionResult.emit(TransactionResult.Cancelled)
+        assertEquals(PLYInterceptResult.SUCCESS, secondIntercept.await())
     }
 
     @Test

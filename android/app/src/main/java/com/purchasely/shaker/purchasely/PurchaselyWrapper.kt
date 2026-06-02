@@ -127,7 +127,9 @@ class PurchaselyWrapper(
     fun close() {
         collectionJob?.cancel()
         collectionJob = null
-        pendingResult?.invoke(PLYInterceptResult.NOT_HANDLED)
+        // A pending Observer-mode action was already claimed by the app; resolve it
+        // as handled so the SDK does not fall back to its default purchase/restore flow.
+        pendingResult?.invoke(PLYInterceptResult.SUCCESS)
         pendingResult = null
         Purchasely.removeAllActionInterceptors()
         Purchasely.close()
@@ -184,7 +186,9 @@ class PurchaselyWrapper(
             }
         } else {
             Log.w(TAG, "[Shaker] Observer mode purchase: missing activity, productId, or offerToken")
-            PLYInterceptResult.NOT_HANDLED
+            // Observer mode owns purchases. Returning NOT_HANDLED here would let the
+            // SDK launch its default flow after the app failed to provide native inputs.
+            PLYInterceptResult.FAILED
         }
     }
 
@@ -209,7 +213,9 @@ class PurchaselyWrapper(
         register: ((PLYInterceptResult) -> Unit) -> Unit
     ): PLYInterceptResult = suspendCancellableCoroutine { continuation ->
         // Cancel any previously-pending continuation before installing a new one.
-        pendingResult?.invoke(PLYInterceptResult.NOT_HANDLED)
+        // The previous Observer-mode action was already claimed by the app, so mark
+        // it handled to block the SDK's default purchase/restore fallback.
+        pendingResult?.invoke(PLYInterceptResult.SUCCESS)
         val callback: (PLYInterceptResult) -> Unit = { result ->
             if (continuation.isActive) continuation.resume(result)
         }

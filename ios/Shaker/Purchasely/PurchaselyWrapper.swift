@@ -16,6 +16,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     // this signal to chain a "success_payment" placement once the original paywall
     // is dismissed.
     private var pendingSuccessfulPurchase: Bool = false
+    private var presentationFinishers: [String: PresentationDisplayFinisher] = [:]
 
     private static let successPaymentPlacement = "success_payment"
 
@@ -268,43 +269,30 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         contentId: String? = nil,
         onResult: @escaping @MainActor (DisplayResult) -> Void
     ) async -> FetchResult {
-        // Cache hit — skip the network fetch. The `onResult` closure is bound
-        // at first fetch time (SDK-internal); subsequent callers share that
-        // binding. For Shaker, all `onResult` closures are equivalent (refresh
-        // premium on purchased/restored), so this is safe.
+        // Cache hit — skip the network fetch, but rebind lifecycle callbacks to
+        // the current caller. Loaded presentations keep mutable callbacks, and a
+        // previously displayed cached presentation has already consumed its finisher.
         if let cached = PresentationCache.shared.get(placementId: placementId, contentId: contentId) {
+            if let presentation = cached.presentation {
+                bindLifecycleCallbacks(
+                    to: presentation,
+                    placementId: placementId,
+                    onResult: onResult
+                )
+            }
             return cached
         }
 
+        let finisher = PresentationDisplayFinisher()
+        let finishPresentation = makeFinishPresentation(
+            placementId: placementId,
+            onResult: onResult,
+            finisher: finisher
+        )
         let result: FetchResult = await withCheckedContinuation { continuation in
             let builder = PLYPresentationBuilder.from(placementId: placementId)
             if let contentId {
                 builder.contentId(contentId)
-            }
-            var didFinishPresentation = false
-            let finishPresentation: (DisplayResult) -> Void = { [weak self] displayResult in
-                // PURCHASELY: After the paywall closes, if a purchase succeeded —
-                // either reported directly by the SDK (Full mode) or signaled via
-                // pendingSuccessfulPurchase (Observer mode) — chain a "success_payment"
-                // placement. Skip if this IS the success_payment to avoid recursion.
-                Task { @MainActor [weak self] in
-                    guard !didFinishPresentation else { return }
-                    didFinishPresentation = true
-                    let pending = self?.pendingSuccessfulPurchase ?? false
-                    print("[Shaker] loadPresentation finished — placement=\(placementId) displayResult=\(displayResult) pendingSuccessfulPurchase=\(pending)")
-                    onResult(displayResult)
-                    let purchaseHappened: Bool = {
-                        switch displayResult {
-                        case .purchased, .restored: return true
-                        case .cancelled: return pending
-                        }
-                    }()
-                    if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
-                        self?.pendingSuccessfulPurchase = false
-                        print("[Shaker] Chaining success_payment after \(placementId)")
-                        self?.showSuccessPaymentScreen()
-                    }
-                }
             }
             builder.onClose {
                 finishPresentation(.cancelled)
@@ -340,9 +328,63 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
         // Cache everything except errors (errors should be retried on next call)
         if case .error = result { /* skip */ } else {
+            if let presentation = result.presentation {
+                presentationFinishers[presentation.id] = finisher
+            }
             PresentationCache.shared.set(result, placementId: placementId, contentId: contentId)
         }
         return result
+    }
+
+    private func bindLifecycleCallbacks(
+        to presentation: PLYPresentation,
+        placementId: String,
+        onResult: @escaping @MainActor (DisplayResult) -> Void
+    ) {
+        let finisher = PresentationDisplayFinisher()
+        let finishPresentation = makeFinishPresentation(
+            placementId: placementId,
+            onResult: onResult,
+            finisher: finisher
+        )
+        presentation.onClose = {
+            finishPresentation(.cancelled)
+        }
+        presentation.onDismissed = { outcome in
+            finishPresentation(Self.displayResult(from: outcome))
+        }
+        presentationFinishers[presentation.id] = finisher
+    }
+
+    private func makeFinishPresentation(
+        placementId: String,
+        onResult: @escaping @MainActor (DisplayResult) -> Void,
+        finisher: PresentationDisplayFinisher
+    ) -> (DisplayResult) -> Void {
+        { [weak self] displayResult in
+            // PURCHASELY: After the paywall closes, if a purchase succeeded —
+            // either reported directly by the SDK (Full mode) or signaled via
+            // pendingSuccessfulPurchase (Observer mode) — chain a "success_payment"
+            // placement. Skip if this IS the success_payment to avoid recursion.
+            Task { @MainActor [weak self] in
+                finisher.finish {
+                    let pending = self?.pendingSuccessfulPurchase ?? false
+                    print("[Shaker] loadPresentation finished — placement=\(placementId) displayResult=\(displayResult) pendingSuccessfulPurchase=\(pending)")
+                    onResult(displayResult)
+                    let purchaseHappened: Bool = {
+                        switch displayResult {
+                        case .purchased, .restored: return true
+                        case .cancelled: return pending
+                        }
+                    }()
+                    if purchaseHappened && placementId != PurchaselyWrapper.successPaymentPlacement {
+                        self?.pendingSuccessfulPurchase = false
+                        print("[Shaker] Chaining success_payment after \(placementId)")
+                        self?.showSuccessPaymentScreen()
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Success Payment Chain
@@ -352,28 +394,47 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         // PURCHASELY: Fetch directly via the SDK (bypassing PresentationCache) so the
         // dismissal callback below is wired up freshly each time. The cache binds onResult
         // at first fetch and reuses it across callers, which we want to avoid for the chain.
-        PLYPresentationBuilder.from(placementId: PurchaselyWrapper.successPaymentPlacement)
-            .onDismissed { [weak self] _ in
-                Task { @MainActor [weak self] in
+        let finisher = PresentationDisplayFinisher()
+        let refreshAfterDismissal: () -> Void = { [weak self] in
+            Task { @MainActor [weak self] in
+                finisher.finish {
                     self?.refreshAfterSuccessPayment()
                 }
             }
-            .build()
-            .preload { [weak self] presentation, error in
-                Task { @MainActor [weak self] in
-                    guard let self else { return }
-                    let presentationId = presentation?.id ?? "nil"
-                    let presentationType = presentation.map { "\($0.type)" } ?? "nil"
-                    print("[Shaker] success_payment preload — id=\(presentationId) type=\(presentationType) error=\(error?.localizedDescription ?? "none")")
-                    if let presentation, presentation.type != .deactivated {
-                        presentation.display(from: nil)
-                    } else {
-                        // No success_payment placement (deactivated, error) — still refresh
-                        print("[Shaker] success_payment placement unavailable: \(error?.localizedDescription ?? "deactivated")")
+        }
+
+        let builder = PLYPresentationBuilder.from(placementId: PurchaselyWrapper.successPaymentPlacement)
+        builder.onClose {
+            refreshAfterDismissal()
+        }
+        builder.onDismissed { _ in
+            refreshAfterDismissal()
+        }
+        builder.build().preload { [weak self] presentation, error in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let presentationId = presentation?.id ?? "nil"
+                let presentationType = presentation.map { "\($0.type)" } ?? "nil"
+                print("[Shaker] success_payment preload — id=\(presentationId) type=\(presentationType) error=\(error?.localizedDescription ?? "none")")
+                if let presentation, presentation.type != .deactivated {
+                    // Mirror loadPresentation's defensive reassignment: some v6 develop
+                    // snapshots do not propagate builder-seeded callbacks to the loaded object.
+                    presentation.onClose = {
+                        refreshAfterDismissal()
+                    }
+                    presentation.onDismissed = { _ in
+                        refreshAfterDismissal()
+                    }
+                    presentation.display(from: nil)
+                } else {
+                    // No success_payment placement (deactivated, error) — still refresh
+                    print("[Shaker] success_payment placement unavailable: \(error?.localizedDescription ?? "deactivated")")
+                    finisher.finish {
                         self.refreshAfterSuccessPayment()
                     }
                 }
             }
+        }
     }
 
     private func refreshAfterSuccessPayment() {
@@ -407,6 +468,9 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     @MainActor
     func display(presentation: PLYPresentation, from viewController: UIViewController?) {
+        // Cached presentations keep their callback closures; reset the per-display
+        // guard before every modal display so future displays still report outcomes.
+        presentationFinishers[presentation.id]?.reset()
         presentation.display(from: viewController)
     }
 
