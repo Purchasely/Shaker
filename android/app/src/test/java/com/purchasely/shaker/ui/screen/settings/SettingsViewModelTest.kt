@@ -57,7 +57,7 @@ class SettingsViewModelTest {
         }
         wrapper = mockk(relaxed = true) {
             every { anonymousUserId } returns "anon-123"
-            every { sdkVersion } returns "5.7.3"
+            every { sdkVersion } returns "6.0.0-beta2"
             coEvery { loadPresentation(any(), any()) } returns FetchResult.Deactivated
         }
     }
@@ -192,7 +192,7 @@ class SettingsViewModelTest {
     @Test
     fun `sdkVersion delegates to wrapper`() {
         val vm = createViewModel()
-        assertEquals("5.7.3", vm.sdkVersion)
+        assertEquals("6.0.0-beta2", vm.sdkVersion)
     }
 
     @Test
