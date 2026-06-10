@@ -1,16 +1,15 @@
 import UIKit
-@preconcurrency import Purchasely
 @testable import Shaker
 
 /// Mock implementation of PurchaselyWrapping for unit tests.
 /// Records all method calls and allows configuring return values.
+/// SDK-free, mirroring the production protocol boundary.
 final class MockPurchaselyWrapper: PurchaselyWrapping {
 
     // MARK: - Call tracking
 
     var loadPresentationCalls: [(placementId: String, contentId: String?)] = []
     var displayCalls: Int = 0
-    var getControllerCalls: Int = 0
     var userLoginCalls: [String] = []
     var userLogoutCallCount = 0
     var setStringAttributeCalls: [(value: String, key: String)] = []
@@ -19,16 +18,17 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
     var setDoubleAttributeCalls: [(value: Double, key: String)] = []
     var incrementAttributeCalls: [String] = []
     var restoreCallCount = 0
-    var userSubscriptionsCallCount = 0
+    var fetchSubscriptionsCallCount = 0
     var restartCallCount = 0
     var closeDisplayedPresentationCallCount = 0
-    var revokeConsentCalls: [Set<PLYDataProcessingPurpose>] = []
+    var revokeConsentCalls: [Set<ConsentPurpose>] = []
 
     // MARK: - Configurable return values
 
     var loadPresentationResult: FetchResult = .deactivated
+    var fetchSubscriptionsResult: [SubscriptionInfo] = []
     var anonymousUserIdValue = "mock-anon-123"
-    var sdkVersionValue = "5.7.3-mock"
+    var sdkVersionValue = "6.0.0-mock"
 
     // MARK: - PurchaselyWrapping
 
@@ -41,13 +41,8 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
         return loadPresentationResult
     }
 
-    func display(presentation: PLYPresentation, from viewController: UIViewController?) {
+    func display(handle: PresentationHandle, from viewController: UIViewController?) {
         displayCalls += 1
-    }
-
-    func getController(presentation: PLYPresentation) -> PLYPresentationViewController? {
-        getControllerCalls += 1
-        return nil
     }
 
     func userLogin(userId: String, onRefresh: @escaping (Bool) -> Void) {
@@ -83,12 +78,12 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
         incrementAttributeCalls.append(key)
     }
 
-    func userSubscriptions(
-        success: @escaping ([PLYSubscription]?) -> Void,
-        failure: @escaping (Error) -> Void
+    func fetchSubscriptions(
+        onSuccess: @escaping ([SubscriptionInfo]) -> Void,
+        onError: @escaping (Error) -> Void
     ) {
-        userSubscriptionsCallCount += 1
-        success(nil)
+        fetchSubscriptionsCallCount += 1
+        onSuccess(fetchSubscriptionsResult)
     }
 
     func restoreAllProducts(
@@ -99,7 +94,7 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
         success()
     }
 
-    func revokeDataProcessingConsent(for purposes: Set<PLYDataProcessingPurpose>) {
+    func revokeDataProcessingConsent(for purposes: Set<ConsentPurpose>) {
         revokeConsentCalls.append(purposes)
     }
 

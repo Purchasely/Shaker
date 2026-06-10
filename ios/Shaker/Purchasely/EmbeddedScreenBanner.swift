@@ -2,14 +2,19 @@ import SwiftUI
 @preconcurrency import Purchasely
 
 /// Displays a prefetched Purchasely presentation inline as an embedded view.
-/// SDK v6 exposes the embedded UI as a `PLYPresentationViewController`, so Shaker
-/// wraps that controller in SwiftUI instead of using the removed `PresentationView` property.
+/// Accepts the SDK-free `FetchResult` (mirroring the Android EmbeddedScreenBanner)
+/// and resolves the SDK's `PLYPresentationViewController` internally — callers
+/// never import Purchasely. SDK v6 exposes the embedded UI as a controller, so
+/// Shaker wraps it in SwiftUI instead of using the removed `PresentationView`.
 struct EmbeddedScreenBanner: View {
 
-    let controller: PLYPresentationViewController
+    let fetchResult: FetchResult
 
     var body: some View {
-        EmbeddedPresentationController(controller: controller)
+        if case .success(let handle) = fetchResult,
+           let controller = handle.presentation.controller {
+            EmbeddedPresentationController(controller: controller)
+        }
     }
 }
 

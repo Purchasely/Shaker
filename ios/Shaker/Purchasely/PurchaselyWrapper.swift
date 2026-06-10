@@ -62,11 +62,12 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     func initialize(
         apiKey: String,
         appUserId: String? = nil,
-        logLevel: PLYLogger.PLYLogLevel = .debug,
+        verboseLogging: Bool = true,
         onReady: @escaping @Sendable (Bool, Error?) -> Void
     ) {
         self.apiKey = apiKey
-        self.logLevel = logLevel
+        // The caller stays SDK-free: a boolean is mapped to the SDK log level here.
+        self.logLevel = verboseLogging ? .debug : .warn
 
         let selectedMode = PurchaselySDKMode.current()
         // SDK v6 develop currently performs StoreKit 2 transaction scans before
@@ -75,9 +76,12 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         // Purchasely itself with StoreKit 1 so the demo UI can become ready reliably.
         let storekitSettings: StorekitSettings = .storeKit1
 
+        // Map the app-level mode to the SDK type — the rest of the app never sees PLYRunningMode.
+        let runningMode: PLYRunningMode = selectedMode == .paywallObserver ? .observer : .full
+
         Purchasely.apiKey(apiKey)
             .appUserId(appUserId)
-            .runningMode(selectedMode.runningMode)
+            .runningMode(runningMode)
             .storekitSettings(storekitSettings)
             .logLevel(logLevel)
             .start { error in
@@ -111,7 +115,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         PresentationCache.shared.invalidateAll()
         closeDisplayedPresentation()
         let storedUserId = UserDefaults.standard.string(forKey: "user_id")
-        initialize(apiKey: apiKey, appUserId: storedUserId, logLevel: logLevel) { _, _ in }
+        initialize(apiKey: apiKey, appUserId: storedUserId, verboseLogging: logLevel == .debug) { _, _ in }
     }
 
     @MainActor
@@ -273,9 +277,9 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         // the current caller. Loaded presentations keep mutable callbacks, and a
         // previously displayed cached presentation has already consumed its finisher.
         if let cached = PresentationCache.shared.get(placementId: placementId, contentId: contentId) {
-            if let presentation = cached.presentation {
+            if let handle = cached.handle {
                 bindLifecycleCallbacks(
-                    to: presentation,
+                    to: handle.presentation,
                     placementId: placementId,
                     onResult: onResult
                 )
@@ -319,17 +323,17 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                 case .deactivated:
                     continuation.resume(returning: .deactivated)
                 case .client:
-                    continuation.resume(returning: .client(presentation: presentation))
+                    continuation.resume(returning: .client(handle: PresentationHandle(presentation: presentation)))
                 default:
-                    continuation.resume(returning: .success(presentation: presentation))
+                    continuation.resume(returning: .success(handle: PresentationHandle(presentation: presentation)))
                 }
             }
         }
 
         // Cache everything except errors (errors should be retried on next call)
         if case .error = result { /* skip */ } else {
-            if let presentation = result.presentation {
-                presentationFinishers[presentation.id] = finisher
+            if let handle = result.handle {
+                presentationFinishers[handle.presentation.id] = finisher
             }
             PresentationCache.shared.set(result, placementId: placementId, contentId: contentId)
         }
@@ -441,13 +445,13 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         // PURCHASELY: Refresh subscriptions via the wrapper without forcing the cache
         // (default invalidateCache: false). The SDK has had time during the success_payment
         // screen to update its cache after the recent synchronize() call.
-        userSubscriptions(
-            success: { subscriptions in
+        fetchSubscriptions(
+            onSuccess: { subscriptions in
                 Task { @MainActor in
                     PremiumManager.shared.updatePremium(from: subscriptions)
                 }
             },
-            failure: { error in
+            onError: { error in
                 print("[Shaker] Error refreshing after success_payment: \(error.localizedDescription)")
             }
         )
@@ -467,17 +471,11 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     // MARK: - Modal Display
 
     @MainActor
-    func display(presentation: PLYPresentation, from viewController: UIViewController?) {
+    func display(handle: PresentationHandle, from viewController: UIViewController?) {
         // Cached presentations keep their callback closures; reset the per-display
         // guard before every modal display so future displays still report outcomes.
-        presentationFinishers[presentation.id]?.reset()
-        presentation.display(from: viewController)
-    }
-
-    // MARK: - Embedded View Controller
-
-    func getController(presentation: PLYPresentation) -> PLYPresentationViewController? {
-        presentation.controller
+        presentationFinishers[handle.presentation.id]?.reset()
+        handle.presentation.display(from: viewController)
     }
 
     // MARK: - User Management
@@ -518,13 +516,35 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     // MARK: - Subscriptions
 
-    func userSubscriptions(
-        success: @escaping ([PLYSubscription]?) -> Void,
-        failure: @escaping (Error) -> Void
+    /// Fetches the user's subscriptions mapped to the SDK-free `SubscriptionInfo` model,
+    /// so callers (data layer) never depend on Purchasely types. Mirrors the Android
+    /// `fetchSubscriptions`.
+    func fetchSubscriptions(
+        onSuccess: @escaping ([SubscriptionInfo]) -> Void,
+        onError: @escaping (Error) -> Void
     ) {
         // PURCHASELY: Default invalidateCache=false so the SDK returns its cached
         // subscriptions list. Pass `true` only when you must hit the network.
-        Purchasely.userSubscriptions(success: success, failure: failure)
+        Purchasely.userSubscriptions(
+            success: { subscriptions in
+                let mapped = (subscriptions ?? []).map { subscription in
+                    SubscriptionInfo(
+                        planName: subscription.plan.name,
+                        productName: subscription.product.name,
+                        isActive: {
+                            switch subscription.status {
+                            case .autoRenewing, .inGracePeriod, .autoRenewingCanceled, .onHold:
+                                return true
+                            default:
+                                return false
+                            }
+                        }()
+                    )
+                }
+                onSuccess(mapped)
+            },
+            failure: onError
+        )
     }
 
     // MARK: - Restore
@@ -568,8 +588,19 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     // MARK: - GDPR Consent
 
-    func revokeDataProcessingConsent(for purposes: Set<PLYDataProcessingPurpose>) {
-        Purchasely.revokeDataProcessingConsent(for: purposes)
+    /// Maps the app-level [ConsentPurpose] to the SDK's PLYDataProcessingPurpose,
+    /// so callers (Settings) never depend on Purchasely types.
+    func revokeDataProcessingConsent(for purposes: Set<ConsentPurpose>) {
+        let sdkPurposes = Set(purposes.map { purpose -> PLYDataProcessingPurpose in
+            switch purpose {
+            case .analytics: return .analytics
+            case .identifiedAnalytics: return .identifiedAnalytics
+            case .personalization: return .personalization
+            case .campaigns: return .campaigns
+            case .thirdPartyIntegrations: return .thirdPartyIntegrations
+            }
+        })
+        Purchasely.revokeDataProcessingConsent(for: sdkPurposes)
     }
 
     // MARK: - SDK Info

@@ -1,5 +1,5 @@
 import Foundation
-@preconcurrency import Purchasely
+import UIKit
 
 @MainActor
 class SettingsViewModel: ObservableObject {
@@ -16,7 +16,6 @@ class SettingsViewModel: ObservableObject {
     @Published var personalizationConsent: Bool
     @Published var campaignsConsent: Bool
     @Published var thirdPartyConsent: Bool
-    @Published var runningMode: String
     @Published var anonymousId: String = ""
     @Published var displayMode: String
 
@@ -51,7 +50,6 @@ class SettingsViewModel: ObservableObject {
         personalizationConsent = defaults.object(forKey: consentPersonalizationKey) == nil ? true : defaults.bool(forKey: consentPersonalizationKey)
         campaignsConsent = defaults.object(forKey: consentCampaignsKey) == nil ? true : defaults.bool(forKey: consentCampaignsKey)
         thirdPartyConsent = defaults.object(forKey: consentThirdPartyKey) == nil ? true : defaults.bool(forKey: consentThirdPartyKey)
-        runningMode = RunningModeRepository.shared.isObserverMode ? "observer" : "full"
         displayMode = defaults.string(forKey: displayModeKey) ?? "fullscreen"
 
         applyConsentPreferences()
@@ -72,8 +70,8 @@ class SettingsViewModel: ObservableObject {
     }
 
     func displayOnboardingPaywall(from viewController: UIViewController?) {
-        guard case .success(let presentation) = onboardingFetchResult else { return }
-        wrapper.display(presentation: presentation, from: viewController)
+        guard case .success(let handle) = onboardingFetchResult else { return }
+        wrapper.display(handle: handle, from: viewController)
     }
 
     func login(userId: String) {
@@ -173,12 +171,6 @@ class SettingsViewModel: ObservableObject {
         applyConsentPreferences()
     }
 
-    func setRunningMode(_ mode: String) {
-        runningMode = mode
-        RunningModeRepository.shared.runningMode = mode == "observer" ? .observer : .full
-        print("[Shaker] Running mode changed to: \(mode)")
-    }
-
     func setDisplayMode(_ mode: String) {
         displayMode = mode
         defaults.set(mode, forKey: displayModeKey)
@@ -186,7 +178,7 @@ class SettingsViewModel: ObservableObject {
     }
 
     private func applyConsentPreferences() {
-        var revoked = Set<PLYDataProcessingPurpose>()
+        var revoked = Set<ConsentPurpose>()
         if !analyticsConsent { revoked.insert(.analytics) }
         if !identifiedAnalyticsConsent { revoked.insert(.identifiedAnalytics) }
         if !personalizationConsent { revoked.insert(.personalization) }

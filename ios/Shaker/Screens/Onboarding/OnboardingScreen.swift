@@ -38,12 +38,12 @@ struct OnboardingScreen: View {
                 onComplete()
             }
 
-            guard case .success(let presentation) = result else {
+            guard case .success(let handle) = result else {
                 onComplete()
                 return
             }
 
-            wrapper.display(presentation: presentation, from: hostViewController)
+            wrapper.display(handle: handle, from: hostViewController)
         }
     }
 }
