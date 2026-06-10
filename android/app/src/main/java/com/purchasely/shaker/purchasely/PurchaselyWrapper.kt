@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.view.View
+import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.data.purchase.PurchaseRequest
@@ -17,9 +18,11 @@ import io.purchasely.ext.LogLevel
 import io.purchasely.ext.PLYDataProcessingPurpose
 import io.purchasely.ext.PLYInterceptResult
 import io.purchasely.ext.PLYInterceptorInfo
+import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.SubscriptionsListener
 import io.purchasely.ext.interceptAction
+import io.purchasely.models.PLYSubscriptionData
 import io.purchasely.ext.presentation.PLYPresentation
 import io.purchasely.ext.presentation.PLYPresentationAction
 import io.purchasely.ext.presentation.PLYPresentationOutcome
@@ -28,6 +31,7 @@ import io.purchasely.ext.presentation.PLYPurchaseResult
 import io.purchasely.ext.presentation.display
 import io.purchasely.ext.presentation.preload
 import io.purchasely.google.GoogleStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -77,15 +81,21 @@ class PurchaselyWrapper(
     fun initialize(
         application: Application,
         apiKey: String,
-        logLevel: LogLevel = LogLevel.DEBUG,
+        verboseLogging: Boolean = true,
         onConfigured: (() -> Unit)? = null
     ) {
         this.application = application
         this.apiKey = apiKey
-        this.logLevel = logLevel
+        // The caller stays SDK-free: a boolean is mapped to the SDK LogLevel here.
+        this.logLevel = if (verboseLogging) LogLevel.DEBUG else LogLevel.WARN
+
         this.onConfiguredCallback = onConfigured
 
-        val mode = runningModeRepo.runningMode
+        // Map the app-level mode to the SDK type — the rest of the app never sees PLYRunningMode.
+        val mode = when (runningModeRepo.sdkMode) {
+            PurchaselySdkMode.OBSERVER -> PLYRunningMode.Observer
+            PurchaselySdkMode.FULL -> PLYRunningMode.Full
+        }
 
         // PURCHASELY (v6): use the Kotlin DSL entrypoint. `Purchasely { ... }` configures
         // and starts the SDK in one call — no .build()/.start() chain. For Java callers,
@@ -121,7 +131,7 @@ class PurchaselyWrapper(
     fun restart() {
         close()
         val app = application ?: return
-        initialize(app, apiKey, logLevel, onConfiguredCallback)
+        initialize(app, apiKey, logLevel == LogLevel.DEBUG, onConfiguredCallback)
     }
 
     fun close() {
@@ -304,9 +314,15 @@ class PurchaselyWrapper(
                 onCloseRequested {
                     Log.d(TAG, "[Shaker] Presentation close requested")
                 }
+                onDismissed { outcome: PLYPresentationOutcome ->
+                    Log.d(
+                        TAG,
+                        "[Shaker] Presentation dismissed: result=${outcome.purchaseResult}, " +
+                            "plan=${outcome.plan?.name}, reason=${outcome.closeReason}, error=${outcome.error?.message}"
+                    )
+                }
             }
             val presentation = prepared.preload()
-                ?: return FetchResult.Error("Presentation preload returned null")
 
             val handle = PresentationHandle(presentation)
             when (presentation.type) {
@@ -364,10 +380,18 @@ class PurchaselyWrapper(
         handle: PresentationHandle,
         activity: Activity
     ): DisplayResult {
-        val initial: DisplayResult = suspendCancellableCoroutine { continuation ->
-            handle.presentation.display(activity) { outcome: PLYPresentationOutcome ->
-                if (continuation.isActive) continuation.resume(outcome.toDisplayResult())
-            }
+        // PURCHASELY (v6): display() is non-suspend and returns a PLYPresentationSession;
+        // session.await() suspends until the screen is dismissed and returns the outcome
+        // (throwing the PLYError if the screen fails to launch or render). No callback is
+        // passed, so the builder-set onDismissed stays active — an inline callback would
+        // replace it for this display.
+        val initial: DisplayResult = try {
+            handle.presentation.display(activity).await().toDisplayResult()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "[Shaker] Presentation display failed: ${e.message}", e)
+            return DisplayResult.Cancelled
         }
 
         // PURCHASELY: After the presentation closes, if a purchase succeeded — either
@@ -389,11 +413,14 @@ class PurchaselyWrapper(
     private suspend fun showSuccessPaymentScreen(activity: Activity) {
         when (val fetchResult = loadPresentation(SUCCESS_PAYMENT_PLACEMENT)) {
             is FetchResult.Success -> {
-                // Display the success_payment screen and wait for it to close
-                suspendCancellableCoroutine<Unit> { continuation ->
-                    fetchResult.handle.presentation.display(activity) { _ ->
-                        if (continuation.isActive) continuation.resume(Unit)
-                    }
+                // PURCHASELY (v6): display the success_payment screen and await its dismissal.
+                // A failure to render must not block the post-purchase refresh below.
+                try {
+                    fetchResult.handle.presentation.display(activity).await()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "[Shaker] success_payment display failed: ${e.message}", e)
                 }
                 // PURCHASELY: After the success_payment screen closes, refresh subscriptions
                 // via the wrapper without forcing the cache. The wrapper -> PremiumManager
@@ -464,8 +491,34 @@ class PurchaselyWrapper(
 
     // MARK: - Subscriptions
 
-    fun userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener) {
-        Purchasely.userSubscriptions(invalidateCache, listener)
+    /**
+     * Fetches the user's subscriptions mapped to the SDK-free [SubscriptionInfo] model,
+     * so callers (data layer) never depend on `io.purchasely` types.
+     *
+     * @param invalidateCache pass false to use cached data, true to force a network refresh.
+     */
+    fun fetchSubscriptions(
+        invalidateCache: Boolean,
+        onSuccess: (List<SubscriptionInfo>) -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        Purchasely.userSubscriptions(invalidateCache, object : SubscriptionsListener {
+            override fun onSuccess(subscriptions: List<PLYSubscriptionData>) {
+                onSuccess(
+                    subscriptions.map { subscription ->
+                        SubscriptionInfo(
+                            planName = subscription.plan.name,
+                            productName = subscription.product.name,
+                            isActive = subscription.data.subscriptionStatus?.isExpired() == false,
+                        )
+                    }
+                )
+            }
+
+            override fun onFailure(error: Throwable) {
+                onError(error)
+            }
+        })
     }
 
     // MARK: - Restore
