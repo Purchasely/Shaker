@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -170,7 +171,13 @@ fun DetailScreen(
                         .align(Alignment.CenterHorizontally),
                 )
                 Spacer(Modifier.height(16.dp))
-                Text(c.name, color = tokens.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    c.name,
+                    color = tokens.text,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(c.description, color = tokens.textSec, fontSize = 15.sp)
                 Spacer(Modifier.height(16.dp))
