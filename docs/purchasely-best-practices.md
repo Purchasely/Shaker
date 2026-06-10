@@ -47,7 +47,21 @@ External readers integrating Purchasely in their own app can pick what fits — 
 
 Check it with: `rg -l 'import io\.purchasely' app/src/main` — every hit must be under `purchasely/`.
 
-**iOS (still on v5):** tolerated SDK type imports are `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `PLYPresentationViewController`, `PLYEventDelegate`, `PLYOfferSignature`, `PLYLogger.PLYLogLevel` — enums/types needed for configuration and interceptor logic, not SDK call points. Align with the Android table when the iOS app migrates to v6.
+**iOS (v6) — same strict boundary.** Only the `Purchasely/` group may `import Purchasely`
+(`PurchaselyWrapper`, `PresentationHandle`, `EmbeddedScreenBanner`). The same SDK→app mapping
+applies:
+
+| SDK concept | App-owned type | Where |
+|-------------|----------------|-------|
+| `any PLYPresentation` | `PresentationHandle` (opaque struct) | `Purchasely/PresentationHandle.swift` |
+| `PLYPresentationType` + fetch errors | `FetchResult` enum | `Purchasely/FetchResult.swift` |
+| `PLYPresentationOutcome` | `DisplayResult` enum | `Purchasely/DisplayResult.swift` |
+| `PLYSubscription` | `SubscriptionInfo` | `Purchasely/SubscriptionInfo.swift` |
+| `PLYRunningMode` | `PurchaselySDKMode` enum (mapping in the wrapper) | `Data/PurchaselySDKMode.swift` |
+| `PLYLogger.PLYLogLevel` | `verboseLogging: Bool` parameter on `initialize()` | — |
+| `PLYDataProcessingPurpose` | `ConsentPurpose` enum (mapping in the wrapper) | `Model/ConsentPurpose.swift` |
+
+Check it with: `grep -rl 'import Purchasely' Shaker --include='*.swift'` — every hit must be under `Purchasely/`.
 
 ---
 
@@ -194,15 +208,17 @@ The wrapper internally configures:
 
 ---
 
-## 4. Presentation Loading: Always fetch then build/display
+## 4. Presentation Loading: Always build → preload → display
 
-**Rule: Always use `Purchasely.fetchPresentation()` followed by `presentation.buildView()` or `presentation.display()`. Never use `Purchasely.presentationView()`.**
+**Rule (v6): Always build the presentation request (`PLYPresentation { … }` on Android,
+`PLYPresentationBuilder` on iOS), `preload()` it, then `display()`/`buildView()` the loaded
+presentation. Never use the deprecated `fetchPresentation()`/`presentationView()` shortcuts.**
 
 **Why:**
-- `fetchPresentation` + `buildView`/`display` gives full control over the presentation lifecycle
+- build + preload + display gives full control over the presentation lifecycle
 - You can inspect `presentation.type` before deciding what to do (NORMAL, CLIENT, DEACTIVATED)
 - You can handle errors from the fetch step separately from display errors
-- `presentationView()` is a convenience shortcut that hides these steps — unsuitable for reference code
+- The shortcuts hide these steps — unsuitable for reference code
 
 **Pattern (Android, SDK v6):**
 ```kotlin
@@ -242,11 +258,25 @@ suspend fun display(handle: PresentationHandle, activity: Activity): DisplayResu
 fun getView(handle: PresentationHandle, context: Context, onResult): View?
 ```
 
-**Pattern (iOS, still v5):**
+**Pattern (iOS, SDK v6):**
 ```swift
-func display(presentation: PLYPresentation, from viewController: UIViewController?)
-func getController(presentation: PLYPresentation) -> PLYPresentationViewController?
+// In PurchaselyWrapper — fetch: PLYPresentationBuilder + preload
+func loadPresentation(placementId: String, contentId: String?,
+                      onResult: @escaping @MainActor (DisplayResult) -> Void) async -> FetchResult {
+    // PLYPresentationBuilder.from(placementId:).contentId(...).onClose{}.onDismissed{outcome}
+    //   .build().preload { presentation, error in ... }
+    // Maps presentation.type to FetchResult and wraps the presentation in PresentationHandle.
+}
+
+// Modal display — the loaded presentation displays itself; outcomes arrive through the
+// onDismissed callback bound at fetch time (PresentationCache constraint).
+func display(handle: PresentationHandle, from viewController: UIViewController?)
 ```
+
+> **Platform note:** Android's `display(activity).await()` suspends until dismissal because the
+> Android v6 SDK exposes a `PLYPresentationSession`; the iOS v6 SDK reports outcomes through the
+> builder-bound `onDismissed` instead. Both wrappers normalize to the same app-facing
+> `DisplayResult`, so ViewModels are identical across platforms.
 
 > **Why `display().await()` and not the callback overload?** Passing an inline callback to
 > `display(activity) { outcome -> ... }` **replaces** the `onDismissed` set on the builder for
@@ -411,10 +441,13 @@ Always handle all `FetchResult` variants:
   lifecycle (`Displayed` → `Dismissed`/`Error`) when a single outcome isn't enough.
 - `getView()` — keeps callbacks because `buildView()` returns a `View?` synchronously; the callback fires later on purchase events
 
-**iOS (Swift) — Swift 6 / Swift Concurrency throughout, no Combine, no `DispatchQueue.main.async` in production Purchasely code:**
-- `loadPresentation()` — `async/await` with `withCheckedContinuation` to bridge `fetchPresentation(for:, fetchCompletion:, completion:)`; the `onResult` callback is bound at fetch time via the `completion` closure
-- `display()` — `@MainActor` synchronous, calls `presentation.display(from:)` directly
-- `getController()` — returns the presentation's `UIViewController` for embedding
+**iOS (Swift, SDK v6) — Swift 6 / Swift Concurrency throughout, no Combine, no `DispatchQueue.main.async` in production Purchasely code:**
+- `loadPresentation()` — `async/await` with `withCheckedContinuation` around the v6
+  `PLYPresentationBuilder…build().preload { presentation, error in }`; outcome callbacks
+  (`onClose`/`onDismissed`) are bound at fetch time and rebound on cache hits
+- `display(handle:from:)` — `@MainActor` synchronous, calls `handle.presentation.display(from:)`;
+  dismissal outcomes arrive through the fetch-time `onDismissed`
+- `EmbeddedScreenBanner(fetchResult:)` — resolves the presentation's `controller` internally for embedding
 - `synchronizeReceipt()` — private `async throws` wrapper around `Purchasely.synchronize(success:, failure:)` via `withCheckedThrowingContinuation`
 - `PurchaselyWrapping`, `PurchaselyWrapper`, Purchasely-facing ViewModels, and UI-state managers are `@MainActor` isolated. `PLYEventDelegate` / `PLYUserAttributeDelegate` callbacks stay `nonisolated` and only do thread-safe work (logging + `PresentationCache.invalidateAll()`).
 - SDK callbacks that fire on unknown threads hop to the main actor via `Task { @MainActor [weak self] in … }`, never `DispatchQueue.main.async`.
