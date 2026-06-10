@@ -1,21 +1,21 @@
 package com.purchasely.shaker.data
 
-import io.purchasely.ext.PLYRunningMode
-
+/**
+ * App-level SDK mode selection. Deliberately SDK-free: only `PurchaselyWrapper`
+ * maps this to the Purchasely `PLYRunningMode` — the rest of the app never
+ * imports `io.purchasely`.
+ */
 enum class PurchaselySdkMode(
     val storageValue: String,
     val label: String,
-    val runningMode: PLYRunningMode
 ) {
     OBSERVER(
         storageValue = "observer",
-        label = "Presentation Observer",
-        runningMode = PLYRunningMode.Observer
+        label = "Observer",
     ),
     FULL(
         storageValue = "full",
         label = "Full",
-        runningMode = PLYRunningMode.Full
     );
 
     companion object {

@@ -1,6 +1,5 @@
 package com.purchasely.shaker.data
 
-import io.purchasely.ext.PLYRunningMode
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -43,15 +42,12 @@ class PurchaselySdkModeTest {
 
     @Test
     fun `label matches expected strings`() {
-        assertEquals("Presentation Observer", PurchaselySdkMode.OBSERVER.label)
+        assertEquals("Observer", PurchaselySdkMode.OBSERVER.label)
         assertEquals("Full", PurchaselySdkMode.FULL.label)
     }
 
-    @Test
-    fun `runningMode maps correctly`() {
-        assertEquals(PLYRunningMode.Observer, PurchaselySdkMode.OBSERVER.runningMode)
-        assertEquals(PLYRunningMode.Full, PurchaselySdkMode.FULL.runningMode)
-    }
+    // NOTE: the PurchaselySdkMode -> PLYRunningMode mapping moved into PurchaselyWrapper
+    // (the only class allowed to import io.purchasely). This enum stays SDK-free.
 
     @Test
     fun `PREFERENCES_NAME constant`() {

@@ -1,6 +1,7 @@
 package com.purchasely.shaker.purchasely
 
 import android.app.Activity
+import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -10,7 +11,6 @@ import io.mockk.mockk
 import io.mockk.verify
 import io.purchasely.ext.PLYInterceptResult
 import io.purchasely.ext.PLYInterceptorInfo
-import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.presentation.PLYPresentation
 import io.purchasely.ext.presentation.PLYPresentationAction
 import kotlinx.coroutines.CoroutineScope
@@ -55,7 +55,7 @@ class PurchaselyWrapperTest {
         wrapperScope = CoroutineScope(testDispatcher + Job())
         onTransactionCompletedCallback = mockk(relaxed = true)
         runningModeRepo = mockk {
-            every { runningMode } returns PLYRunningMode.Observer
+            every { sdkMode } returns PurchaselySdkMode.OBSERVER
             every { isObserverMode } returns true
         }
         purchaseRequests = MutableSharedFlow()

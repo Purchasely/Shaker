@@ -260,7 +260,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
             },
         )
         Text(
-            "Default mode is Presentation Observer — Shaker observes purchases but uses its own presentation UI.",
+            "Default mode is Observer — Shaker handles purchases natively while Purchasely renders the paywalls and tracks analytics.",
             color = tokens.textSec,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
