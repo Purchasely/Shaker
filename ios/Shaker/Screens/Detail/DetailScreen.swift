@@ -94,7 +94,7 @@ struct DetailScreen: View {
                     .padding(.top, 14).padding(.bottom, 14)
 
                 Text(cocktail.name)
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: 30, weight: .bold, design: .serif))
                     .foregroundStyle(tokens.text)
                 Text(cocktail.description)
                     .font(.system(size: 15))
