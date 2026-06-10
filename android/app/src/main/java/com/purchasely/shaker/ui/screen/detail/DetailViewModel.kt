@@ -77,9 +77,14 @@ class DetailViewModel(
                     _requestRecipePresentation.emit(result.handle)
                 }
                 is FetchResult.Client -> {
-                    Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
+                    Log.d(TAG, "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
                 }
-                else -> {}
+                // PURCHASELY: never swallow fetch failures silently — log them so a dead
+                // button is diagnosable from logcat (placement disabled, offline, etc.).
+                is FetchResult.Deactivated ->
+                    Log.d(TAG, "[Shaker] recipe_detail placement is deactivated in the console")
+                is FetchResult.Error ->
+                    Log.w(TAG, "[Shaker] recipe_detail paywall fetch failed: ${result.message}")
             }
         }
     }
@@ -92,14 +97,21 @@ class DetailViewModel(
                     _requestFavoritesPresentation.emit(result.handle)
                 }
                 is FetchResult.Client -> {
-                    Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
+                    Log.d(TAG, "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
                 }
-                else -> {}
+                is FetchResult.Deactivated ->
+                    Log.d(TAG, "[Shaker] favorites placement is deactivated in the console")
+                is FetchResult.Error ->
+                    Log.w(TAG, "[Shaker] favorites paywall fetch failed: ${result.message}")
             }
         }
     }
 
     fun onPresentationDismissed() {
         premiumRepository.refreshPremiumStatus()
+    }
+
+    companion object {
+        private const val TAG = "DetailViewModel"
     }
 }

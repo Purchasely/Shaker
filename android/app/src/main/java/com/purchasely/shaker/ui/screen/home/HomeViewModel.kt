@@ -1,5 +1,6 @@
 package com.purchasely.shaker.ui.screen.home
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.domain.repository.CocktailRepository
@@ -97,9 +98,33 @@ class HomeViewModel(
 
     fun onFilterClick() {
         if (isPremium.value) return
-        val result = _filtersPresentation.value
-        if (result is FetchResult.Success) {
-            viewModelScope.launch { _requestPresentationDisplay.emit(result.handle) }
+        when (val result = _filtersPresentation.value) {
+            is FetchResult.Success -> {
+                viewModelScope.launch { _requestPresentationDisplay.emit(result.handle) }
+            }
+            is FetchResult.Error -> {
+                // PURCHASELY: the prefetch failed (e.g. offline at launch). Retry it so the
+                // paywall becomes available instead of leaving the button dead forever.
+                Log.w(TAG, "[Shaker] Filters paywall unavailable (${result.message}), retrying prefetch")
+                retryFiltersPrefetch()
+            }
+            is FetchResult.Deactivated, is FetchResult.Client -> {
+                // Placement disabled in the console or client-rendered — nothing to display.
+                Log.d(TAG, "[Shaker] Filters paywall not displayable: $result")
+            }
+            null -> {
+                // Prefetch still in flight — the screen shows the loader; ignore the tap.
+                Log.d(TAG, "[Shaker] Filters paywall still loading")
+            }
+        }
+    }
+
+    private fun retryFiltersPrefetch() {
+        if (_isFiltersLoading.value) return
+        viewModelScope.launch {
+            _isFiltersLoading.value = true
+            _filtersPresentation.value = purchaselyWrapper.loadPresentation("filters")
+            _isFiltersLoading.value = false
         }
     }
 
@@ -144,5 +169,9 @@ class HomeViewModel(
             categories = _selectedCategories.value,
             difficulty = _selectedDifficulty.value
         )
+    }
+
+    companion object {
+        private const val TAG = "HomeViewModel"
     }
 }
