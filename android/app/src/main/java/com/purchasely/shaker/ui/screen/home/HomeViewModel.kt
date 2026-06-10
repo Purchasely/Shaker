@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.domain.model.CocktailMood
 import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
@@ -43,6 +44,9 @@ class HomeViewModel(
     private val _selectedDifficulty = MutableStateFlow<String?>(null)
     val selectedDifficulty: StateFlow<String?> = _selectedDifficulty.asStateFlow()
 
+    private val _selectedMood = MutableStateFlow<CocktailMood?>(null)
+    val selectedMood: StateFlow<CocktailMood?> = _selectedMood.asStateFlow()
+
     val availableSpirits: List<String> get() = repository.getSpirits()
     val availableCategories: List<String> get() = repository.getCategories()
     val availableDifficulties: List<String> get() = repository.getDifficulties()
@@ -53,7 +57,8 @@ class HomeViewModel(
     private fun updateHasActiveFilters() {
         _hasActiveFilters.value = _selectedSpirits.value.isNotEmpty() ||
                 _selectedCategories.value.isNotEmpty() ||
-                _selectedDifficulty.value != null
+                _selectedDifficulty.value != null ||
+                _selectedMood.value != null
     }
 
     // Prefetched inline presentation
@@ -154,8 +159,38 @@ class HomeViewModel(
         _selectedSpirits.value = emptySet()
         _selectedCategories.value = emptySet()
         _selectedDifficulty.value = null
+        _selectedMood.value = null
         applyFilters()
         updateHasActiveFilters()
+    }
+
+    /**
+     * Mood-based discovery. Selecting a mood filters the catalog by tags and
+     * reports the preference to Purchasely for audience targeting.
+     */
+    fun selectMood(mood: CocktailMood?) {
+        val newMood = if (_selectedMood.value == mood) null else mood
+        _selectedMood.value = newMood
+        if (newMood != null) {
+            // PURCHASELY: track the user's drinking mood as a custom attribute. Console-side
+            // audiences can target e.g. preferred_mood == "zero_proof" with a dedicated screen.
+            // Docs: https://docs.purchasely.com/advanced-features/user-attributes
+            purchaselyWrapper.setUserAttribute("preferred_mood", newMood.key)
+        }
+        applyFilters()
+        updateHasActiveFilters()
+    }
+
+    /**
+     * "Surprise me" — picks a random cocktail from the currently filtered list.
+     * Returns its id for navigation, or null when the list is empty.
+     */
+    fun onSurpriseMe(): String? {
+        val candidates = _cocktails.value.ifEmpty { return null }
+        // PURCHASELY: count how often the user asks for a surprise. A console campaign can
+        // trigger a dedicated screen after N uses (engaged-user segmentation).
+        purchaselyWrapper.incrementUserAttribute("surprise_me_count")
+        return candidates.random().id
     }
 
     fun onPresentationDismissed() {
@@ -167,7 +202,8 @@ class HomeViewModel(
             query = _searchQuery.value,
             spirits = _selectedSpirits.value,
             categories = _selectedCategories.value,
-            difficulty = _selectedDifficulty.value
+            difficulty = _selectedDifficulty.value,
+            mood = _selectedMood.value,
         )
     }
 

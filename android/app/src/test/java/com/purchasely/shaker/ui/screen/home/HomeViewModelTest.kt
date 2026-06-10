@@ -1,5 +1,6 @@
 package com.purchasely.shaker.ui.screen.home
 
+import com.purchasely.shaker.domain.model.CocktailMood
 import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
@@ -277,5 +278,85 @@ class HomeViewModelTest {
         val vm = createViewModel()
         vm.onSearchQueryChanged("NonExistentCocktail")
         assertTrue(vm.cocktails.value.isEmpty())
+    }
+
+    // ---- Mood-based discovery ----
+
+    @Test
+    fun `selectMood filters the catalog and reports preferred_mood to Purchasely`() {
+        every { repository.loadCocktails() } returns listOf(
+            testCocktail("1", "Mojito", tags = listOf("refreshing")),
+            testCocktail("2", "Old Fashioned", tags = listOf("bold")),
+        )
+        val vm = createViewModel()
+
+        vm.selectMood(CocktailMood.STRONG)
+
+        assertEquals(CocktailMood.STRONG, vm.selectedMood.value)
+        assertEquals(listOf("Old Fashioned"), vm.cocktails.value.map { it.name })
+        assertTrue(vm.hasActiveFilters.value)
+        // PURCHASELY: the mood key must reach the SDK as the preferred_mood attribute.
+        verify { wrapper.setUserAttribute("preferred_mood", "strong") }
+    }
+
+    @Test
+    fun `selecting the same mood twice clears it without re-reporting the attribute`() {
+        val vm = createViewModel()
+
+        vm.selectMood(CocktailMood.SWEET)
+        vm.selectMood(CocktailMood.SWEET)
+
+        assertEquals(null, vm.selectedMood.value)
+        assertEquals(testCocktails, vm.cocktails.value)
+        verify(exactly = 1) { wrapper.setUserAttribute("preferred_mood", "sweet") }
+    }
+
+    @Test
+    fun `clearFilters resets the selected mood`() {
+        val vm = createViewModel()
+        vm.selectMood(CocktailMood.REFRESHING)
+
+        vm.clearFilters()
+
+        assertEquals(null, vm.selectedMood.value)
+        assertFalse(vm.hasActiveFilters.value)
+    }
+
+    // ---- Surprise me ----
+
+    @Test
+    fun `onSurpriseMe returns a cocktail id from the filtered list and increments the counter`() {
+        val vm = createViewModel()
+
+        val id = vm.onSurpriseMe()
+
+        assertTrue(testCocktails.map { it.id }.contains(id))
+        // PURCHASELY: engagement counter for console campaigns (trigger after N uses).
+        verify { wrapper.incrementUserAttribute("surprise_me_count") }
+    }
+
+    @Test
+    fun `onSurpriseMe respects the active mood filter`() {
+        every { repository.loadCocktails() } returns listOf(
+            testCocktail("1", "Mojito", tags = listOf("refreshing")),
+            testCocktail("2", "Old Fashioned", tags = listOf("bold")),
+        )
+        val vm = createViewModel()
+        vm.selectMood(CocktailMood.STRONG)
+
+        val id = vm.onSurpriseMe()
+
+        assertEquals("2", id)
+    }
+
+    @Test
+    fun `onSurpriseMe returns null and does not increment when the list is empty`() {
+        val vm = createViewModel()
+        vm.onSearchQueryChanged("NonExistentCocktail")
+
+        val id = vm.onSurpriseMe()
+
+        assertEquals(null, id)
+        verify(exactly = 0) { wrapper.incrementUserAttribute("surprise_me_count") }
     }
 }

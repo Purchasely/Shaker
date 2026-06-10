@@ -113,4 +113,39 @@ class GetFilteredCocktailsUseCaseTest {
         val result = useCase(query = "   ")
         assertEquals(testCocktails, result)
     }
+
+    @Test
+    fun `filter by mood matches tags`() {
+        val moodCocktails = listOf(
+            testCocktail("1", "Mojito", tags = listOf("refreshing", "minty")),
+            testCocktail("2", "Old Fashioned", tags = listOf("bold", "strong")),
+            testCocktail("3", "Pina Colada", tags = listOf("sweet", "creamy")),
+        )
+        every { repository.loadCocktails() } returns moodCocktails
+
+        val result = useCase(mood = com.purchasely.shaker.domain.model.CocktailMood.STRONG)
+
+        assertEquals(1, result.size)
+        assertEquals("Old Fashioned", result[0].name)
+    }
+
+    @Test
+    fun `null mood returns all cocktails`() {
+        val result = useCase(mood = null)
+        assertEquals(testCocktails, result)
+    }
+
+    @Test
+    fun `mood combines with query`() {
+        val moodCocktails = listOf(
+            testCocktail("1", "Mojito", tags = listOf("refreshing")),
+            testCocktail("2", "Virgin Mojito", tags = listOf("refreshing")),
+        )
+        every { repository.loadCocktails() } returns moodCocktails
+
+        val result = useCase(query = "virgin", mood = com.purchasely.shaker.domain.model.CocktailMood.REFRESHING)
+
+        assertEquals(1, result.size)
+        assertEquals("Virgin Mojito", result[0].name)
+    }
 }
