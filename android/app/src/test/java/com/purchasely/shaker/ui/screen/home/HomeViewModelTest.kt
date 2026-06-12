@@ -5,8 +5,10 @@ import com.purchasely.shaker.domain.repository.CocktailRepository
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.domain.usecase.GetFilteredCocktailsUseCase
 import com.purchasely.shaker.purchasely.FetchResult
+import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.testCocktail
+import io.purchasely.ext.presentation.PLYPresentation
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every
@@ -263,6 +265,20 @@ class HomeViewModelTest {
         val vm = createViewModel()
         vm.onPresentationDismissed()
         verify { premiumRepository.refreshPremiumStatus() }
+    }
+
+    @Test
+    fun `onInlinePresentationCloseRequested clears the inline presentation`() {
+        val presentation = mockk<PLYPresentation>(relaxed = true)
+        val inline = FetchResult.Success(PresentationHandle(presentation), 180)
+        coEvery { wrapper.loadPresentation("inline", null) } returns inline
+        val vm = createViewModel()
+
+        assertEquals(inline, vm.inlinePresentation.value)
+
+        vm.onInlinePresentationCloseRequested()
+
+        assertEquals(null, vm.inlinePresentation.value)
     }
 
     @Test

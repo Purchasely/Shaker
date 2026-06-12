@@ -98,6 +98,7 @@ PurchaselyWrapper                          PurchaseManager
 - `processAction(false)` MUST be called BEFORE `closeAllScreens()` — the interceptor needs to know not to proceed before the paywall tears down.
 - `Purchasely.closeAllScreens()` is safe to call at any time, no need to wait for anything.
 - `Purchasely.synchronize()` runs in the background — by default you do **not** need to await it before dismissing the paywall.
+- In Observer mode, the raw SDK dismissal outcome can still be `CANCELLED` after a successful app-side Billing purchase because the SDK purchase action was intercepted. The wrapper must merge the app-owned `TransactionResult.Success` back into the app-facing `DisplayResult`.
 
 **Why Shaker awaits `synchronize()` anyway:** Shaker chains a `success_payment` placement after a successful purchase to show a thank-you screen. That placement targets users based on their (now-active) subscription state, so we wait for `synchronize()` to finish before we tear the paywall down — otherwise the `success_payment` fetch can resolve against stale subscription state and show the wrong screen (or get deactivated).
 
@@ -203,7 +204,7 @@ The wrapper internally configures:
 5. **Android only:** Flow subscriptions for the Observer purchase flow. **iOS:** the interceptor dispatches `Task { @MainActor in await PurchaseManager.shared.purchase(...) }` directly — no Combine subjects, no init-time subscriptions.
 
 **Restart:** When the SDK mode changes, `wrapper.restart()` is called:
-- **Android:** `SettingsViewModel` calls `purchaselyWrapper.restart()` directly. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection.
+- **Android:** `SettingsViewModel` persists the selected mode in the same `PurchaselySdkMode.KEY` storage key read by `RunningModeRepository`, then calls `purchaselyWrapper.restart()`. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection with the new `PLYRunningMode`.
 - **iOS:** `SettingsViewModel` posts `.purchaselySdkModeDidChange` notification, wrapper observes it and calls `restart()` internally on the main actor
 
 ---
@@ -374,12 +375,23 @@ if (inlineResult is FetchResult.Success) {
 - Renders via `AndroidView`
 - Uses `presentation.height` (dp) for view height
 - If height is 0, falls back to `heightIn(max = 200.dp)`
-- `onResult` forwards purchase events to the ViewModel
+- `onCloseRequested` must remove the inline entry from the owning Compose state (for Home, `HomeViewModel` clears `inlinePresentation`)
+- `onResult` forwards only purchase/restore events to the ViewModel for premium refresh
 - If fetch failed, the banner is simply not shown (Screen checks for `FetchResult.Success`)
 
 ---
 
-## 7. User Attributes
+## 7. User Identity Changes
+
+**Rule: Clear app-side premium state immediately on login/logout before asking the SDK for the new user's subscriptions.**
+
+Android and iOS SDK subscription caches are asynchronous. A user switch can briefly expose the previous user's entitlement if the app only waits for the next subscription fetch. In Shaker, `SettingsViewModel.login()` and `logout()` call `PremiumRepository.clearPremiumStatus()` first, then call `PurchaselyWrapper.userLogin()` / `userLogout()`. This makes the UI non-premium until the SDK confirms active subscriptions for the new identity.
+
+For Android SDK v6, `PLYUserManager.loginUser()` must also clear/refetch subscriptions when switching from identified user A to identified user B, not only when moving anonymous → identified.
+
+---
+
+## 8. User Attributes
 
 **Rule: Set user attributes through `PurchaselyWrapper`, always from the ViewModel layer.**
 
@@ -399,7 +411,7 @@ purchaselyWrapper.setUserAttribute("favorite_spirit", "gin")
 
 ---
 
-## 8. Handling Presentation Types
+## 9. Handling Presentation Types
 
 Always handle all `FetchResult` variants:
 
@@ -412,7 +424,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 9. Error Handling
+## 10. Error Handling
 
 - **Never crash on SDK errors.** Log and degrade gracefully.
 - **Never block the UI** waiting for a presentation. Use coroutines/async-await and show content immediately.
@@ -428,7 +440,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 10. Async: Native Async Patterns
+## 11. Async: Native Async Patterns
 
 **Rule: Use the platform's native async pattern. Only use callbacks when the SDK doesn't provide an alternative.**
 
@@ -456,7 +468,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 11. Testability
+## 12. Testability
 
 **Rule: All Purchasely integration code must be testable. ViewModels use dependency injection for the wrapper.**
 
@@ -474,7 +486,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 12. Platform-Specific Notes
+## 13. Platform-Specific Notes
 
 ### Android (Kotlin / Jetpack Compose)
 
@@ -506,7 +518,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 13. Diagnostic & Troubleshooting
+## 14. Diagnostic & Troubleshooting
 
 When something looks wrong (paywall doesn't close, wrong screen reappears, purchase doesn't unlock premium…), do **not** start patching code. The Purchasely SDK emits a detailed log stream, and Shaker adds its own `[Shaker]` log lines — read them first, the answer is almost always there.
 

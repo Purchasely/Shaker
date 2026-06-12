@@ -13,6 +13,8 @@ import io.purchasely.ext.PLYInterceptResult
 import io.purchasely.ext.PLYInterceptorInfo
 import io.purchasely.ext.presentation.PLYPresentation
 import io.purchasely.ext.presentation.PLYPresentationAction
+import io.purchasely.ext.presentation.PLYPresentationOutcome
+import io.purchasely.ext.presentation.PLYPurchaseResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -85,6 +87,7 @@ class PurchaselyWrapperTest {
         val mockActivity = mockk<Activity>()
         val mockPlan = mockk<io.purchasely.models.PLYPlan> {
             every { store_product_id } returns "com.test.product"
+            every { name } returns "Monthly"
         }
         val mockOffer = mockk<io.purchasely.ext.presentation.PLYSubscriptionOffer> {
             every { offerToken } returns "token-123"
@@ -205,6 +208,38 @@ class PurchaselyWrapperTest {
     }
 
     @Test
+    fun `observer purchase success maps cancelled SDK outcome to purchased display result`() = runTest(testDispatcher) {
+        val mockActivity = mockk<Activity>()
+        val mockPlan = mockk<io.purchasely.models.PLYPlan> {
+            every { store_product_id } returns "com.test.product"
+            every { name } returns "Monthly"
+        }
+        val mockOffer = mockk<io.purchasely.ext.presentation.PLYSubscriptionOffer> {
+            every { offerToken } returns "token-123"
+        }
+        val mockInfo = mockk<PLYInterceptorInfo> {
+            every { activity } returns mockActivity
+        }
+        val purchase = mockk<PLYPresentationAction.Purchase> {
+            every { plan } returns mockPlan
+            every { subscriptionOffer } returns mockOffer
+            every { offer } returns null
+        }
+        val subscriber = launch(testDispatcher) { purchaseRequests.first() }
+        val interceptJob = wrapperScope.async { wrapper.handlePurchase(mockInfo, purchase) }
+        subscriber.join()
+
+        transactionResult.emit(TransactionResult.Success)
+        assertEquals(PLYInterceptResult.SUCCESS, interceptJob.await())
+
+        val mapped = wrapper.mapOutcomeForTest(
+            PLYPresentationOutcome(purchaseResult = PLYPurchaseResult.CANCELLED)
+        )
+
+        assertEquals(DisplayResult.Purchased("Monthly"), mapped)
+    }
+
+    @Test
     fun `TransactionResult Cancelled resolves pendingResult with SUCCESS`() = runTest(testDispatcher) {
         val subscriber = launch(testDispatcher) { restoreRequests.first() }
         val interceptJob = wrapperScope.async { wrapper.handleRestore() }
@@ -249,5 +284,14 @@ class PurchaselyWrapperTest {
     @Test
     fun `wrapper instance can be created with dependencies`() {
         assertNotNull(wrapper)
+    }
+
+    private fun PurchaselyWrapper.mapOutcomeForTest(outcome: PLYPresentationOutcome): DisplayResult {
+        val method = PurchaselyWrapper::class.java.getDeclaredMethod(
+            "toDisplayResult",
+            PLYPresentationOutcome::class.java
+        )
+        method.isAccessible = true
+        return method.invoke(this, outcome) as DisplayResult
     }
 }

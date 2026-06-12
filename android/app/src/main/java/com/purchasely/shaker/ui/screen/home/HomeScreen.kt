@@ -123,7 +123,13 @@ fun HomeScreen(
                         }
                         EmbeddedScreenBanner(
                             fetchResult = inlineResult,
-                            onResult = { viewModel.onPresentationDismissed() },
+                            onResult = { result ->
+                                when (result) {
+                                    is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
+                                    else -> Unit
+                                }
+                            },
+                            onCloseRequested = { viewModel.onInlinePresentationCloseRequested() },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .then(mod)

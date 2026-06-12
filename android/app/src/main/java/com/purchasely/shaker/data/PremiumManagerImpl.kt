@@ -31,6 +31,11 @@ class PremiumManagerImpl(private val wrapper: PurchaselyWrapper) : PremiumReposi
         )
     }
 
+    override fun clearPremiumStatus() {
+        _isPremium.value = false
+        Log.d(TAG, "[Shaker] Premium status reset")
+    }
+
     companion object {
         private const val TAG = "PremiumManager"
     }

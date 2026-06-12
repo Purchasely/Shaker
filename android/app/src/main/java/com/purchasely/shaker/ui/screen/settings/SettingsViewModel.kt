@@ -84,6 +84,8 @@ class SettingsViewModel(
     fun login(userId: String) {
         if (userId.isBlank()) return
 
+        premiumRepository.clearPremiumStatus()
+
         // PURCHASELY: Associate this session with an authenticated user ID
         // The callback's `refresh` flag indicates whether subscriptions should be re-fetched
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
@@ -105,10 +107,10 @@ class SettingsViewModel(
     fun logout() {
         // PURCHASELY: Disassociate the current user — clears cached user attributes and subscriptions
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
+        premiumRepository.clearPremiumStatus()
         purchaselyWrapper.userLogout()
         _userId.value = null
         settingsRepo.userId = null
-        premiumRepository.refreshPremiumStatus()
         Log.d(TAG, "[Shaker] Logged out")
     }
 

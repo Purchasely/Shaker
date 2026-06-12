@@ -197,6 +197,10 @@ class HomeViewModel(
         premiumRepository.refreshPremiumStatus()
     }
 
+    fun onInlinePresentationCloseRequested() {
+        _inlinePresentation.value = null
+    }
+
     private fun applyFilters() {
         _cocktails.value = getFilteredCocktails(
             query = _searchQuery.value,

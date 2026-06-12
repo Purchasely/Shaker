@@ -56,12 +56,17 @@ class PurchaselyWrapper(
     private var onConfiguredCallback: (() -> Unit)? = null
     private var pendingResult: ((PLYInterceptResult) -> Unit)? = null
     private var collectionJob: Job? = null
+    private var pendingObserverAction: ObserverAction? = null
 
-    // PURCHASELY: Flag set when a successful purchase is reported by PurchaseManager
-    // (Observer mode). In Full mode, the SDK reports PURCHASED directly via the
-    // display() callback. In both cases, display() consumes this signal to chain
-    // a "success_payment" placement once the original presentation is dismissed.
-    private var pendingSuccessfulPurchase: Boolean = false
+    // PURCHASELY: In Observer mode, the app handles Billing itself, so the SDK-side
+    // PLYPresentationOutcome still defaults to CANCELLED when we close the paywall.
+    // Keep the app-owned successful result here and merge it when mapping outcomes.
+    private var pendingSuccessfulObserverResult: DisplayResult? = null
+
+    private sealed class ObserverAction {
+        data class Purchase(val planName: String?) : ObserverAction()
+        data object Restore : ObserverAction()
+    }
 
     init {
         startTransactionCollection()
@@ -141,6 +146,8 @@ class PurchaselyWrapper(
         // as handled so the SDK does not fall back to its default purchase/restore flow.
         pendingResult?.invoke(PLYInterceptResult.SUCCESS)
         pendingResult = null
+        pendingObserverAction = null
+        pendingSuccessfulObserverResult = null
         Purchasely.removeAllActionInterceptors()
         Purchasely.close()
     }
@@ -189,6 +196,7 @@ class PurchaselyWrapper(
 
         return if (activity != null && productId != null && offerToken != null) {
             awaitPendingResult { resultCallback ->
+                pendingObserverAction = ObserverAction.Purchase(plan.name)
                 pendingResult = resultCallback
                 scope.launch {
                     purchaseRequests.emit(PurchaseRequest(activity, productId, offerToken))
@@ -207,6 +215,7 @@ class PurchaselyWrapper(
             return PLYInterceptResult.NOT_HANDLED
         }
         return awaitPendingResult { resultCallback ->
+            pendingObserverAction = ObserverAction.Restore
             pendingResult = resultCallback
             scope.launch {
                 restoreRequests.emit(RestoreRequest)
@@ -226,12 +235,17 @@ class PurchaselyWrapper(
         // The previous Observer-mode action was already claimed by the app, so mark
         // it handled to block the SDK's default purchase/restore fallback.
         pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+        pendingObserverAction = null
+        pendingSuccessfulObserverResult = null
         val callback: (PLYInterceptResult) -> Unit = { result ->
             if (continuation.isActive) continuation.resume(result)
         }
         register(callback)
         continuation.invokeOnCancellation {
-            if (pendingResult === callback) pendingResult = null
+            if (pendingResult === callback) {
+                pendingResult = null
+                pendingObserverAction = null
+            }
         }
     }
 
@@ -240,13 +254,27 @@ class PurchaselyWrapper(
     private fun handleTransactionResult(result: TransactionResult) {
         when (result) {
             is TransactionResult.Success -> {
+                val observerResult = when (val action = pendingObserverAction) {
+                    is ObserverAction.Purchase -> DisplayResult.Purchased(action.planName)
+                    ObserverAction.Restore -> DisplayResult.Restored(null)
+                    null -> null
+                }
                 synchronize()
-                pendingResult?.invoke(PLYInterceptResult.SUCCESS)
-                pendingResult = null
+                if (observerResult == null) {
+                    pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+                    pendingResult = null
+                    pendingObserverAction = null
+                    Log.d(TAG, "[Shaker] Transaction success without pending observer action")
+                    onTransactionCompleted?.invoke()
+                    return
+                }
                 // PURCHASELY: Defer onTransactionCompleted to the success_payment chain.
                 // closeAllScreens() forces the presentation to dismiss; display()'s callback
-                // then sees pendingSuccessfulPurchase=true and opens "success_payment".
-                pendingSuccessfulPurchase = true
+                // then merges pendingSuccessfulObserverResult with the SDK's CANCELLED outcome.
+                pendingSuccessfulObserverResult = observerResult
+                pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+                pendingResult = null
+                pendingObserverAction = null
                 Purchasely.closeAllScreens()
                 Log.d(TAG, "[Shaker] Transaction success — synchronized; awaiting success_payment dismissal")
             }
@@ -257,11 +285,15 @@ class PurchaselyWrapper(
                 // let the SDK launch its own purchase. See docs/paywall-observer-reference.md.
                 pendingResult?.invoke(PLYInterceptResult.SUCCESS)
                 pendingResult = null
+                pendingObserverAction = null
+                pendingSuccessfulObserverResult = null
                 Log.d(TAG, "[Shaker] Transaction cancelled")
             }
             is TransactionResult.Error -> {
                 pendingResult?.invoke(PLYInterceptResult.FAILED)
                 pendingResult = null
+                pendingObserverAction = null
+                pendingSuccessfulObserverResult = null
                 Log.e(TAG, "[Shaker] Transaction error: ${result.message}")
             }
             is TransactionResult.Idle -> { /* ignore */ }
@@ -286,19 +318,16 @@ class PurchaselyWrapper(
         placementId: String? = null,
         screenId: String? = null,
         contentId: String? = null,
-        flowId: String? = null,
         useDemoChrome: Boolean = false,
     ): FetchResult {
         return try {
             val requestedPlacementId = placementId
             val requestedScreenId = screenId
             val requestedContentId = contentId
-            val requestedFlowId = flowId
             val prepared = PLYPresentation {
                 requestedPlacementId?.let { placementId(it) }
                 requestedScreenId?.let { screenId(it) }
                 requestedContentId?.let { contentId(it) }
-                requestedFlowId?.let { flowId(it) }
                 if (useDemoChrome) {
                     backgroundColor(0xFF101820.toInt())
                     progressColor(0xFFFFC857.toInt())
@@ -315,10 +344,12 @@ class PurchaselyWrapper(
                     Log.d(TAG, "[Shaker] Presentation close requested")
                 }
                 onDismissed { outcome: PLYPresentationOutcome ->
+                    val appResult = outcome.toDisplayResult()
                     Log.d(
                         TAG,
-                        "[Shaker] Presentation dismissed: result=${outcome.purchaseResult}, " +
-                            "plan=${outcome.plan?.name}, reason=${outcome.closeReason}, error=${outcome.error?.message}"
+                        "[Shaker] Presentation dismissed: sdkResult=${outcome.purchaseResult}, " +
+                            "appResult=$appResult, plan=${outcome.plan?.name}, " +
+                            "reason=${outcome.closeReason}, error=${outcome.error?.message}"
                     )
                 }
             }
@@ -346,14 +377,11 @@ class PurchaselyWrapper(
 
     suspend fun displayPreparedPresentation(
         placementId: String,
-        flowId: String? = null,
         activity: Activity,
     ): DisplayResult = suspendCancellableCoroutine { continuation ->
         val requestedPlacementId = placementId
-        val requestedFlowId = flowId
         PLYPresentation {
             placementId(requestedPlacementId)
-            requestedFlowId?.let { flowId(it) }
             onPresented { presentation, error ->
                 Log.d(
                     TAG,
@@ -395,15 +423,14 @@ class PurchaselyWrapper(
         }
 
         // PURCHASELY: After the presentation closes, if a purchase succeeded — either
-        // reported directly by the SDK (Full mode) or signaled via pendingSuccessfulPurchase
-        // (Observer mode) — chain a "success_payment" placement, then refresh subscriptions
-        // when that screen closes.
+        // reported directly by the SDK (Full mode) or normalized from the app-side
+        // Observer-mode Billing result — chain a "success_payment" placement, then
+        // refresh subscriptions when that screen closes.
         val purchaseHappened = initial is DisplayResult.Purchased
             || initial is DisplayResult.Restored
-            || pendingSuccessfulPurchase
 
         if (purchaseHappened) {
-            pendingSuccessfulPurchase = false
+            pendingSuccessfulObserverResult = null
             showSuccessPaymentScreen(activity)
         }
 
@@ -440,10 +467,25 @@ class PurchaselyWrapper(
     fun getView(
         handle: PresentationHandle,
         context: Context,
-        onResult: (DisplayResult) -> Unit
+        onResult: (DisplayResult) -> Unit,
+        onCloseRequested: () -> Unit = {},
     ): View? {
+        handle.presentation.onCloseRequested = {
+            Log.d(TAG, "[Shaker] Embedded presentation close requested")
+            onCloseRequested()
+        }
         return handle.presentation.buildView(context) { outcome ->
-            onResult(outcome.toDisplayResult())
+            val displayResult = outcome.toDisplayResult()
+            Log.d(
+                TAG,
+                "[Shaker] Embedded presentation dismissed: sdkResult=${outcome.purchaseResult}, " +
+                    "appResult=$displayResult, plan=${outcome.plan?.name}, " +
+                    "reason=${outcome.closeReason}, error=${outcome.error?.message}"
+            )
+            if (displayResult is DisplayResult.Purchased || displayResult is DisplayResult.Restored) {
+                pendingSuccessfulObserverResult = null
+            }
+            onResult(displayResult)
         }
     }
 
@@ -451,7 +493,7 @@ class PurchaselyWrapper(
         when (purchaseResult) {
             PLYPurchaseResult.PURCHASED -> DisplayResult.Purchased(plan?.name)
             PLYPurchaseResult.RESTORED -> DisplayResult.Restored(plan?.name)
-            else -> DisplayResult.Cancelled
+            else -> pendingSuccessfulObserverResult ?: DisplayResult.Cancelled
         }
 
     // MARK: - User Management

@@ -51,6 +51,7 @@ class SettingsViewModelTest {
         premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
+            every { clearPremiumStatus() } returns Unit
         }
         runningModeRepo = mockk(relaxed = true) {
             every { isObserverMode } returns false
@@ -87,6 +88,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.login("kevin")
         assertEquals("kevin", vm.userId.value)
+        verify { premiumRepository.clearPremiumStatus() }
         verify { wrapper.userLogin("kevin", any()) }
         verify { wrapper.setUserAttribute("user_id", "kevin") }
     }
@@ -126,14 +128,14 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `logout clears userId and calls wrapper`() {
+    fun `logout clears userId and premium state before calling wrapper`() {
         settingsRepo.userId = "kevin"
         val vm = createViewModel()
         vm.logout()
         assertNull(vm.userId.value)
+        verify { premiumRepository.clearPremiumStatus() }
         verify { wrapper.userLogout() }
         assertNull(settingsRepo.userId)
-        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
@@ -295,6 +297,16 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.setSdkMode(PurchaselySdkMode.OBSERVER)
         verify { wrapper.restart() }
+    }
+
+    @Test
+    fun `setSdkMode persists mode read by RunningModeRepository`() {
+        val realRunningModeRepo = RunningModeRepository(store)
+        val vm = SettingsViewModel(settingsRepo, premiumRepository, realRunningModeRepo, wrapper)
+
+        vm.setSdkMode(PurchaselySdkMode.FULL)
+
+        assertEquals(PurchaselySdkMode.FULL, realRunningModeRepo.sdkMode)
     }
 
     @Test
