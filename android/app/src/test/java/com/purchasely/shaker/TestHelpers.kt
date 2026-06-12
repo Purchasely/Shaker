@@ -8,7 +8,8 @@ fun testCocktail(
     name: String = "Mojito",
     spirit: String = "Rum",
     category: String = "Classic",
-    difficulty: String = "Easy"
+    difficulty: String = "Easy",
+    tags: List<String> = listOf("test"),
 ) = Cocktail(
     id = id,
     name = name,
@@ -17,7 +18,7 @@ fun testCocktail(
     category = category,
     spirit = spirit,
     difficulty = difficulty,
-    tags = listOf("test"),
+    tags = tags,
     ingredients = listOf(Ingredient("Ingredient", "60ml")),
     instructions = listOf("Mix and serve")
 )

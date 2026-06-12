@@ -72,7 +72,8 @@ class PurchaseManager(
             )
             .build()
 
-        billingClient.queryProductDetailsAsync(queryParams) { billingResult, productDetailsList ->
+        billingClient.queryProductDetailsAsync(queryParams) { billingResult, queryResult ->
+            val productDetailsList = queryResult.productDetailsList
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK || productDetailsList.isEmpty()) {
                 Log.e(TAG, "[Shaker] queryProductDetails failed: ${billingResult.debugMessage}")
                 _transactionResult.tryEmit(TransactionResult.Error(billingResult.debugMessage))

@@ -33,9 +33,35 @@ External readers integrating Purchasely in their own app can pick what fits — 
 | **Consent** | `revokeDataProcessingConsent()` |
 | **Info** | `sdkVersion`, `isDeeplinkHandled()` |
 
-**Tolerated SDK type imports:** `PLYRunningMode`, `PLYDataProcessingPurpose`, `PLYPresentationAction`, `PLYPresentationInfo`, `PLYPresentationActionParameters`, `PLYPresentationViewController`, `EventListener`/`PLYEventDelegate`, `PLYOfferSignature`, `LogLevel`/`PLYLogger.PLYLogLevel` — these are enums/types needed for configuration, interceptor logic, and presentation handling. They are not SDK call points.
+**Android (v6) — zero SDK imports outside the `purchasely/` package.** Since the v6 migration the rule is strict and mechanically checkable: only `PurchaselyWrapper` and its sibling files in `purchasely/` may `import io.purchasely`. Everything the rest of the app needs crosses the boundary through app-owned types:
 
-> **Android note:** `PLYPresentation` is wrapped in the opaque `PresentationHandle` value class. ViewModels and Screens never import `PLYPresentation` directly — they use `PresentationHandle` exclusively.
+| SDK concept | App-owned type | Where |
+|-------------|----------------|-------|
+| `PLYPresentation` | `PresentationHandle` (opaque value class) | `purchasely/PresentationHandle.kt` |
+| `PLYPresentationType` + fetch errors | `FetchResult` sealed class | `purchasely/FetchResult.kt` |
+| `PLYPresentationOutcome` | `DisplayResult` sealed class | `purchasely/DisplayResult.kt` |
+| `PLYSubscriptionData` | `SubscriptionInfo` | `purchasely/SubscriptionInfo.kt` |
+| `PLYRunningMode` | `PurchaselySdkMode` enum (mapping done in the wrapper) | `data/PurchaselySdkMode.kt` |
+| `LogLevel` | `verboseLogging: Boolean` parameter on `initialize()` | — |
+| `PLYDataProcessingPurpose` | `ConsentPurpose` enum (mapping in the wrapper) | `domain/model/ConsentPurpose.kt` |
+
+Check it with: `rg -l 'import io\.purchasely' app/src/main` — every hit must be under `purchasely/`.
+
+**iOS (v6) — same strict boundary.** Only the `Purchasely/` group may `import Purchasely`
+(`PurchaselyWrapper`, `PresentationHandle`, `EmbeddedScreenBanner`). The same SDK→app mapping
+applies:
+
+| SDK concept | App-owned type | Where |
+|-------------|----------------|-------|
+| `any PLYPresentation` | `PresentationHandle` (opaque struct) | `Purchasely/PresentationHandle.swift` |
+| `PLYPresentationType` + fetch errors | `FetchResult` enum | `Purchasely/FetchResult.swift` |
+| `PLYPresentationOutcome` | `DisplayResult` enum | `Purchasely/DisplayResult.swift` |
+| `PLYSubscription` | `SubscriptionInfo` | `Purchasely/SubscriptionInfo.swift` |
+| `PLYRunningMode` | `PurchaselySDKMode` enum (mapping in the wrapper) | `Data/PurchaselySDKMode.swift` |
+| `PLYLogger.PLYLogLevel` | `verboseLogging: Bool` parameter on `initialize()` | — |
+| `PLYDataProcessingPurpose` | `ConsentPurpose` enum (mapping in the wrapper) | `Model/ConsentPurpose.swift` |
+
+Check it with: `grep -rl 'import Purchasely' Shaker --include='*.swift'` — every hit must be under `Purchasely/`.
 
 ---
 
@@ -72,6 +98,7 @@ PurchaselyWrapper                          PurchaseManager
 - `processAction(false)` MUST be called BEFORE `closeAllScreens()` — the interceptor needs to know not to proceed before the paywall tears down.
 - `Purchasely.closeAllScreens()` is safe to call at any time, no need to wait for anything.
 - `Purchasely.synchronize()` runs in the background — by default you do **not** need to await it before dismissing the paywall.
+- In Observer mode, the raw SDK dismissal outcome can still be `CANCELLED` after a successful app-side Billing purchase because the SDK purchase action was intercepted. The wrapper must merge the app-owned `TransactionResult.Success` back into the app-facing `DisplayResult`.
 
 **Why Shaker awaits `synchronize()` anyway:** Shaker chains a `success_payment` placement after a successful purchase to show a thank-you screen. That placement targets users based on their (now-active) subscription state, so we wait for `synchronize()` to finish before we tear the paywall down — otherwise the `success_payment` fetch can resolve against stale subscription state and show the wrong screen (or get deactivated).
 
@@ -177,38 +204,86 @@ The wrapper internally configures:
 5. **Android only:** Flow subscriptions for the Observer purchase flow. **iOS:** the interceptor dispatches `Task { @MainActor in await PurchaseManager.shared.purchase(...) }` directly — no Combine subjects, no init-time subscriptions.
 
 **Restart:** When the SDK mode changes, `wrapper.restart()` is called:
-- **Android:** `SettingsViewModel` calls `purchaselyWrapper.restart()` directly. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection.
+- **Android:** `SettingsViewModel` persists the selected mode in the same `PurchaselySdkMode.KEY` storage key read by `RunningModeRepository`, then calls `purchaselyWrapper.restart()`. `restart()` → `close()` → `initialize()`. `close()` cancels the transaction result collection job, clears any pending process action, then stops the SDK. `initialize()` restarts the collection with the new `PLYRunningMode`.
 - **iOS:** `SettingsViewModel` posts `.purchaselySdkModeDidChange` notification, wrapper observes it and calls `restart()` internally on the main actor
 
 ---
 
-## 4. Presentation Loading: Always fetch then build/display
+## 4. Presentation Loading: Always build → preload → display
 
-**Rule: Always use `Purchasely.fetchPresentation()` followed by `presentation.buildView()` or `presentation.display()`. Never use `Purchasely.presentationView()`.**
+**Rule (v6): Always build the presentation request (`PLYPresentation { … }` on Android,
+`PLYPresentationBuilder` on iOS), `preload()` it, then `display()`/`buildView()` the loaded
+presentation. Never use the deprecated `fetchPresentation()`/`presentationView()` shortcuts.**
 
 **Why:**
-- `fetchPresentation` + `buildView`/`display` gives full control over the presentation lifecycle
+- build + preload + display gives full control over the presentation lifecycle
 - You can inspect `presentation.type` before deciding what to do (NORMAL, CLIENT, DEACTIVATED)
 - You can handle errors from the fetch step separately from display errors
-- `presentationView()` is a convenience shortcut that hides these steps — unsuitable for reference code
+- The shortcuts hide these steps — unsuitable for reference code
 
-**Pattern:**
+**Pattern (Android, SDK v6):**
 ```kotlin
-// In PurchaselyWrapper
+// In PurchaselyWrapper — fetch: DSL builder + suspend preload()
 suspend fun loadPresentation(placementId: String): FetchResult {
-    // Uses suspend Purchasely.fetchPresentation() internally
-    // Maps result to FetchResult sealed class
-    // Catches exceptions and returns FetchResult.Error
+    return try {
+        val prepared = PLYPresentation {
+            placementId(placementId)
+            onDismissed { outcome -> /* log; stays active for callback-less displays */ }
+        }
+        val presentation = prepared.preload() // suspend, throws on failure
+        when (presentation.type) {
+            PLYPresentationType.DEACTIVATED -> FetchResult.Deactivated
+            PLYPresentationType.CLIENT -> FetchResult.Client(PresentationHandle(presentation))
+            else -> FetchResult.Success(PresentationHandle(presentation), presentation.height)
+        }
+    } catch (e: Exception) {
+        FetchResult.Error(e.message)
+    }
 }
 
-// For modal display
-suspend fun display(handle: PresentationHandle, activity: Activity): DisplayResult  // Android
-func display(presentation: PLYPresentation, from viewController: UIViewController?) // iOS
+// Modal display — v6 session API: display() is non-suspend and returns a
+// PLYPresentationSession; await() suspends until dismissal and returns the outcome
+// (throws the PLYError if the screen fails to launch or render).
+suspend fun display(handle: PresentationHandle, activity: Activity): DisplayResult =
+    try {
+        handle.presentation.display(activity).await().toDisplayResult()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        Log.e(TAG, "display failed: ${e.message}", e)
+        DisplayResult.Cancelled
+    }
 
-// For inline/embedded display
-fun getView(handle: PresentationHandle, context: Context, onResult): View?          // Android
-func getController(presentation: PLYPresentation) -> PLYPresentationViewController? // iOS
+// Inline/embedded display — callbacks are correct here: buildView() returns the
+// View synchronously, the outcome callback fires later.
+fun getView(handle: PresentationHandle, context: Context, onResult): View?
 ```
+
+**Pattern (iOS, SDK v6):**
+```swift
+// In PurchaselyWrapper — fetch: PLYPresentationBuilder + preload
+func loadPresentation(placementId: String, contentId: String?,
+                      onResult: @escaping @MainActor (DisplayResult) -> Void) async -> FetchResult {
+    // PLYPresentationBuilder.from(placementId:).contentId(...).onClose{}.onDismissed{outcome}
+    //   .build().preload { presentation, error in ... }
+    // Maps presentation.type to FetchResult and wraps the presentation in PresentationHandle.
+}
+
+// Modal display — the loaded presentation displays itself; outcomes arrive through the
+// onDismissed callback bound at fetch time (PresentationCache constraint).
+func display(handle: PresentationHandle, from viewController: UIViewController?)
+```
+
+> **Platform note:** Android's `display(activity).await()` suspends until dismissal because the
+> Android v6 SDK exposes a `PLYPresentationSession`; the iOS v6 SDK reports outcomes through the
+> builder-bound `onDismissed` instead. Both wrappers normalize to the same app-facing
+> `DisplayResult`, so ViewModels are identical across platforms.
+
+> **Why `display().await()` and not the callback overload?** Passing an inline callback to
+> `display(activity) { outcome -> ... }` **replaces** the `onDismissed` set on the builder for
+> that display. The session API keeps the builder callback active *and* hands the outcome to
+> the awaiting coroutine — both observers see the dismissal. It also propagates launch/render
+> failures as typed `PLYError`s instead of silently dropping them.
 
 ---
 
@@ -300,12 +375,23 @@ if (inlineResult is FetchResult.Success) {
 - Renders via `AndroidView`
 - Uses `presentation.height` (dp) for view height
 - If height is 0, falls back to `heightIn(max = 200.dp)`
-- `onResult` forwards purchase events to the ViewModel
+- `onCloseRequested` must remove the inline entry from the owning Compose state (for Home, `HomeViewModel` clears `inlinePresentation`)
+- `onResult` forwards only purchase/restore events to the ViewModel for premium refresh
 - If fetch failed, the banner is simply not shown (Screen checks for `FetchResult.Success`)
 
 ---
 
-## 7. User Attributes
+## 7. User Identity Changes
+
+**Rule: Clear app-side premium state immediately on login/logout before asking the SDK for the new user's subscriptions.**
+
+Android and iOS SDK subscription caches are asynchronous. A user switch can briefly expose the previous user's entitlement if the app only waits for the next subscription fetch. In Shaker, `SettingsViewModel.login()` and `logout()` call `PremiumRepository.clearPremiumStatus()` first, then call `PurchaselyWrapper.userLogin()` / `userLogout()`. This makes the UI non-premium until the SDK confirms active subscriptions for the new identity.
+
+For Android SDK v6, `PLYUserManager.loginUser()` must also clear/refetch subscriptions when switching from identified user A to identified user B, not only when moving anonymous → identified.
+
+---
+
+## 8. User Attributes
 
 **Rule: Set user attributes through `PurchaselyWrapper`, always from the ViewModel layer.**
 
@@ -325,7 +411,7 @@ purchaselyWrapper.setUserAttribute("favorite_spirit", "gin")
 
 ---
 
-## 8. Handling Presentation Types
+## 9. Handling Presentation Types
 
 Always handle all `FetchResult` variants:
 
@@ -338,28 +424,42 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 9. Error Handling
+## 10. Error Handling
 
 - **Never crash on SDK errors.** Log and degrade gracefully.
 - **Never block the UI** waiting for a presentation. Use coroutines/async-await and show content immediately.
 - **Embedded views:** If fetch fails, the banner simply doesn't appear.
-- **Modal paywalls:** If fetch fails, the user action is silently ignored (with a log).
+- **Modal paywalls:** If fetch fails, the user action degrades gracefully — but **never silently**.
+- **Handle every `FetchResult` variant explicitly.** An `else -> {}` on a paywall fetch produces a
+  dead button with no diagnosis trail. The reference pattern (see `HomeViewModel.onFilterClick`):
+  - `Success` → emit the handle for display
+  - `Error` → log with the message **and retry the prefetch** so a transient failure (offline at
+    launch) doesn't permanently kill the entry point
+  - `Deactivated` / `Client` → log at debug level (expected console-side states)
+  - `null` (prefetch in flight) → ignore the tap, the loader is visible
 
 ---
 
-## 10. Async: Native Async Patterns
+## 11. Async: Native Async Patterns
 
 **Rule: Use the platform's native async pattern. Only use callbacks when the SDK doesn't provide an alternative.**
 
-**Android (Kotlin):**
-- `loadPresentation()` — uses the native suspend `Purchasely.fetchPresentation()`
-- `display()` — wraps the callback-based `display(activity)` with `suspendCoroutine`
+**Android (Kotlin, SDK v6):**
+- `loadPresentation()` — uses the v6 DSL (`PLYPresentation { ... }`) + the native suspend `preload()`
+- `display()` — uses the v6 session API: `presentation.display(activity).await()`. No more
+  `suspendCoroutine` bridging — `display()` is non-suspend (Java-friendly) and returns a
+  `PLYPresentationSession` whose `await()` suspends until dismissal and throws typed `PLYError`s.
+  The session also exposes `state: StateFlow<PLYPresentationState>` to observe the full
+  lifecycle (`Displayed` → `Dismissed`/`Error`) when a single outcome isn't enough.
 - `getView()` — keeps callbacks because `buildView()` returns a `View?` synchronously; the callback fires later on purchase events
 
-**iOS (Swift) — Swift 6 / Swift Concurrency throughout, no Combine, no `DispatchQueue.main.async` in production Purchasely code:**
-- `loadPresentation()` — `async/await` with `withCheckedContinuation` to bridge `fetchPresentation(for:, fetchCompletion:, completion:)`; the `onResult` callback is bound at fetch time via the `completion` closure
-- `display()` — `@MainActor` synchronous, calls `presentation.display(from:)` directly
-- `getController()` — returns the presentation's `UIViewController` for embedding
+**iOS (Swift, SDK v6) — Swift 6 / Swift Concurrency throughout, no Combine, no `DispatchQueue.main.async` in production Purchasely code:**
+- `loadPresentation()` — `async/await` with `withCheckedContinuation` around the v6
+  `PLYPresentationBuilder…build().preload { presentation, error in }`; outcome callbacks
+  (`onClose`/`onDismissed`) are bound at fetch time and rebound on cache hits
+- `display(handle:from:)` — `@MainActor` synchronous, calls `handle.presentation.display(from:)`;
+  dismissal outcomes arrive through the fetch-time `onDismissed`
+- `EmbeddedScreenBanner(fetchResult:)` — resolves the presentation's `controller` internally for embedding
 - `synchronizeReceipt()` — private `async throws` wrapper around `Purchasely.synchronize(success:, failure:)` via `withCheckedThrowingContinuation`
 - `PurchaselyWrapping`, `PurchaselyWrapper`, Purchasely-facing ViewModels, and UI-state managers are `@MainActor` isolated. `PLYEventDelegate` / `PLYUserAttributeDelegate` callbacks stay `nonisolated` and only do thread-safe work (logging + `PresentationCache.invalidateAll()`).
 - SDK callbacks that fire on unknown threads hop to the main actor via `Task { @MainActor [weak self] in … }`, never `DispatchQueue.main.async`.
@@ -368,7 +468,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 11. Testability
+## 12. Testability
 
 **Rule: All Purchasely integration code must be testable. ViewModels use dependency injection for the wrapper.**
 
@@ -386,7 +486,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 12. Platform-Specific Notes
+## 13. Platform-Specific Notes
 
 ### Android (Kotlin / Jetpack Compose)
 
@@ -418,7 +518,7 @@ Always handle all `FetchResult` variants:
 
 ---
 
-## 13. Diagnostic & Troubleshooting
+## 14. Diagnostic & Troubleshooting
 
 When something looks wrong (paywall doesn't close, wrong screen reappears, purchase doesn't unlock premium…), do **not** start patching code. The Purchasely SDK emits a detailed log stream, and Shaker adds its own `[Shaker]` log lines — read them first, the answer is almost always there.
 

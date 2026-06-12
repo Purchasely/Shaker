@@ -4,7 +4,6 @@ import android.app.Application
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.di.appModule
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.LogLevel
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -25,7 +24,7 @@ class ShakerApp : Application() {
         purchaselyWrapper.initialize(
             application = this,
             apiKey = BuildConfig.PURCHASELY_API_KEY,
-            logLevel = if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN,
+            verboseLogging = BuildConfig.DEBUG,
             onConfigured = { premiumRepository.refreshPremiumStatus() }
         )
 

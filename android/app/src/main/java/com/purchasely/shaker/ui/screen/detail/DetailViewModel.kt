@@ -35,13 +35,13 @@ class DetailViewModel(
 
     val favoriteIds: StateFlow<Set<String>> = favoritesRepository.favoriteIds
 
-    // Signal Screen to display recipe paywall
-    private val _requestRecipePaywall = MutableSharedFlow<PresentationHandle>()
-    val requestRecipePaywall: SharedFlow<PresentationHandle> = _requestRecipePaywall.asSharedFlow()
+    // Signal Screen to display recipe presentation
+    private val _requestRecipePresentation = MutableSharedFlow<PresentationHandle>()
+    val requestRecipePresentation: SharedFlow<PresentationHandle> = _requestRecipePresentation.asSharedFlow()
 
-    // Signal Screen to display favorites paywall
-    private val _requestFavoritesPaywall = MutableSharedFlow<PresentationHandle>()
-    val requestFavoritesPaywall: SharedFlow<PresentationHandle> = _requestFavoritesPaywall.asSharedFlow()
+    // Signal Screen to display favorites presentation
+    private val _requestFavoritesPresentation = MutableSharedFlow<PresentationHandle>()
+    val requestFavoritesPresentation: SharedFlow<PresentationHandle> = _requestFavoritesPresentation.asSharedFlow()
 
     init {
         _cocktail.value = repository.getCocktail(cocktailId)
@@ -50,10 +50,10 @@ class DetailViewModel(
 
     private fun trackCocktailViewed() {
         // PURCHASELY: Increment a numeric counter attribute each time the user views a cocktail detail
-        // Useful for triggering paywalls after N views or segmenting engaged users
+        // Useful for triggering presentations after N views or segmenting engaged users
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         purchaselyWrapper.incrementUserAttribute("cocktails_viewed")
-        // PURCHASELY: Track the spirit of the last-viewed cocktail for personalized paywall content
+        // PURCHASELY: Track the spirit of the last-viewed cocktail for personalized presentation content
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         _cocktail.value?.spirit?.let { spirit ->
             purchaselyWrapper.setUserAttribute("favorite_spirit", spirit)
@@ -66,7 +66,7 @@ class DetailViewModel(
         toggleFavoriteUseCase(cocktailId)
     }
 
-    fun showRecipePaywall() {
+    fun showRecipePresentation() {
         viewModelScope.launch {
             val result = purchaselyWrapper.loadPresentation(
                 placementId = "recipe_detail",
@@ -74,32 +74,44 @@ class DetailViewModel(
             )
             when (result) {
                 is FetchResult.Success -> {
-                    _requestRecipePaywall.emit(result.handle)
+                    _requestRecipePresentation.emit(result.handle)
                 }
                 is FetchResult.Client -> {
-                    Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
+                    Log.d(TAG, "[Shaker] CLIENT presentation received for recipe_detail placement — build custom UI here")
                 }
-                else -> {}
+                // PURCHASELY: never swallow fetch failures silently — log them so a dead
+                // button is diagnosable from logcat (placement disabled, offline, etc.).
+                is FetchResult.Deactivated ->
+                    Log.d(TAG, "[Shaker] recipe_detail placement is deactivated in the console")
+                is FetchResult.Error ->
+                    Log.w(TAG, "[Shaker] recipe_detail paywall fetch failed: ${result.message}")
             }
         }
     }
 
-    fun showFavoritesPaywall() {
+    fun showFavoritesPresentation() {
         viewModelScope.launch {
             val result = purchaselyWrapper.loadPresentation(placementId = "favorites")
             when (result) {
                 is FetchResult.Success -> {
-                    _requestFavoritesPaywall.emit(result.handle)
+                    _requestFavoritesPresentation.emit(result.handle)
                 }
                 is FetchResult.Client -> {
-                    Log.d("DetailViewModel", "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
+                    Log.d(TAG, "[Shaker] CLIENT presentation received for favorites placement — build custom UI here")
                 }
-                else -> {}
+                is FetchResult.Deactivated ->
+                    Log.d(TAG, "[Shaker] favorites placement is deactivated in the console")
+                is FetchResult.Error ->
+                    Log.w(TAG, "[Shaker] favorites paywall fetch failed: ${result.message}")
             }
         }
     }
 
-    fun onPaywallDismissed() {
+    fun onPresentationDismissed() {
         premiumRepository.refreshPremiumStatus()
+    }
+
+    companion object {
+        private const val TAG = "DetailViewModel"
     }
 }

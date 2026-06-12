@@ -1,5 +1,5 @@
 import XCTest
-@preconcurrency import Purchasely
+
 @testable import Shaker
 
 @MainActor
@@ -49,7 +49,7 @@ final class SettingsViewModelTests: XCTestCase {
 
     func testSdkVersionFromWrapper() {
         let vm = createViewModel()
-        XCTAssertEqual(vm.sdkVersion, "5.7.3-mock")
+        XCTAssertEqual(vm.sdkVersion, "6.0.0-mock")
     }
 
     func testInitialConsentsAreTrue() {

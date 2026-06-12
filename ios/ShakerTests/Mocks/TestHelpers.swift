@@ -5,7 +5,8 @@ func testCocktail(
     name: String = "Mojito",
     spirit: String = "Rum",
     category: String = "Classic",
-    difficulty: String = "Easy"
+    difficulty: String = "Easy",
+    tags: [String] = ["test"]
 ) -> Cocktail {
     Cocktail(
         id: id,
@@ -15,7 +16,7 @@ func testCocktail(
         category: category,
         spirit: spirit,
         difficulty: difficulty,
-        tags: ["test"],
+        tags: tags,
         ingredients: [Ingredient(name: "Ingredient", amount: "60ml")],
         instructions: ["Mix and serve"]
     )

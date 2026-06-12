@@ -74,12 +74,12 @@ class DetailViewModel: ObservableObject {
     // MARK: - Display Paywalls
 
     func displayRecipePaywall(from viewController: UIViewController?) {
-        guard case .success(let presentation) = recipeFetchResult else { return }
-        wrapper.display(presentation: presentation, from: viewController)
+        guard case .success(let handle) = recipeFetchResult else { return }
+        wrapper.display(handle: handle, from: viewController)
     }
 
     func displayFavoritesPaywall(from viewController: UIViewController?) {
-        guard case .success(let presentation) = favoritesFetchResult else { return }
-        wrapper.display(presentation: presentation, from: viewController)
+        guard case .success(let handle) = favoritesFetchResult else { return }
+        wrapper.display(handle: handle, from: viewController)
     }
 }

@@ -207,4 +207,80 @@ final class HomeViewModelTests: XCTestCase {
         }
         wait(for: [expectation], timeout: 1.0)
     }
+
+    // MARK: - Mood-based discovery (mirrors Android HomeViewModelTest)
+
+    func testSelectMoodFiltersCatalogAndReportsPreferredMood() {
+        let repo = CocktailRepository(cocktails: [
+            testCocktail(id: "1", name: "Mojito", tags: ["refreshing"]),
+            testCocktail(id: "2", name: "Old Fashioned", tags: ["bold"]),
+        ])
+        let vm = HomeViewModel(repository: repo, wrapper: mockWrapper)
+
+        vm.selectMood(.strong)
+
+        XCTAssertEqual(vm.selectedMood, .strong)
+        XCTAssertEqual(vm.cocktails.map(\.name), ["Old Fashioned"])
+        XCTAssertTrue(vm.hasActiveFilters)
+        // PURCHASELY: the mood key must reach the SDK as the preferred_mood attribute.
+        XCTAssertTrue(mockWrapper.setStringAttributeCalls.contains(where: {
+            $0.key == "preferred_mood" && $0.value == "strong"
+        }))
+    }
+
+    func testSelectingSameMoodTwiceClearsItWithoutReReportingAttribute() {
+        let vm = createViewModel()
+
+        vm.selectMood(.sweet)
+        vm.selectMood(.sweet)
+
+        XCTAssertNil(vm.selectedMood)
+        XCTAssertEqual(vm.cocktails.count, 5)
+        XCTAssertEqual(
+            mockWrapper.setStringAttributeCalls.filter { $0.key == "preferred_mood" }.count,
+            1
+        )
+    }
+
+    func testClearFiltersResetsSelectedMood() {
+        let vm = createViewModel()
+        vm.selectMood(.refreshing)
+
+        vm.clearFilters()
+
+        XCTAssertNil(vm.selectedMood)
+        XCTAssertFalse(vm.hasActiveFilters)
+    }
+
+    // MARK: - Surprise me (mirrors Android HomeViewModelTest)
+
+    func testSurpriseMeReturnsACocktailIdAndIncrementsCounter() {
+        let vm = createViewModel()
+
+        let id = vm.surpriseMe()
+
+        XCTAssertNotNil(id)
+        XCTAssertTrue(testCocktails.map(\.id).contains(id ?? ""))
+        // PURCHASELY: engagement counter for console campaigns (trigger after N uses).
+        XCTAssertTrue(mockWrapper.incrementAttributeCalls.contains("surprise_me_count"))
+    }
+
+    func testSurpriseMeRespectsActiveMoodFilter() {
+        let repo = CocktailRepository(cocktails: [
+            testCocktail(id: "1", name: "Mojito", tags: ["refreshing"]),
+            testCocktail(id: "2", name: "Old Fashioned", tags: ["bold"]),
+        ])
+        let vm = HomeViewModel(repository: repo, wrapper: mockWrapper)
+        vm.selectMood(.strong)
+
+        XCTAssertEqual(vm.surpriseMe(), "2")
+    }
+
+    func testSurpriseMeReturnsNilAndDoesNotIncrementWhenListIsEmpty() {
+        let vm = createViewModel()
+        vm.searchQuery = "NonExistentCocktail"
+
+        XCTAssertNil(vm.surpriseMe())
+        XCTAssertFalse(mockWrapper.incrementAttributeCalls.contains("surprise_me_count"))
+    }
 }

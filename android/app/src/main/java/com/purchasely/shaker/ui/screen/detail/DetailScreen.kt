@@ -39,6 +39,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -78,21 +79,21 @@ fun DetailScreen(
     }
 
     LaunchedEffect(Unit) {
-        viewModel.requestRecipePaywall.collect { handle ->
+        viewModel.requestRecipePresentation.collect { handle ->
             val activity = context as? Activity ?: return@collect
             val result = purchaselyWrapper.display(handle, activity)
             when (result) {
-                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
                 else -> {}
             }
         }
     }
     LaunchedEffect(Unit) {
-        viewModel.requestFavoritesPaywall.collect { handle ->
+        viewModel.requestFavoritesPresentation.collect { handle ->
             val activity = context as? Activity ?: return@collect
             val result = purchaselyWrapper.display(handle, activity)
             when (result) {
-                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
                 else -> {}
             }
         }
@@ -127,7 +128,7 @@ fun DetailScreen(
                     }
                     Spacer(Modifier.weight(1f))
                     RoundButton(onClick = {
-                        if (isPremium) viewModel.toggleFavorite() else viewModel.showFavoritesPaywall()
+                        if (isPremium) viewModel.toggleFavorite() else viewModel.showFavoritesPresentation()
                     }) {
                         Icon(
                             imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
@@ -170,7 +171,13 @@ fun DetailScreen(
                         .align(Alignment.CenterHorizontally),
                 )
                 Spacer(Modifier.height(16.dp))
-                Text(c.name, color = tokens.text, fontSize = 28.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    c.name,
+                    color = tokens.text,
+                    fontFamily = FontFamily.Serif,
+                    fontSize = 30.sp,
+                    fontWeight = FontWeight.Bold,
+                )
                 Spacer(Modifier.height(8.dp))
                 Text(c.description, color = tokens.textSec, fontSize = 15.sp)
                 Spacer(Modifier.height(16.dp))
@@ -187,7 +194,7 @@ fun DetailScreen(
                 InstructionsSection(
                     steps = c.instructions,
                     locked = locked,
-                    onUnlock = { viewModel.showRecipePaywall() },
+                    onUnlock = { viewModel.showRecipePresentation() },
                 )
 
                 if (!locked) {

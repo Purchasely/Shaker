@@ -89,7 +89,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
     }
 
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect { handle ->
+        viewModel.requestPresentationDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
             val result = purchaselyWrapper.display(handle, activity)
             when (result) {
@@ -246,13 +246,13 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
         SectionHeader("Purchases")
         Column(modifier = Modifier.padding(horizontal = 20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlineButton(label = "Restore purchases") { viewModel.restorePurchases() }
-            OutlineButton(label = "Show onboarding") { viewModel.showOnboardingPaywall() }
+            OutlineButton(label = "Show onboarding") { viewModel.showOnboardingPresentation() }
         }
         Spacer(Modifier.height(16.dp))
 
         SectionHeader("Purchasely SDK")
         Segmented(
-            options = listOf(PurchaselySdkMode.PAYWALL_OBSERVER.label, PurchaselySdkMode.FULL.label),
+            options = listOf(PurchaselySdkMode.OBSERVER.label, PurchaselySdkMode.FULL.label),
             active = sdkMode.label,
             onSelect = { label ->
                 val mode = PurchaselySdkMode.entries.firstOrNull { it.label == label } ?: PurchaselySdkMode.DEFAULT
@@ -260,7 +260,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
             },
         )
         Text(
-            "Default mode is Paywall Observer — Shaker observes purchases but uses its own paywall UI.",
+            "Default mode is Observer — Shaker handles purchases natively while Purchasely renders the paywalls and tracks analytics.",
             color = tokens.textSec,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -298,7 +298,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = koinViewModel()) {
 
         SectionHeader("Screen display mode")
         Text(
-            "How paywalls are presented on screen",
+            "How presentations are presented on screen",
             color = tokens.textSec,
             fontSize = 12.sp,
             modifier = Modifier.padding(horizontal = 20.dp),

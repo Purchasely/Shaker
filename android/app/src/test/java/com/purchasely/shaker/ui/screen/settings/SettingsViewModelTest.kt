@@ -51,13 +51,14 @@ class SettingsViewModelTest {
         premiumRepository = mockk {
             every { isPremium } returns MutableStateFlow(false)
             every { refreshPremiumStatus() } returns Unit
+            every { clearPremiumStatus() } returns Unit
         }
         runningModeRepo = mockk(relaxed = true) {
             every { isObserverMode } returns false
         }
         wrapper = mockk(relaxed = true) {
             every { anonymousUserId } returns "anon-123"
-            every { sdkVersion } returns "5.7.3"
+            every { sdkVersion } returns "6.0.0-beta2"
             coEvery { loadPresentation(any(), any()) } returns FetchResult.Deactivated
         }
     }
@@ -87,6 +88,7 @@ class SettingsViewModelTest {
         val vm = createViewModel()
         vm.login("kevin")
         assertEquals("kevin", vm.userId.value)
+        verify { premiumRepository.clearPremiumStatus() }
         verify { wrapper.userLogin("kevin", any()) }
         verify { wrapper.setUserAttribute("user_id", "kevin") }
     }
@@ -126,14 +128,14 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `logout clears userId and calls wrapper`() {
+    fun `logout clears userId and premium state before calling wrapper`() {
         settingsRepo.userId = "kevin"
         val vm = createViewModel()
         vm.logout()
         assertNull(vm.userId.value)
+        verify { premiumRepository.clearPremiumStatus() }
         verify { wrapper.userLogout() }
         assertNull(settingsRepo.userId)
-        verify { premiumRepository.refreshPremiumStatus() }
     }
 
     @Test
@@ -192,7 +194,7 @@ class SettingsViewModelTest {
     @Test
     fun `sdkVersion delegates to wrapper`() {
         val vm = createViewModel()
-        assertEquals("5.7.3", vm.sdkVersion)
+        assertEquals("6.0.0-beta2", vm.sdkVersion)
     }
 
     @Test
@@ -270,9 +272,9 @@ class SettingsViewModelTest {
     }
 
     @Test
-    fun `showOnboardingPaywall calls loadPresentation`() = runTest {
+    fun `showOnboardingPresentation calls loadPresentation`() = runTest {
         val vm = createViewModel()
-        vm.showOnboardingPaywall()
+        vm.showOnboardingPresentation()
         coVerify { wrapper.loadPresentation("onboarding", null) }
     }
 
@@ -293,8 +295,18 @@ class SettingsViewModelTest {
     fun `setSdkMode calls wrapper restart`() {
         settingsRepo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
         val vm = createViewModel()
-        vm.setSdkMode(PurchaselySdkMode.PAYWALL_OBSERVER)
+        vm.setSdkMode(PurchaselySdkMode.OBSERVER)
         verify { wrapper.restart() }
+    }
+
+    @Test
+    fun `setSdkMode persists mode read by RunningModeRepository`() {
+        val realRunningModeRepo = RunningModeRepository(store)
+        val vm = SettingsViewModel(settingsRepo, premiumRepository, realRunningModeRepo, wrapper)
+
+        vm.setSdkMode(PurchaselySdkMode.FULL)
+
+        assertEquals(PurchaselySdkMode.FULL, realRunningModeRepo.sdkMode)
     }
 
     @Test

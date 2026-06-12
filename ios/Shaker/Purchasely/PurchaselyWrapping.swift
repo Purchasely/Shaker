@@ -1,8 +1,10 @@
 import UIKit
-@preconcurrency import Purchasely
 
 /// Protocol abstracting PurchaselyWrapper for testability.
 /// ViewModels depend on this protocol rather than the concrete wrapper.
+/// Deliberately SDK-free: every Purchasely type is mapped to an app-owned
+/// type (`PresentationHandle`, `FetchResult`, `DisplayResult`,
+/// `SubscriptionInfo`, `ConsentPurpose`) at the wrapper boundary.
 @MainActor
 protocol PurchaselyWrapping {
 
@@ -16,11 +18,7 @@ protocol PurchaselyWrapping {
 
     // MARK: - Modal Display
 
-    func display(presentation: PLYPresentation, from viewController: UIViewController?)
-
-    // MARK: - Embedded View Controller
-
-    func getController(presentation: PLYPresentation) -> PLYPresentationViewController?
+    func display(handle: PresentationHandle, from viewController: UIViewController?)
 
     // MARK: - User Management
 
@@ -38,9 +36,9 @@ protocol PurchaselyWrapping {
 
     // MARK: - Subscriptions
 
-    func userSubscriptions(
-        success: @escaping ([PLYSubscription]?) -> Void,
-        failure: @escaping (Error) -> Void
+    func fetchSubscriptions(
+        onSuccess: @escaping ([SubscriptionInfo]) -> Void,
+        onError: @escaping (Error) -> Void
     )
 
     // MARK: - Restore
@@ -52,7 +50,7 @@ protocol PurchaselyWrapping {
 
     // MARK: - Consent
 
-    func revokeDataProcessingConsent(for purposes: Set<PLYDataProcessingPurpose>)
+    func revokeDataProcessingConsent(for purposes: Set<ConsentPurpose>)
 
     // MARK: - Lifecycle
 

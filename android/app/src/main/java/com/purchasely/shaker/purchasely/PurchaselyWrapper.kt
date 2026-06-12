@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.util.Log
 import android.view.View
+import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.RunningModeRepository
 import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.data.purchase.PurchaseRequest
@@ -14,18 +15,23 @@ import com.purchasely.shaker.data.purchase.RestoreRequest
 import com.purchasely.shaker.data.purchase.TransactionResult
 import io.purchasely.ext.EventListener
 import io.purchasely.ext.LogLevel
-import io.purchasely.ext.PLYPresentationAction
-import io.purchasely.ext.PLYPresentationActionParameters
-import io.purchasely.ext.PLYPresentationInfo
-import io.purchasely.ext.PLYPresentationProperties
-import io.purchasely.ext.PLYPresentationType
-import io.purchasely.ext.SubscriptionsListener
 import io.purchasely.ext.PLYDataProcessingPurpose
-import io.purchasely.ext.PLYProductViewResult
+import io.purchasely.ext.PLYInterceptResult
+import io.purchasely.ext.PLYInterceptorInfo
+import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.Purchasely
-import io.purchasely.ext.fetchPresentation
-import io.purchasely.models.PLYPlan
+import io.purchasely.ext.SubscriptionsListener
+import io.purchasely.ext.interceptAction
+import io.purchasely.models.PLYSubscriptionData
+import io.purchasely.ext.presentation.PLYPresentation
+import io.purchasely.ext.presentation.PLYPresentationAction
+import io.purchasely.ext.presentation.PLYPresentationOutcome
+import io.purchasely.ext.presentation.PLYPresentationType
+import io.purchasely.ext.presentation.PLYPurchaseResult
+import io.purchasely.ext.presentation.display
+import io.purchasely.ext.presentation.preload
 import io.purchasely.google.GoogleStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -48,14 +54,19 @@ class PurchaselyWrapper(
     private var apiKey: String = ""
     private var logLevel: LogLevel = LogLevel.DEBUG
     private var onConfiguredCallback: (() -> Unit)? = null
-    private var pendingProcessAction: ((Boolean) -> Unit)? = null
+    private var pendingResult: ((PLYInterceptResult) -> Unit)? = null
     private var collectionJob: Job? = null
+    private var pendingObserverAction: ObserverAction? = null
 
-    // PURCHASELY: Flag set when a successful purchase is reported by PurchaseManager
-    // (Observer mode). In Full mode, the SDK reports PURCHASED directly via the
-    // display() callback. In both cases, display() consumes this signal to chain
-    // a "success_payment" placement once the original paywall is dismissed.
-    private var pendingSuccessfulPurchase: Boolean = false
+    // PURCHASELY: In Observer mode, the app handles Billing itself, so the SDK-side
+    // PLYPresentationOutcome still defaults to CANCELLED when we close the paywall.
+    // Keep the app-owned successful result here and merge it when mapping outcomes.
+    private var pendingSuccessfulObserverResult: DisplayResult? = null
+
+    private sealed class ObserverAction {
+        data class Purchase(val planName: String?) : ObserverAction()
+        data object Restore : ObserverAction()
+    }
 
     init {
         startTransactionCollection()
@@ -75,32 +86,41 @@ class PurchaselyWrapper(
     fun initialize(
         application: Application,
         apiKey: String,
-        logLevel: LogLevel = LogLevel.DEBUG,
+        verboseLogging: Boolean = true,
         onConfigured: (() -> Unit)? = null
     ) {
         this.application = application
         this.apiKey = apiKey
-        this.logLevel = logLevel
+        // The caller stays SDK-free: a boolean is mapped to the SDK LogLevel here.
+        this.logLevel = if (verboseLogging) LogLevel.DEBUG else LogLevel.WARN
+
         this.onConfiguredCallback = onConfigured
 
-        val mode = runningModeRepo.runningMode
+        // Map the app-level mode to the SDK type — the rest of the app never sees PLYRunningMode.
+        val mode = when (runningModeRepo.sdkMode) {
+            PurchaselySdkMode.OBSERVER -> PLYRunningMode.Observer
+            PurchaselySdkMode.FULL -> PLYRunningMode.Full
+        }
 
-        Purchasely.Builder(application)
-            .apiKey(apiKey)
-            .logLevel(logLevel)
-            .readyToOpenDeeplink(true)
-            .runningMode(mode)
-            .stores(listOf(GoogleStore()))
-            .build()
-            .start { isConfigured, error ->
-                if (isConfigured) {
+        // PURCHASELY (v6): use the Kotlin DSL entrypoint. `Purchasely { ... }` configures
+        // and starts the SDK in one call — no .build()/.start() chain. For Java callers,
+        // fall back to the fluent Purchasely.Builder(...).build().start { ... }.
+        Purchasely {
+            context(application)
+            apiKey(apiKey)
+            logLevel(logLevel)
+            allowDeeplink(true)
+            runningMode(mode)
+            stores(listOf(GoogleStore()))
+            onInitialized { error ->
+                if (error == null) {
                     Log.d(TAG, "[Shaker] Purchasely SDK configured successfully")
                     onConfigured?.invoke()
-                }
-                error?.let {
-                    Log.e(TAG, "[Shaker] Purchasely configuration error: ${it.message}")
+                } else {
+                    Log.e(TAG, "[Shaker] Purchasely configuration error: ${error.message}")
                 }
             }
+        }
 
         eventListener = object : EventListener {
             override fun onEvent(event: io.purchasely.ext.PLYEvent) {
@@ -108,9 +128,7 @@ class PurchaselyWrapper(
             }
         }
 
-        setPaywallActionsInterceptor { info, action, parameters, proceed ->
-            handlePaywallAction(info, action, parameters, proceed)
-        }
+        registerActionInterceptors()
 
         startTransactionCollection()
     }
@@ -118,73 +136,116 @@ class PurchaselyWrapper(
     fun restart() {
         close()
         val app = application ?: return
-        initialize(app, apiKey, logLevel, onConfiguredCallback)
+        initialize(app, apiKey, logLevel == LogLevel.DEBUG, onConfiguredCallback)
     }
 
     fun close() {
         collectionJob?.cancel()
         collectionJob = null
-        pendingProcessAction?.invoke(false)
-        pendingProcessAction = null
+        // A pending Observer-mode action was already claimed by the app; resolve it
+        // as handled so the SDK does not fall back to its default purchase/restore flow.
+        pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+        pendingResult = null
+        pendingObserverAction = null
+        pendingSuccessfulObserverResult = null
+        Purchasely.removeAllActionInterceptors()
         Purchasely.close()
     }
 
     // MARK: - Interceptor Logic
 
-    internal fun handlePaywallAction(
-        info: PLYPresentationInfo?,
-        action: PLYPresentationAction,
-        parameters: PLYPresentationActionParameters?,
-        processAction: (Boolean) -> Unit
-    ) {
-        when (action) {
-            PLYPresentationAction.LOGIN -> {
-                Log.d(TAG, "[Shaker] Paywall login action intercepted")
-                processAction(false)
+    private fun registerActionInterceptors() {
+        Purchasely.interceptAction<PLYPresentationAction.Login> { _, _ ->
+            Log.d(TAG, "[Shaker] Presentation login action intercepted")
+            PLYInterceptResult.SUCCESS
+        }
+
+        Purchasely.interceptAction<PLYPresentationAction.Navigate> { _, navigate ->
+            val url = navigate.url
+            if (url != null) {
+                Log.d(TAG, "[Shaker] Presentation navigate action: $url")
+                val intent = Intent(Intent.ACTION_VIEW, url)
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                application?.startActivity(intent)
             }
-            PLYPresentationAction.NAVIGATE -> {
-                val url = parameters?.url
-                if (url != null) {
-                    Log.d(TAG, "[Shaker] Paywall navigate action: $url")
-                    val intent = Intent(Intent.ACTION_VIEW, url)
-                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    application?.startActivity(intent)
-                }
-                processAction(false)
-            }
-            PLYPresentationAction.PURCHASE -> {
-                if (runningModeRepo.isObserverMode) {
-                    val plan = parameters?.plan
-                    val offer = parameters?.subscriptionOffer
-                    val productId = plan?.store_product_id
-                    val offerToken = offer?.offerToken
-                    val activity = info?.activity
-                    if (activity != null && productId != null && offerToken != null) {
-                        pendingProcessAction?.invoke(false)
-                        pendingProcessAction = processAction
-                        scope.launch {
-                            purchaseRequests.emit(PurchaseRequest(activity, productId, offerToken))
-                        }
-                    } else {
-                        Log.w(TAG, "[Shaker] Observer mode purchase: missing activity, productId, or offerToken")
-                        processAction(false)
-                    }
-                } else {
-                    processAction(true)
-                }
-            }
-            PLYPresentationAction.RESTORE -> {
-                if (runningModeRepo.isObserverMode) {
-                    pendingProcessAction?.invoke(false)
-                    pendingProcessAction = processAction
-                    scope.launch {
-                        restoreRequests.emit(RestoreRequest)
-                    }
-                } else {
-                    processAction(true)
+            PLYInterceptResult.SUCCESS
+        }
+
+        Purchasely.interceptAction<PLYPresentationAction.Purchase> { info, purchase ->
+            handlePurchase(info, purchase)
+        }
+
+        Purchasely.interceptAction<PLYPresentationAction.Restore> { _, _ ->
+            handleRestore()
+        }
+    }
+
+    internal suspend fun handlePurchase(
+        info: PLYInterceptorInfo?,
+        purchase: PLYPresentationAction.Purchase
+    ): PLYInterceptResult {
+        if (!runningModeRepo.isObserverMode) {
+            return PLYInterceptResult.NOT_HANDLED
+        }
+
+        val plan = purchase.plan
+        val offer = purchase.subscriptionOffer
+        val productId = plan.store_product_id
+        val offerToken = offer?.offerToken
+        val activity = info?.activity
+
+        return if (activity != null && productId != null && offerToken != null) {
+            awaitPendingResult { resultCallback ->
+                pendingObserverAction = ObserverAction.Purchase(plan.name)
+                pendingResult = resultCallback
+                scope.launch {
+                    purchaseRequests.emit(PurchaseRequest(activity, productId, offerToken))
                 }
             }
-            else -> processAction(true)
+        } else {
+            Log.w(TAG, "[Shaker] Observer mode purchase: missing activity, productId, or offerToken")
+            // Observer mode owns purchases. Returning NOT_HANDLED here would let the
+            // SDK launch its default flow after the app failed to provide native inputs.
+            PLYInterceptResult.FAILED
+        }
+    }
+
+    internal suspend fun handleRestore(): PLYInterceptResult {
+        if (!runningModeRepo.isObserverMode) {
+            return PLYInterceptResult.NOT_HANDLED
+        }
+        return awaitPendingResult { resultCallback ->
+            pendingObserverAction = ObserverAction.Restore
+            pendingResult = resultCallback
+            scope.launch {
+                restoreRequests.emit(RestoreRequest)
+            }
+        }
+    }
+
+    /**
+     * Bridges the legacy "processAction" callback style to v6's suspend interceptor:
+     * the interceptor lambda suspends until the pending result callback is invoked
+     * from [handleTransactionResult] with the outcome reported by the host app.
+     */
+    private suspend fun awaitPendingResult(
+        register: ((PLYInterceptResult) -> Unit) -> Unit
+    ): PLYInterceptResult = suspendCancellableCoroutine { continuation ->
+        // Cancel any previously-pending continuation before installing a new one.
+        // The previous Observer-mode action was already claimed by the app, so mark
+        // it handled to block the SDK's default purchase/restore fallback.
+        pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+        pendingObserverAction = null
+        pendingSuccessfulObserverResult = null
+        val callback: (PLYInterceptResult) -> Unit = { result ->
+            if (continuation.isActive) continuation.resume(result)
+        }
+        register(callback)
+        continuation.invokeOnCancellation {
+            if (pendingResult === callback) {
+                pendingResult = null
+                pendingObserverAction = null
+            }
         }
     }
 
@@ -193,24 +254,46 @@ class PurchaselyWrapper(
     private fun handleTransactionResult(result: TransactionResult) {
         when (result) {
             is TransactionResult.Success -> {
+                val observerResult = when (val action = pendingObserverAction) {
+                    is ObserverAction.Purchase -> DisplayResult.Purchased(action.planName)
+                    ObserverAction.Restore -> DisplayResult.Restored(null)
+                    null -> null
+                }
                 synchronize()
-                pendingProcessAction?.invoke(false)
-                pendingProcessAction = null
+                if (observerResult == null) {
+                    pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+                    pendingResult = null
+                    pendingObserverAction = null
+                    Log.d(TAG, "[Shaker] Transaction success without pending observer action")
+                    onTransactionCompleted?.invoke()
+                    return
+                }
                 // PURCHASELY: Defer onTransactionCompleted to the success_payment chain.
-                // closeAllScreens() forces the paywall to dismiss; display()'s callback
-                // then sees pendingSuccessfulPurchase=true and opens "success_payment".
-                pendingSuccessfulPurchase = true
+                // closeAllScreens() forces the presentation to dismiss; display()'s callback
+                // then merges pendingSuccessfulObserverResult with the SDK's CANCELLED outcome.
+                pendingSuccessfulObserverResult = observerResult
+                pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+                pendingResult = null
+                pendingObserverAction = null
                 Purchasely.closeAllScreens()
                 Log.d(TAG, "[Shaker] Transaction success — synchronized; awaiting success_payment dismissal")
             }
             is TransactionResult.Cancelled -> {
-                pendingProcessAction?.invoke(false)
-                pendingProcessAction = null
+                // Observer mode owns the transaction, so we must block the SDK's default
+                // purchase/restore flow even on cancellation (the v5 equivalent of
+                // processAction(false)). NOT_HANDLED would map to processAction(true) and
+                // let the SDK launch its own purchase. See docs/paywall-observer-reference.md.
+                pendingResult?.invoke(PLYInterceptResult.SUCCESS)
+                pendingResult = null
+                pendingObserverAction = null
+                pendingSuccessfulObserverResult = null
                 Log.d(TAG, "[Shaker] Transaction cancelled")
             }
             is TransactionResult.Error -> {
-                pendingProcessAction?.invoke(false)
-                pendingProcessAction = null
+                pendingResult?.invoke(PLYInterceptResult.FAILED)
+                pendingResult = null
+                pendingObserverAction = null
+                pendingSuccessfulObserverResult = null
                 Log.e(TAG, "[Shaker] Transaction error: ${result.message}")
             }
             is TransactionResult.Idle -> { /* ignore */ }
@@ -223,38 +306,55 @@ class PurchaselyWrapper(
         get() = Purchasely.eventListener
         set(value) { Purchasely.eventListener = value }
 
-    fun setPaywallActionsInterceptor(
-        interceptor: (
-            info: PLYPresentationInfo?,
-            action: PLYPresentationAction,
-            parameters: PLYPresentationActionParameters?,
-            processAction: (Boolean) -> Unit
-        ) -> Unit
-    ) {
-        Purchasely.setPaywallActionsInterceptor(interceptor)
-    }
-
     // MARK: - Deeplinks
 
     fun isDeeplinkHandled(deeplink: Uri, activity: Activity?): Boolean {
-        @Suppress("DEPRECATION")
-        return Purchasely.isDeeplinkHandled(deeplink, activity)
+        return Purchasely.handleDeeplink(deeplink, activity)
     }
 
     // MARK: - Presentation Loading
 
     suspend fun loadPresentation(
-        placementId: String,
-        contentId: String? = null
+        placementId: String? = null,
+        screenId: String? = null,
+        contentId: String? = null,
+        useDemoChrome: Boolean = false,
     ): FetchResult {
         return try {
-            val presentation = if (contentId != null) {
-                Purchasely.fetchPresentation(
-                    properties = PLYPresentationProperties(placementId = placementId, contentId = contentId)
-                )
-            } else {
-                Purchasely.fetchPresentation(placementId = placementId)
+            val requestedPlacementId = placementId
+            val requestedScreenId = screenId
+            val requestedContentId = contentId
+            val prepared = PLYPresentation {
+                requestedPlacementId?.let { placementId(it) }
+                requestedScreenId?.let { screenId(it) }
+                requestedContentId?.let { contentId(it) }
+                if (useDemoChrome) {
+                    backgroundColor(0xFF101820.toInt())
+                    progressColor(0xFFFFC857.toInt())
+                    displayCloseButton(true)
+                    displayBackButton(true)
+                }
+                onPresented { presentation, error ->
+                    Log.d(
+                        TAG,
+                        "[Shaker] Presentation onPresented screenId=${presentation?.screenId}, error=${error?.message}"
+                    )
+                }
+                onCloseRequested {
+                    Log.d(TAG, "[Shaker] Presentation close requested")
+                }
+                onDismissed { outcome: PLYPresentationOutcome ->
+                    val appResult = outcome.toDisplayResult()
+                    Log.d(
+                        TAG,
+                        "[Shaker] Presentation dismissed: sdkResult=${outcome.purchaseResult}, " +
+                            "appResult=$appResult, plan=${outcome.plan?.name}, " +
+                            "reason=${outcome.closeReason}, error=${outcome.error?.message}"
+                    )
+                }
             }
+            val presentation = prepared.preload()
+
             val handle = PresentationHandle(presentation)
             when (presentation.type) {
                 PLYPresentationType.DEACTIVATED -> FetchResult.Deactivated
@@ -266,32 +366,71 @@ class PurchaselyWrapper(
         }
     }
 
+    suspend fun loadPresentationByScreenId(
+        screenId: String,
+        contentId: String? = null,
+    ): FetchResult = loadPresentation(
+        screenId = screenId,
+        contentId = contentId,
+        useDemoChrome = true,
+    )
+
+    suspend fun displayPreparedPresentation(
+        placementId: String,
+        activity: Activity,
+    ): DisplayResult = suspendCancellableCoroutine { continuation ->
+        val requestedPlacementId = placementId
+        PLYPresentation {
+            placementId(requestedPlacementId)
+            onPresented { presentation, error ->
+                Log.d(
+                    TAG,
+                    "[Shaker] Prepared display triggered screenId=${presentation?.screenId}, error=${error?.message}"
+                )
+            }
+            onCloseRequested {
+                Log.d(TAG, "[Shaker] Prepared presentation close requested")
+            }
+        }.display(
+            context = activity,
+            presentation = { presentation ->
+                Log.d(TAG, "[Shaker] Prepared presentation loaded: ${presentation.screenId}")
+            },
+            callback = { outcome ->
+                if (continuation.isActive) continuation.resume(outcome.toDisplayResult())
+            }
+        )
+    }
+
     // MARK: - Modal Display
 
     suspend fun display(
         handle: PresentationHandle,
         activity: Activity
     ): DisplayResult {
-        val initial: DisplayResult = suspendCancellableCoroutine { continuation ->
-            handle.presentation.display(activity) { result: PLYProductViewResult, plan: PLYPlan? ->
-                when (result) {
-                    PLYProductViewResult.PURCHASED -> continuation.resume(DisplayResult.Purchased(plan?.name))
-                    PLYProductViewResult.RESTORED -> continuation.resume(DisplayResult.Restored(plan?.name))
-                    else -> continuation.resume(DisplayResult.Cancelled)
-                }
-            }
+        // PURCHASELY (v6): display() is non-suspend and returns a PLYPresentationSession;
+        // session.await() suspends until the screen is dismissed and returns the outcome
+        // (throwing the PLYError if the screen fails to launch or render). No callback is
+        // passed, so the builder-set onDismissed stays active — an inline callback would
+        // replace it for this display.
+        val initial: DisplayResult = try {
+            handle.presentation.display(activity).await().toDisplayResult()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "[Shaker] Presentation display failed: ${e.message}", e)
+            return DisplayResult.Cancelled
         }
 
-        // PURCHASELY: After the paywall closes, if a purchase succeeded — either
-        // reported directly by the SDK (Full mode) or signaled via pendingSuccessfulPurchase
-        // (Observer mode) — chain a "success_payment" placement, then refresh subscriptions
-        // when that screen closes.
+        // PURCHASELY: After the presentation closes, if a purchase succeeded — either
+        // reported directly by the SDK (Full mode) or normalized from the app-side
+        // Observer-mode Billing result — chain a "success_payment" placement, then
+        // refresh subscriptions when that screen closes.
         val purchaseHappened = initial is DisplayResult.Purchased
             || initial is DisplayResult.Restored
-            || pendingSuccessfulPurchase
 
         if (purchaseHappened) {
-            pendingSuccessfulPurchase = false
+            pendingSuccessfulObserverResult = null
             showSuccessPaymentScreen(activity)
         }
 
@@ -301,11 +440,14 @@ class PurchaselyWrapper(
     private suspend fun showSuccessPaymentScreen(activity: Activity) {
         when (val fetchResult = loadPresentation(SUCCESS_PAYMENT_PLACEMENT)) {
             is FetchResult.Success -> {
-                // Display the success_payment screen and wait for it to close
-                suspendCancellableCoroutine<Unit> { continuation ->
-                    fetchResult.handle.presentation.display(activity) { _, _ ->
-                        continuation.resume(Unit)
-                    }
+                // PURCHASELY (v6): display the success_payment screen and await its dismissal.
+                // A failure to render must not block the post-purchase refresh below.
+                try {
+                    fetchResult.handle.presentation.display(activity).await()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    Log.e(TAG, "[Shaker] success_payment display failed: ${e.message}", e)
                 }
                 // PURCHASELY: After the success_payment screen closes, refresh subscriptions
                 // via the wrapper without forcing the cache. The wrapper -> PremiumManager
@@ -325,19 +467,34 @@ class PurchaselyWrapper(
     fun getView(
         handle: PresentationHandle,
         context: Context,
-        onResult: (DisplayResult) -> Unit
+        onResult: (DisplayResult) -> Unit,
+        onCloseRequested: () -> Unit = {},
     ): View? {
-        return handle.presentation.buildView(
-            context = context,
-            callback = { result: PLYProductViewResult, plan: PLYPlan? ->
-                when (result) {
-                    PLYProductViewResult.PURCHASED -> onResult(DisplayResult.Purchased(plan?.name))
-                    PLYProductViewResult.RESTORED -> onResult(DisplayResult.Restored(plan?.name))
-                    else -> onResult(DisplayResult.Cancelled)
-                }
+        handle.presentation.onCloseRequested = {
+            Log.d(TAG, "[Shaker] Embedded presentation close requested")
+            onCloseRequested()
+        }
+        return handle.presentation.buildView(context) { outcome ->
+            val displayResult = outcome.toDisplayResult()
+            Log.d(
+                TAG,
+                "[Shaker] Embedded presentation dismissed: sdkResult=${outcome.purchaseResult}, " +
+                    "appResult=$displayResult, plan=${outcome.plan?.name}, " +
+                    "reason=${outcome.closeReason}, error=${outcome.error?.message}"
+            )
+            if (displayResult is DisplayResult.Purchased || displayResult is DisplayResult.Restored) {
+                pendingSuccessfulObserverResult = null
             }
-        )
+            onResult(displayResult)
+        }
     }
+
+    private fun PLYPresentationOutcome.toDisplayResult(): DisplayResult =
+        when (purchaseResult) {
+            PLYPurchaseResult.PURCHASED -> DisplayResult.Purchased(plan?.name)
+            PLYPurchaseResult.RESTORED -> DisplayResult.Restored(plan?.name)
+            else -> pendingSuccessfulObserverResult ?: DisplayResult.Cancelled
+        }
 
     // MARK: - User Management
 
@@ -376,8 +533,34 @@ class PurchaselyWrapper(
 
     // MARK: - Subscriptions
 
-    fun userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener) {
-        Purchasely.userSubscriptions(invalidateCache, listener)
+    /**
+     * Fetches the user's subscriptions mapped to the SDK-free [SubscriptionInfo] model,
+     * so callers (data layer) never depend on `io.purchasely` types.
+     *
+     * @param invalidateCache pass false to use cached data, true to force a network refresh.
+     */
+    fun fetchSubscriptions(
+        invalidateCache: Boolean,
+        onSuccess: (List<SubscriptionInfo>) -> Unit,
+        onError: (Throwable) -> Unit,
+    ) {
+        Purchasely.userSubscriptions(invalidateCache, object : SubscriptionsListener {
+            override fun onSuccess(subscriptions: List<PLYSubscriptionData>) {
+                onSuccess(
+                    subscriptions.map { subscription ->
+                        SubscriptionInfo(
+                            planName = subscription.plan.name,
+                            productName = subscription.product.name,
+                            isActive = subscription.data.subscriptionStatus?.isExpired() == false,
+                        )
+                    }
+                )
+            }
+
+            override fun onFailure(error: Throwable) {
+                onError(error)
+            }
+        })
     }
 
     // MARK: - Restore
