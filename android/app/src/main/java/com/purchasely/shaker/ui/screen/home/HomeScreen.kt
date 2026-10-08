@@ -50,7 +50,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.text.font.FontFamily
 import com.purchasely.shaker.domain.model.Cocktail
+import com.purchasely.shaker.domain.model.CocktailMood
 import com.purchasely.shaker.purchasely.DisplayResult
 import com.purchasely.shaker.purchasely.EmbeddedScreenBanner
 import com.purchasely.shaker.purchasely.FetchResult
@@ -61,15 +63,6 @@ import com.purchasely.shaker.ui.theme.Shaker
 import org.koin.androidx.compose.koinViewModel
 import org.koin.compose.koinInject
 
-private val categoryChips = listOf("All", "classic", "non-alcoholic", "tropical", "easy")
-private val categoryLabels = mapOf(
-    "All" to "All",
-    "classic" to "Classic",
-    "non-alcoholic" to "Non-alcoholic",
-    "tropical" to "Tropical",
-    "easy" to "Easy",
-)
-
 @Composable
 fun HomeScreen(
     onCocktailClick: (String) -> Unit,
@@ -79,114 +72,101 @@ fun HomeScreen(
     val cocktails by viewModel.cocktails.collectAsStateWithLifecycle()
     val isPremium by viewModel.isPremium.collectAsStateWithLifecycle()
     val inlinePresentation by viewModel.inlinePresentation.collectAsStateWithLifecycle()
-    val selectedCategories by viewModel.selectedCategories.collectAsStateWithLifecycle()
-    val selectedSpirits by viewModel.selectedSpirits.collectAsStateWithLifecycle()
-    val selectedDifficulty by viewModel.selectedDifficulty.collectAsStateWithLifecycle()
+    val selectedMood by viewModel.selectedMood.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val purchaselyWrapper: PurchaselyWrapper = koinInject()
     var showFilterSheet by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
-        viewModel.requestPaywallDisplay.collect { handle ->
+        viewModel.requestPresentationDisplay.collect { handle ->
             val activity = context as? Activity ?: return@collect
             val result = purchaselyWrapper.display(handle, activity)
             when (result) {
-                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPaywallDismissed()
+                is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
                 else -> {}
             }
         }
     }
 
-    val activeCat = when {
-        selectedDifficulty == "easy" -> "easy"
-        selectedSpirits.contains("non-alcoholic") -> "non-alcoholic"
-        selectedCategories.isNotEmpty() -> selectedCategories.first()
-        else -> "All"
-    }
-
-    val onCatSelect: (String) -> Unit = { cat ->
-        when (cat) {
-            "All" -> viewModel.clearFilters()
-            "easy" -> {
-                viewModel.clearFilters()
-                viewModel.selectDifficulty("easy")
-            }
-            "non-alcoholic" -> {
-                viewModel.clearFilters()
-                viewModel.toggleSpirit("non-alcoholic")
-            }
-            else -> {
-                viewModel.clearFilters()
-                viewModel.toggleCategory(cat)
-            }
-        }
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(tokens.bg)
-            .statusBarsPadding(),
-    ) {
-        HomeHeader(isPremium = isPremium)
-        SearchBar(onFilters = {
-            if (isPremium) showFilterSheet = true else viewModel.onFilterClick()
-        })
-        Spacer(Modifier.height(12.dp))
-
-        val gridState = rememberLazyGridState()
-        LaunchedEffect(inlinePresentation) {
-            if (inlinePresentation is FetchResult.Success) gridState.animateScrollToItem(0)
-        }
-
-        LazyVerticalGrid(
-            state = gridState,
-            columns = GridCells.Fixed(2),
-            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxSize(),
+    Box(modifier = Modifier.fillMaxSize().background(tokens.bg)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .statusBarsPadding(),
         ) {
-            val inlineResult = inlinePresentation
-            if (!isPremium && inlineResult is FetchResult.Success) {
-                item(span = { GridItemSpan(2) }) {
-                    val mod = if (inlineResult.height > 0) {
-                        Modifier.height(inlineResult.height.dp)
-                    } else {
-                        Modifier.heightIn(max = 200.dp)
+            HomeHeader(isPremium = isPremium)
+            SearchBar(onFilters = {
+                if (isPremium) showFilterSheet = true else viewModel.onFilterClick()
+            })
+            Spacer(Modifier.height(12.dp))
+
+            val gridState = rememberLazyGridState()
+            LaunchedEffect(inlinePresentation) {
+                if (inlinePresentation is FetchResult.Success) gridState.animateScrollToItem(0)
+            }
+
+            LazyVerticalGrid(
+                state = gridState,
+                columns = GridCells.Fixed(2),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 0.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                val inlineResult = inlinePresentation
+                if (!isPremium && inlineResult is FetchResult.Success) {
+                    item(span = { GridItemSpan(2) }) {
+                        val mod = if (inlineResult.height > 0) {
+                            Modifier.height(inlineResult.height.dp)
+                        } else {
+                            Modifier.heightIn(max = 200.dp)
+                        }
+                        EmbeddedScreenBanner(
+                            fetchResult = inlineResult,
+                            onResult = { result ->
+                                when (result) {
+                                    is DisplayResult.Purchased, is DisplayResult.Restored -> viewModel.onPresentationDismissed()
+                                    else -> Unit
+                                }
+                            },
+                            onCloseRequested = { viewModel.onInlinePresentationCloseRequested() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .then(mod)
+                                .padding(bottom = 4.dp),
+                        )
                     }
-                    EmbeddedScreenBanner(
-                        fetchResult = inlineResult,
-                        onResult = { viewModel.onPaywallDismissed() },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .then(mod)
-                            .padding(bottom = 4.dp),
+                }
+
+                item(span = { GridItemSpan(2) }) {
+                    MoodChipsRow(active = selectedMood, onSelect = { viewModel.selectMood(it) })
+                }
+
+                val showHero = selectedMood == null && cocktails.isNotEmpty()
+                if (showHero) {
+                    val hero = cocktails.firstOrNull { it.id == "manhattan" } ?: cocktails.first()
+                    item(span = { GridItemSpan(2) }) {
+                        TonightsPickCard(cocktail = hero, onClick = { onCocktailClick(hero.id) })
+                    }
+                }
+
+                items(cocktails, key = { it.id }) { cocktail ->
+                    CocktailCard(
+                        cocktail = cocktail,
+                        onClick = { onCocktailClick(cocktail.id) },
                     )
                 }
-            }
 
-            item(span = { GridItemSpan(2) }) {
-                CategoryChipsRow(active = activeCat, onSelect = onCatSelect)
+                item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(76.dp)) }
             }
-
-            val showHero = activeCat == "All" && cocktails.isNotEmpty()
-            if (showHero) {
-                val hero = cocktails.firstOrNull { it.id == "manhattan" } ?: cocktails.first()
-                item(span = { GridItemSpan(2) }) {
-                    TonightsPickCard(cocktail = hero, onClick = { onCocktailClick(hero.id) })
-                }
-            }
-
-            items(cocktails, key = { it.id }) { cocktail ->
-                CocktailCard(
-                    cocktail = cocktail,
-                    onClick = { onCocktailClick(cocktail.id) },
-                )
-            }
-
-            item(span = { GridItemSpan(2) }) { Spacer(Modifier.height(12.dp)) }
         }
+
+        SurpriseMeButton(
+            onClick = { viewModel.onSurpriseMe()?.let(onCocktailClick) },
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 20.dp, bottom = 16.dp),
+        )
     }
 
     if (showFilterSheet) {
@@ -194,37 +174,60 @@ fun HomeScreen(
     }
 }
 
+/** Time-of-day greeting: sets the lounge tone and makes the demo feel alive. */
+private fun greetingForHour(hour: Int): String = when (hour) {
+    in 5..11 -> "Good morning"
+    in 12..17 -> "Good afternoon"
+    else -> "Good evening"
+}
+
 @Composable
 private fun HomeHeader(isPremium: Boolean) {
     val tokens = Shaker.tokens
-    Row(
+    val greeting = remember { greetingForHour(java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)) }
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
+            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 12.dp),
     ) {
-        ShakerLogo(size = 28.dp, color = tokens.indigoText)
-        Spacer(Modifier.size(10.dp))
-        Text(
-            "Shaker",
-            color = tokens.indigoText,
-            fontWeight = FontWeight.Bold,
-            fontSize = 22.sp,
-        )
-        Spacer(Modifier.weight(1f))
-        Box(
-            modifier = Modifier
-                .clip(RoundedCornerShape(100.dp))
-                .background(if (isPremium) tokens.goldSoft else tokens.indigoSoft)
-                .padding(horizontal = 10.dp, vertical = 4.dp),
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ShakerLogo(size = 22.dp, color = tokens.gold)
+            Spacer(Modifier.size(8.dp))
             Text(
-                if (isPremium) "PRO" else "FREE",
-                color = tokens.indigoText,
+                "SHAKER",
+                color = tokens.textSec,
                 fontWeight = FontWeight.Bold,
-                fontSize = 11.sp,
+                fontSize = 13.sp,
+                letterSpacing = 3.sp,
             )
+            Spacer(Modifier.weight(1f))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(if (isPremium) tokens.goldSoft else tokens.indigoSoft)
+                    .padding(horizontal = 10.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    if (isPremium) "PRO" else "FREE",
+                    color = if (isPremium) tokens.gold else tokens.indigoText,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 11.sp,
+                )
+            }
         }
+        Spacer(Modifier.height(10.dp))
+        Text(
+            "$greeting,",
+            color = tokens.textSec,
+            fontSize = 16.sp,
+        )
+        Text(
+            "What are we mixing?",
+            color = tokens.text,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 28.sp,
+        )
     }
 }
 
@@ -256,7 +259,7 @@ private fun SearchBar(onFilters: () -> Unit) {
 }
 
 @Composable
-private fun CategoryChipsRow(active: String, onSelect: (String) -> Unit) {
+private fun MoodChipsRow(active: CocktailMood?, onSelect: (CocktailMood?) -> Unit) {
     val tokens = Shaker.tokens
     Row(
         modifier = Modifier
@@ -265,28 +268,76 @@ private fun CategoryChipsRow(active: String, onSelect: (String) -> Unit) {
             .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        categoryChips.forEach { c ->
-            val selected = c == active
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(100.dp))
-                    .then(
-                        if (selected) Modifier.background(tokens.indigo)
-                        else Modifier
-                            .background(tokens.bgCard)
-                            .border(1.dp, tokens.hair, RoundedCornerShape(100.dp))
-                    )
-                    .clickable { onSelect(c) }
-                    .padding(horizontal = 14.dp, vertical = 7.dp),
-            ) {
-                Text(
-                    categoryLabels[c] ?: c.replaceFirstChar { it.uppercase() },
-                    color = if (selected) tokens.onIndigo else tokens.text,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Medium,
-                )
-            }
+        MoodChip(
+            label = "All",
+            emoji = null,
+            selected = active == null,
+            onClick = { onSelect(null) },
+        )
+        CocktailMood.entries.forEach { mood ->
+            MoodChip(
+                label = mood.label,
+                emoji = mood.emoji,
+                selected = mood == active,
+                onClick = { onSelect(mood) },
+            )
         }
+    }
+}
+
+@Composable
+private fun MoodChip(label: String, emoji: String?, selected: Boolean, onClick: () -> Unit) {
+    val tokens = Shaker.tokens
+    Row(
+        modifier = Modifier
+            .clip(RoundedCornerShape(100.dp))
+            .then(
+                if (selected) Modifier.background(tokens.indigo)
+                else Modifier
+                    .background(tokens.bgCard)
+                    .border(1.dp, tokens.hair, RoundedCornerShape(100.dp))
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        if (emoji != null) {
+            Text(emoji, fontSize = 13.sp)
+            Spacer(Modifier.size(5.dp))
+        }
+        Text(
+            label,
+            color = if (selected) tokens.onIndigo else tokens.text,
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Medium,
+        )
+    }
+}
+
+/** Floating "Surprise me" action — random pick + Purchasely engagement counter. */
+@Composable
+private fun SurpriseMeButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val tokens = Shaker.tokens
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(100.dp))
+            .background(
+                Brush.linearGradient(
+                    colors = listOf(tokens.gold, tokens.orange),
+                )
+            )
+            .clickable(onClick = onClick)
+            .padding(horizontal = 18.dp, vertical = 13.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text("🎲", fontSize = 16.sp)
+        Spacer(Modifier.size(8.dp))
+        Text(
+            "Surprise me",
+            color = Color(0xFF231503),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+        )
     }
 }
 
@@ -332,7 +383,13 @@ private fun TonightsPickCard(cocktail: Cocktail, onClick: () -> Unit) {
                 .align(Alignment.BottomStart)
                 .padding(horizontal = 16.dp, vertical = 14.dp),
         ) {
-            Text(cocktail.name, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(
+                cocktail.name,
+                color = Color.White,
+                fontFamily = FontFamily.Serif,
+                fontSize = 24.sp,
+                fontWeight = FontWeight.Bold,
+            )
             Text(
                 cocktail.description,
                 color = Color.White.copy(alpha = 0.9f),

@@ -38,6 +38,14 @@ final class DetailViewModelTests: XCTestCase {
         XCTAssertTrue(mockWrapper.incrementAttributeCalls.contains("cocktails_viewed"))
     }
 
+    func testAppearEmitsRecipeViewed() {
+        _ = createViewModel()
+        XCTAssertEqual(mockWrapper.emitCalls.count, 1)
+        XCTAssertEqual(mockWrapper.emitCalls.first?.name, "recipe_viewed")
+        XCTAssertEqual(mockWrapper.emitCalls.first?.properties["recipe_id"] as? String, "mojito")
+        XCTAssertEqual(mockWrapper.emitCalls.first?.properties["spirit"] as? String, "Rum")
+    }
+
     func testTracksFavoriteSpiritOnInit() {
         _ = createViewModel()
         XCTAssertTrue(mockWrapper.setStringAttributeCalls.contains(where: {

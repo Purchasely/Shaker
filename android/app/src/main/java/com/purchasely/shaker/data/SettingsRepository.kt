@@ -1,6 +1,7 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.KeyValueStore
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.domain.model.DisplayMode
 import com.purchasely.shaker.domain.model.ThemeMode
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -53,6 +54,14 @@ class SettingsRepository(private val store: KeyValueStore) {
     var thirdPartyConsent: Boolean
         get() = store.getBoolean(KEY_CONSENT_THIRD_PARTY, true)
         set(value) = store.putBoolean(KEY_CONSENT_THIRD_PARTY, value)
+
+    fun revokedConsentPurposes(): Set<ConsentPurpose> = buildSet {
+        if (!analyticsConsent) add(ConsentPurpose.ANALYTICS)
+        if (!identifiedAnalyticsConsent) add(ConsentPurpose.IDENTIFIED_ANALYTICS)
+        if (!personalizationConsent) add(ConsentPurpose.PERSONALIZATION)
+        if (!campaignsConsent) add(ConsentPurpose.CAMPAIGNS)
+        if (!thirdPartyConsent) add(ConsentPurpose.THIRD_PARTY_INTEGRATIONS)
+    }
 
     fun initSdkModeIfNeeded() {
         if (!store.contains(PurchaselySdkMode.KEY)) {

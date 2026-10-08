@@ -38,6 +38,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.purchasely.shaker.domain.model.Cocktail
 import com.purchasely.shaker.domain.repository.CocktailRepository
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
 import com.purchasely.shaker.ui.components.CocktailArt
 import com.purchasely.shaker.ui.theme.Shaker
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -47,10 +48,16 @@ import org.koin.core.parameter.parametersOf
 
 class MixingViewModel(
     private val repository: CocktailRepository,
-    cocktailId: String,
+    private val purchaselyWrapper: PurchaselyWrapper,
+    private val cocktailId: String,
 ) : ViewModel() {
     private val _cocktail = MutableStateFlow(repository.getCocktail(cocktailId))
     val cocktail: StateFlow<Cocktail?> = _cocktail
+
+    // PURCHASELY (6.2): custom event when the user finishes mixing.
+    fun onDone() {
+        purchaselyWrapper.emit("cocktail_mixed", mapOf("recipe_id" to cocktailId))
+    }
 }
 
 @Composable
@@ -171,7 +178,7 @@ fun MixingScreen(
                     .clip(RoundedCornerShape(100.dp))
                     .background(if (isLast) tokens.green else tokens.accent)
                     .clickable {
-                        if (isLast) onExit() else step++
+                        if (isLast) { viewModel.onDone(); onExit() } else step++
                     },
                 contentAlignment = Alignment.Center,
             ) {

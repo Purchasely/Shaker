@@ -111,8 +111,8 @@ struct FavoritesScreen: View {
     }
 
     private func showFavoritesPaywall() {
-        guard case .success(let presentation) = favoritesFetchResult else { return }
-        wrapper.display(presentation: presentation, from: hostViewController)
+        guard case .success(let handle) = favoritesFetchResult else { return }
+        wrapper.display(handle: handle, from: hostViewController)
     }
 }
 

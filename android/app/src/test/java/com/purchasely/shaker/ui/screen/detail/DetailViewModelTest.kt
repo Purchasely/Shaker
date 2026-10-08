@@ -123,23 +123,23 @@ class DetailViewModelTest {
     }
 
     @Test
-    fun `showRecipePaywall calls loadPresentation with recipe_detail placement`() = runTest {
+    fun `showRecipePresentation calls loadPresentation with recipe_detail placement`() = runTest {
         val vm = createViewModel()
-        vm.showRecipePaywall()
-        coVerify { wrapper.loadPresentation("recipe_detail", "mojito") }
+        vm.showRecipePresentation()
+        coVerify { wrapper.loadPresentation(placementId = "recipe_detail", contentId = "mojito") }
     }
 
     @Test
-    fun `showFavoritesPaywall calls loadPresentation with favorites placement`() = runTest {
+    fun `showFavoritesPresentation calls loadPresentation with favorites placement`() = runTest {
         val vm = createViewModel()
-        vm.showFavoritesPaywall()
+        vm.showFavoritesPresentation()
         coVerify { wrapper.loadPresentation("favorites", null) }
     }
 
     @Test
-    fun `onPaywallDismissed refreshes premium status`() {
+    fun `onPresentationDismissed refreshes premium status`() {
         val vm = createViewModel()
-        vm.onPaywallDismissed()
+        vm.onPresentationDismissed()
         verify { premiumRepository.refreshPremiumStatus() }
     }
 
@@ -159,5 +159,11 @@ class DetailViewModelTest {
         every { favoritesRepository.favoriteIds } returns favFlow
         val vm = createViewModel()
         assertTrue(vm.favoriteIds.value.contains("mojito"))
+    }
+
+    @Test
+    fun `loading a cocktail emits recipe_viewed with recipe_id`() {
+        createViewModel()
+        verify { wrapper.emit("recipe_viewed", mapOf("recipe_id" to "mojito", "spirit" to "Rum")) }
     }
 }

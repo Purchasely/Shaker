@@ -12,7 +12,7 @@ import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.purchasely.FetchResult
 import com.purchasely.shaker.purchasely.PresentationHandle
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import com.purchasely.shaker.domain.model.ConsentPurpose
+import com.purchasely.shaker.purchasely.applyStoredConsent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -66,9 +66,9 @@ class SettingsViewModel(
     private val _displayMode = MutableStateFlow(settingsRepo.displayMode)
     val displayMode: StateFlow<DisplayMode> = _displayMode.asStateFlow()
 
-    // Signal Screen to display onboarding paywall
-    private val _requestPaywallDisplay = MutableSharedFlow<PresentationHandle>()
-    val requestPaywallDisplay: SharedFlow<PresentationHandle> = _requestPaywallDisplay.asSharedFlow()
+    // Signal Screen to display onboarding presentation
+    private val _requestPresentationDisplay = MutableSharedFlow<PresentationHandle>()
+    val requestPresentationDisplay: SharedFlow<PresentationHandle> = _requestPresentationDisplay.asSharedFlow()
 
     val sdkVersion: String get() = purchaselyWrapper.sdkVersion
 
@@ -84,20 +84,21 @@ class SettingsViewModel(
     fun login(userId: String) {
         if (userId.isBlank()) return
 
+        premiumRepository.clearPremiumStatus()
+
         // PURCHASELY: Associate this session with an authenticated user ID
         // The callback's `refresh` flag indicates whether subscriptions should be re-fetched
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
         purchaselyWrapper.userLogin(userId) { refresh ->
-            if (refresh) {
-                premiumRepository.refreshPremiumStatus()
-            }
+            // Always refresh: clearPremiumStatus() above ran even when the SDK reports refresh=false.
+            premiumRepository.refreshPremiumStatus()
             Log.d(TAG, "[Shaker] Logged in as: $userId (refresh: $refresh)")
         }
 
         _userId.value = userId
         settingsRepo.userId = userId
 
-        // PURCHASELY: Store the user ID as a custom attribute for paywall targeting/personalization
+        // PURCHASELY: Store the user ID as a custom attribute for presentation targeting/personalization
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         purchaselyWrapper.setUserAttribute("user_id", userId)
     }
@@ -105,10 +106,11 @@ class SettingsViewModel(
     fun logout() {
         // PURCHASELY: Disassociate the current user — clears cached user attributes and subscriptions
         // Docs: https://docs.purchasely.com/quick-start/sdk-configuration/user-login
+        premiumRepository.clearPremiumStatus()
         purchaselyWrapper.userLogout()
+        premiumRepository.refreshPremiumStatus()
         _userId.value = null
         settingsRepo.userId = null
-        premiumRepository.refreshPremiumStatus()
         Log.d(TAG, "[Shaker] Logged out")
     }
 
@@ -138,11 +140,11 @@ class SettingsViewModel(
         premiumRepository.refreshPremiumStatus()
     }
 
-    fun showOnboardingPaywall() {
+    fun showOnboardingPresentation() {
         viewModelScope.launch {
             when (val result = purchaselyWrapper.loadPresentation("onboarding")) {
                 is FetchResult.Success -> {
-                    _requestPaywallDisplay.emit(result.handle)
+                    _requestPresentationDisplay.emit(result.handle)
                 }
                 is FetchResult.Client -> {
                     Log.d(TAG, "[Shaker] CLIENT presentation received for onboarding placement — build custom UI here")
@@ -211,21 +213,16 @@ class SettingsViewModel(
 
     private fun restartPurchaselySdk(mode: PurchaselySdkMode) {
         purchaselyWrapper.restart()
+        purchaselyWrapper.applyStoredConsent(settingsRepo)
         Log.d(TAG, "[Shaker] SDK restarted with mode ${mode.storageValue}")
     }
 
     private fun applyConsentPreferences() {
-        val revoked = mutableSetOf<ConsentPurpose>()
-        if (!_analyticsConsent.value) revoked.add(ConsentPurpose.ANALYTICS)
-        if (!_identifiedAnalyticsConsent.value) revoked.add(ConsentPurpose.IDENTIFIED_ANALYTICS)
-        if (!_personalizationConsent.value) revoked.add(ConsentPurpose.PERSONALIZATION)
-        if (!_campaignsConsent.value) revoked.add(ConsentPurpose.CAMPAIGNS)
-        if (!_thirdPartyConsent.value) revoked.add(ConsentPurpose.THIRD_PARTY_INTEGRATIONS)
         // PURCHASELY: Revoke GDPR data-processing consent for specific purposes
         // Pass the set of revoked purposes; an empty set re-grants all consent
         // Docs: https://docs.purchasely.com/advanced-features/gdpr
-        purchaselyWrapper.revokeDataProcessingConsent(revoked)
-        Log.d(TAG, "[Shaker] Consent updated — revoked: $revoked")
+        purchaselyWrapper.applyStoredConsent(settingsRepo)
+        Log.d(TAG, "[Shaker] Consent updated — revoked: ${settingsRepo.revokedConsentPurposes()}")
     }
 
     companion object {

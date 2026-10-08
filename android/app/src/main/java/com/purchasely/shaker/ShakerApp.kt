@@ -3,8 +3,9 @@ package com.purchasely.shaker
 import android.app.Application
 import com.purchasely.shaker.domain.repository.PremiumRepository
 import com.purchasely.shaker.di.appModule
+import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.purchasely.PurchaselyWrapper
-import io.purchasely.ext.LogLevel
+import com.purchasely.shaker.purchasely.applyStoredConsent
 import org.koin.android.ext.android.inject
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.context.startKoin
@@ -13,6 +14,7 @@ class ShakerApp : Application() {
 
     private val purchaselyWrapper: PurchaselyWrapper by inject()
     private val premiumRepository: PremiumRepository by inject()
+    private val settingsRepository: SettingsRepository by inject()
 
     override fun onCreate() {
         super.onCreate()
@@ -25,8 +27,12 @@ class ShakerApp : Application() {
         purchaselyWrapper.initialize(
             application = this,
             apiKey = BuildConfig.PURCHASELY_API_KEY,
-            logLevel = if (BuildConfig.DEBUG) LogLevel.DEBUG else LogLevel.WARN,
-            onConfigured = { premiumRepository.refreshPremiumStatus() }
+            verboseLogging = BuildConfig.DEBUG,
+            onConfigured = {
+                // PURCHASELY: consent is held in memory by the SDK, so re-apply it at every start.
+                purchaselyWrapper.applyStoredConsent(settingsRepository)
+                premiumRepository.refreshPremiumStatus()
+            }
         )
 
     }

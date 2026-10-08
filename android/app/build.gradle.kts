@@ -2,7 +2,6 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
 }
@@ -14,7 +13,7 @@ val localProperties = Properties().apply {
 
 android {
     namespace = "com.purchasely.shaker"
-    compileSdk = 35
+    compileSdk = 36
 
     signingConfigs {
         // Fallback values below are placeholders for the public sample.
@@ -31,7 +30,7 @@ android {
     defaultConfig {
         applicationId = "com.purchasely.shaker"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
@@ -58,10 +57,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = "11"
     }
 
     testOptions {
@@ -118,5 +113,7 @@ dependencies {
     androidTestImplementation(platform(libs.compose.bom))
     androidTestImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.espresso.core)
     debugImplementation(libs.compose.ui.test.manifest)
 }

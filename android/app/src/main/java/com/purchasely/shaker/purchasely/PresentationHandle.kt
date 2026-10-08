@@ -1,6 +1,6 @@
 package com.purchasely.shaker.purchasely
 
-import io.purchasely.ext.PLYPresentation
+import io.purchasely.ext.presentation.PLYPresentation
 
 @JvmInline
 value class PresentationHandle internal constructor(

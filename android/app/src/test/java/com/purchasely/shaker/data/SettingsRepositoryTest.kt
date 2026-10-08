@@ -1,7 +1,12 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.InMemoryKeyValueStore
+import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.domain.model.DisplayMode
+import com.purchasely.shaker.purchasely.PurchaselyWrapper
+import com.purchasely.shaker.purchasely.applyStoredConsent
+import io.mockk.mockk
+import io.mockk.verify
 import com.purchasely.shaker.domain.model.ThemeMode
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -133,5 +138,25 @@ class SettingsRepositoryTest {
         repo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
         repo.initSdkModeIfNeeded()
         assertEquals(PurchaselySdkMode.FULL.storageValue, repo.sdkModeStorage)
+    }
+
+    @Test
+    fun `revokedConsentPurposes returns purposes with consent off`() {
+        repo.analyticsConsent = false
+        repo.campaignsConsent = false
+        assertEquals(setOf(ConsentPurpose.ANALYTICS, ConsentPurpose.CAMPAIGNS), repo.revokedConsentPurposes())
+    }
+
+    @Test
+    fun `revokedConsentPurposes is empty by default`() {
+        assertTrue(repo.revokedConsentPurposes().isEmpty())
+    }
+
+    @Test
+    fun `applyStoredConsent revokes the stored purposes`() {
+        repo.personalizationConsent = false
+        val wrapper = mockk<PurchaselyWrapper>(relaxed = true)
+        wrapper.applyStoredConsent(repo)
+        verify { wrapper.revokeDataProcessingConsent(setOf(ConsentPurpose.PERSONALIZATION)) }
     }
 }

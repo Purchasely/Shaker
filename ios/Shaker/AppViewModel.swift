@@ -1,5 +1,4 @@
 import Foundation
-@preconcurrency import Purchasely
 
 @MainActor
 class AppViewModel: ObservableObject {
@@ -18,17 +17,19 @@ class AppViewModel: ObservableObject {
         let storedUserId = UserDefaults.standard.string(forKey: "user_id")
 
         #if DEBUG
-        let sdkLogLevel: PLYLogger.PLYLogLevel = .debug
+        let verboseLogging = true
         #else
-        let sdkLogLevel: PLYLogger.PLYLogLevel = .warn
+        let verboseLogging = false
         #endif
 
         wrapper.initialize(
             apiKey: resolvedApiKey,
             appUserId: storedUserId,
-            logLevel: sdkLogLevel
+            verboseLogging: verboseLogging
         ) { [weak self] success, error in
             Task { @MainActor in
+                // PURCHASELY: the SDK keeps consent in memory only, so re-apply it at every start.
+                if success { ConsentPurpose.applyStored(to: PurchaselyWrapper.shared) }
                 self?.isSDKReady = success
                 self?.sdkError = success ? nil : error?.localizedDescription
             }

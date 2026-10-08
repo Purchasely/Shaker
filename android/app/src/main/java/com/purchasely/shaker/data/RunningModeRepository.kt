@@ -1,33 +1,25 @@
 package com.purchasely.shaker.data
 
 import com.purchasely.shaker.data.storage.KeyValueStore
-import io.purchasely.ext.PLYRunningMode
 
+/**
+ * Persists the Full/Observer mode choice. SDK-free on purpose: exposes the
+ * app-level [PurchaselySdkMode]; only `PurchaselyWrapper` maps it to the
+ * Purchasely `PLYRunningMode`.
+ */
 class RunningModeRepository(private val store: KeyValueStore) {
 
-    var runningMode: PLYRunningMode
+    var sdkMode: PurchaselySdkMode
         get() {
-            val stored = store.getString(KEY_RUNNING_MODE, PurchaselySdkMode.DEFAULT.storageValue)
-            // Support legacy "observer" value from previous versions
-            val mode = if (stored == LEGACY_OBSERVER) {
-                PurchaselySdkMode.PAYWALL_OBSERVER
-            } else {
-                PurchaselySdkMode.fromStorage(stored)
-            }
-            return mode.runningMode
+            val stored = store.getString(PurchaselySdkMode.KEY, PurchaselySdkMode.DEFAULT.storageValue)
+            // fromStorage handles both the current "observer" value and the legacy "paywallObserver" one.
+            return PurchaselySdkMode.fromStorage(stored)
         }
         set(value) {
-            val mode = PurchaselySdkMode.entries.firstOrNull { it.runningMode == value }
-                ?: PurchaselySdkMode.DEFAULT
-            store.putString(KEY_RUNNING_MODE, mode.storageValue)
+            store.putString(PurchaselySdkMode.KEY, value.storageValue)
         }
 
     val isObserverMode: Boolean
-        get() = runningMode == PLYRunningMode.PaywallObserver
+        get() = sdkMode == PurchaselySdkMode.OBSERVER
 
-    companion object {
-        private const val KEY_RUNNING_MODE = "running_mode"
-        /** Legacy storage value from before PurchaselySdkMode unification */
-        private const val LEGACY_OBSERVER = "observer"
-    }
 }

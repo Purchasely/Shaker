@@ -24,54 +24,58 @@ struct ShakerTokens {
     let inputBg: Color
     let onIndigo: Color
 
+    // "Cocktail lounge" palette — kept strictly in sync with the Android app
+    // (android/.../ui/theme/ShakerTokens.kt): deep bottle green as primary
+    // (token still named `indigo` to avoid a mechanical rename), burnished gold
+    // accents, warm cream backgrounds (light) / charred green (dark).
     static let light = ShakerTokens(
         dark: false,
-        bg: Color(hex: 0xF3F1F9),
+        bg: Color(hex: 0xF7F3EA),
         bgElev: .white,
-        bgCard: .white,
-        bgSubtle: Color(hex: 0xECE9F4),
-        indigo: Color(hex: 0x3C4876),
-        indigoText: Color(hex: 0x3C4876),
-        indigoSoft: Color(hex: 0xE4E6F3),
-        accent: Color(hex: 0x2B79E4),
-        accentSoft: Color(hex: 0x2B79E4, alpha: 0.1),
-        orange: Color(hex: 0xE8723F),
-        gold: Color(hex: 0xF5B93A),
-        goldSoft: Color(hex: 0xFFF4D9),
-        green: Color(hex: 0x23C071),
-        danger: Color(hex: 0xD33A3A),
-        text: Color(hex: 0x1C1E2C),
-        textSec: Color(hex: 0x6A6F88),
-        textTer: Color(hex: 0x9EA2B6),
-        hair: Color(hex: 0x3C4876, alpha: 0.12),
-        hairStrong: Color(hex: 0x3C4876, alpha: 0.2),
-        inputBg: Color(hex: 0xECE9F4),
-        onIndigo: .white
+        bgCard: Color(hex: 0xFFFDF8),
+        bgSubtle: Color(hex: 0xEFE9DB),
+        indigo: Color(hex: 0x1E3B2F),
+        indigoText: Color(hex: 0x1E3B2F),
+        indigoSoft: Color(hex: 0xDFE8DF),
+        accent: Color(hex: 0xB05A2E),
+        accentSoft: Color(hex: 0xB05A2E, alpha: 0.1),
+        orange: Color(hex: 0xC96F3B),
+        gold: Color(hex: 0xC9921E),
+        goldSoft: Color(hex: 0xF6EDD4),
+        green: Color(hex: 0x2E8B57),
+        danger: Color(hex: 0xC23B3B),
+        text: Color(hex: 0x20251F),
+        textSec: Color(hex: 0x6B7066),
+        textTer: Color(hex: 0x9CA095),
+        hair: Color(hex: 0x1E3B2F, alpha: 0.12),
+        hairStrong: Color(hex: 0x1E3B2F, alpha: 0.2),
+        inputBg: Color(hex: 0xEFE9DB),
+        onIndigo: Color(hex: 0xF7F3EA)
     )
 
     static let dark = ShakerTokens(
         dark: true,
-        bg: Color(hex: 0x0F1020),
-        bgElev: Color(hex: 0x1B1D30),
-        bgCard: Color(hex: 0x1B1D30),
-        bgSubtle: Color(hex: 0x13142A),
-        indigo: Color(hex: 0x8A96C9),
-        indigoText: Color(hex: 0xB3BDE4),
-        indigoSoft: Color(hex: 0x8A96C9, alpha: 0.18),
-        accent: Color(hex: 0x4F92F0),
-        accentSoft: Color(hex: 0x4F92F0, alpha: 0.15),
-        orange: Color(hex: 0xF08B5F),
-        gold: Color(hex: 0xF5B93A),
-        goldSoft: Color(hex: 0xF5B93A, alpha: 0.15),
-        green: Color(hex: 0x3ED58B),
-        danger: Color(hex: 0xF56A6A),
-        text: Color(hex: 0xF4F3FB),
-        textSec: Color(hex: 0x9EA2B6),
-        textTer: Color(hex: 0x6E7392),
+        bg: Color(hex: 0x0E120F),
+        bgElev: Color(hex: 0x1A211B),
+        bgCard: Color(hex: 0x1A211B),
+        bgSubtle: Color(hex: 0x141A15),
+        indigo: Color(hex: 0x9BC4A8),
+        indigoText: Color(hex: 0xBCD9C6),
+        indigoSoft: Color(hex: 0x9BC4A8, alpha: 0.18),
+        accent: Color(hex: 0xE08A52),
+        accentSoft: Color(hex: 0xE08A52, alpha: 0.15),
+        orange: Color(hex: 0xE08A52),
+        gold: Color(hex: 0xD8A93E),
+        goldSoft: Color(hex: 0xD8A93E, alpha: 0.15),
+        green: Color(hex: 0x4FBF82),
+        danger: Color(hex: 0xE96A6A),
+        text: Color(hex: 0xF2F4EE),
+        textSec: Color(hex: 0x9FA89D),
+        textTer: Color(hex: 0x6F7870),
         hair: Color.white.opacity(0.08),
         hairStrong: Color.white.opacity(0.14),
         inputBg: Color.white.opacity(0.06),
-        onIndigo: Color(hex: 0x0F1020)
+        onIndigo: Color(hex: 0x0E120F)
     )
 }
 

@@ -10,7 +10,8 @@ import org.koin.compose.koinInject
 fun EmbeddedScreenBanner(
     fetchResult: FetchResult.Success,
     onResult: (DisplayResult) -> Unit,
-    modifier: Modifier = Modifier
+    onCloseRequested: () -> Unit = {},
+    modifier: Modifier = Modifier,
 ) {
     val wrapper: PurchaselyWrapper = koinInject()
 
@@ -19,7 +20,8 @@ fun EmbeddedScreenBanner(
             wrapper.getView(
                 handle = fetchResult.handle,
                 context = context,
-                onResult = onResult
+                onResult = onResult,
+                onCloseRequested = onCloseRequested,
             ) ?: FrameLayout(context)
         },
         modifier = modifier

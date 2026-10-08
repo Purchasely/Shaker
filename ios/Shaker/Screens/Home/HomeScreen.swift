@@ -7,28 +7,23 @@ struct HomeScreen: View {
     @Environment(\.shakerTokens) private var tokens
     @State private var showFilterSheet = false
     @State private var hostViewController: UIViewController?
-
-    private let categories: [(id: String, label: String)] = [
-        ("All", "All"),
-        ("classic", "Classic"),
-        ("non-alcoholic", "Non-alcoholic"),
-        ("tropical", "Tropical"),
-        ("easy", "Easy"),
-    ]
-
-    private var activeCat: String {
-        if viewModel.selectedDifficulty == "easy" { return "easy" }
-        if viewModel.selectedSpirits.contains("non-alcoholic") { return "non-alcoholic" }
-        if let first = viewModel.selectedCategories.first { return first }
-        return "All"
-    }
+    @State private var surpriseCocktailId: String?
 
     private var columns: [GridItem] {
         [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)]
     }
 
+    /// Time-of-day greeting: sets the lounge tone — same buckets as Android.
+    private var greeting: String {
+        switch Calendar.current.component(.hour, from: Date()) {
+        case 5...11: return "Good morning"
+        case 12...17: return "Good afternoon"
+        default: return "Good evening"
+        }
+    }
+
     var body: some View {
-        ZStack {
+        ZStack(alignment: .bottomTrailing) {
             tokens.bg.ignoresSafeArea()
             VStack(spacing: 0) {
                 header
@@ -38,19 +33,20 @@ struct HomeScreen: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            if !premiumManager.isPremium, let controller = viewModel.inlineController {
-                                let height = viewModel.inlineHeight > 0 ? CGFloat(viewModel.inlineHeight) : 200
-                                EmbeddedScreenBanner(controller: controller)
+                            if !premiumManager.isPremium,
+                               let inlineResult = viewModel.inlinePresentation,
+                               inlineResult.handle != nil {
+                                let height = inlineResult.height > 0 ? CGFloat(inlineResult.height) : 200
+                                EmbeddedScreenBanner(fetchResult: inlineResult)
                                     .frame(height: height)
                                     .padding(.horizontal, 20)
                                     .id("inline_banner")
                             }
 
-                            categoryChips
-                                .padding(.horizontal, 20)
+                            moodChips
                                 .padding(.top, 8)
 
-                            if activeCat == "All", let hero = heroCocktail {
+                            if viewModel.selectedMood == nil, let hero = heroCocktail {
                                 NavigationLink(value: hero.id) {
                                     TonightsPickCard(cocktail: hero)
                                 }
@@ -67,7 +63,7 @@ struct HomeScreen: View {
                                 }
                             }
                             .padding(.horizontal, 20)
-                            .padding(.bottom, 40)
+                            .padding(.bottom, 84)
                         }
                         .padding(.top, 12)
                     }
@@ -76,6 +72,10 @@ struct HomeScreen: View {
                     }
                 }
             }
+
+            surpriseMeButton
+                .padding(.trailing, 20)
+                .padding(.bottom, 16)
         }
         .background {
             ViewControllerResolver { vc in hostViewController = vc }
@@ -89,6 +89,14 @@ struct HomeScreen: View {
         .navigationDestination(for: String.self) { id in
             DetailScreen(cocktailId: id)
         }
+        .navigationDestination(isPresented: Binding(
+            get: { surpriseCocktailId != nil },
+            set: { if !$0 { surpriseCocktailId = nil } }
+        )) {
+            if let id = surpriseCocktailId {
+                DetailScreen(cocktailId: id)
+            }
+        }
         .onAppear {
             viewModel.prefetchPresentations(isPremium: premiumManager.isPremium)
         }
@@ -96,22 +104,60 @@ struct HomeScreen: View {
 
     // MARK: - Header
     private var header: some View {
-        HStack(spacing: 10) {
-            ShakerLogoView(size: 28, color: tokens.indigoText)
-            Text("Shaker")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundStyle(tokens.indigoText)
-            Spacer()
-            Text(premiumManager.isPremium ? "PRO" : "FREE")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(tokens.indigoText)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 4)
-                .background(Capsule().fill(premiumManager.isPremium ? tokens.goldSoft : tokens.indigoSoft))
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                ShakerLogoView(size: 22, color: tokens.gold)
+                Text("SHAKER")
+                    .font(.system(size: 13, weight: .bold))
+                    .kerning(3)
+                    .foregroundStyle(tokens.textSec)
+                Spacer()
+                Text(premiumManager.isPremium ? "PRO" : "FREE")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundStyle(premiumManager.isPremium ? tokens.gold : tokens.indigoText)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(premiumManager.isPremium ? tokens.goldSoft : tokens.indigoSoft))
+            }
+            Spacer().frame(height: 10)
+            Text("\(greeting),")
+                .font(.system(size: 16))
+                .foregroundStyle(tokens.textSec)
+            Text("What are we mixing?")
+                .font(.system(size: 28, weight: .bold, design: .serif))
+                .foregroundStyle(tokens.text)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 20)
         .padding(.top, 14)
-        .padding(.bottom, 8)
+        .padding(.bottom, 12)
+    }
+
+    // MARK: - Surprise me
+    /// Floating "Surprise me" action — random pick + Purchasely engagement counter.
+    private var surpriseMeButton: some View {
+        Button {
+            surpriseCocktailId = viewModel.surpriseMe()
+        } label: {
+            HStack(spacing: 8) {
+                Text("🎲").font(.system(size: 16))
+                Text("Surprise me")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color(hex: 0x231503))
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 13)
+            .background(
+                Capsule().fill(
+                    LinearGradient(
+                        colors: [tokens.gold, tokens.orange],
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Search
@@ -147,40 +193,41 @@ struct HomeScreen: View {
         .padding(.horizontal, 20)
     }
 
-    // MARK: - Category chips
-    private var categoryChips: some View {
+    // MARK: - Mood chips
+    private var moodChips: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(categories, id: \.id) { cat in
-                    let selected = activeCat == cat.id
-                    Text(cat.label)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundStyle(selected ? tokens.onIndigo : tokens.text)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 7)
-                        .background(
-                            Capsule().fill(selected ? tokens.indigo : tokens.bgCard)
-                        )
-                        .overlay(
-                            Capsule().stroke(selected ? .clear : tokens.hair, lineWidth: 1)
-                        )
-                        .onTapGesture {
-                            if cat.id == "All" {
-                                viewModel.clearFilters()
-                            } else if cat.id == "easy" {
-                                viewModel.clearFilters()
-                                viewModel.selectDifficulty("easy")
-                            } else if cat.id == "non-alcoholic" {
-                                viewModel.clearFilters()
-                                viewModel.toggleSpirit("non-alcoholic")
-                            } else {
-                                viewModel.clearFilters()
-                                viewModel.toggleCategory(cat.id)
-                            }
-                        }
+                moodChip(label: "All", emoji: nil, selected: viewModel.selectedMood == nil) {
+                    viewModel.selectMood(nil)
+                }
+                ForEach(CocktailMood.allCases) { mood in
+                    moodChip(label: mood.label, emoji: mood.emoji, selected: viewModel.selectedMood == mood) {
+                        viewModel.selectMood(mood)
+                    }
                 }
             }
+            .padding(.horizontal, 20)
         }
+    }
+
+    private func moodChip(label: String, emoji: String?, selected: Bool, action: @escaping () -> Void) -> some View {
+        HStack(spacing: 5) {
+            if let emoji {
+                Text(emoji).font(.system(size: 13))
+            }
+            Text(label)
+                .font(.system(size: 13, weight: .medium))
+                .foregroundStyle(selected ? tokens.onIndigo : tokens.text)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
+        .background(
+            Capsule().fill(selected ? tokens.indigo : tokens.bgCard)
+        )
+        .overlay(
+            Capsule().stroke(selected ? .clear : tokens.hair, lineWidth: 1)
+        )
+        .onTapGesture(perform: action)
     }
 
     private var heroCocktail: Cocktail? {
@@ -261,7 +308,7 @@ struct TonightsPickCard: View {
                 Spacer()
                 VStack(alignment: .leading, spacing: 2) {
                     Text(cocktail.name)
-                        .font(.system(size: 22, weight: .bold))
+                        .font(.system(size: 24, weight: .bold, design: .serif))
                         .foregroundStyle(.white)
                     Text(cocktail.description)
                         .font(.system(size: 13))

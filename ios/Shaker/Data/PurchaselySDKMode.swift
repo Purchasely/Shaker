@@ -1,7 +1,11 @@
 import Foundation
-@preconcurrency import Purchasely
 
+/// App-level SDK mode selection. Deliberately SDK-free: only `PurchaselyWrapper`
+/// maps this to the Purchasely `PLYRunningMode` — the rest of the app never
+/// imports `Purchasely`. Mirrors the Android `PurchaselySdkMode` enum.
 enum PurchaselySDKMode: String, CaseIterable, Identifiable {
+    // rawValue "paywallObserver" is kept for storage compatibility with
+    // pre-v6 installs; the user-facing label is "Observer" (same as Android).
     case paywallObserver = "paywallObserver"
     case full = "full"
 
@@ -13,18 +17,9 @@ enum PurchaselySDKMode: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .paywallObserver:
-            return "Paywall Observer"
+            return "Observer"
         case .full:
             return "Full"
-        }
-    }
-
-    var runningMode: PLYRunningMode {
-        switch self {
-        case .paywallObserver:
-            return .paywallObserver
-        case .full:
-            return .full
         }
     }
 

@@ -98,6 +98,6 @@ val appModule = module {
     viewModel { HomeViewModel(get(), get(), get(), get()) }
     viewModel { params -> DetailViewModel(get(), get(), get(), get(), get(), params.get()) }
     viewModel { FavoritesViewModel(get(), get(), get(), get()) }
-    viewModel { params -> MixingViewModel(get(), params.get()) }
+    viewModel { params -> MixingViewModel(get(), get(), params.get()) }
     viewModel { SettingsViewModel(get<SettingsRepository>(), get(), get(), get()) }
 }

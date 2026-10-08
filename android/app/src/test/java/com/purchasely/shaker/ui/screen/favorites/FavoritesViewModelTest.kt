@@ -90,16 +90,16 @@ class FavoritesViewModelTest {
     }
 
     @Test
-    fun `showFavoritesPaywall calls loadPresentation`() = runTest {
+    fun `showFavoritesPresentation calls loadPresentation`() = runTest {
         val vm = createViewModel()
-        vm.showFavoritesPaywall()
+        vm.showFavoritesPresentation()
         coVerify { wrapper.loadPresentation("favorites", null) }
     }
 
     @Test
-    fun `onPaywallDismissed refreshes premium status`() {
+    fun `onPresentationDismissed refreshes premium status`() {
         val vm = createViewModel()
-        vm.onPaywallDismissed()
+        vm.onPresentationDismissed()
         verify { premiumRepository.refreshPremiumStatus() }
     }
 

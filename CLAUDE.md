@@ -67,24 +67,32 @@ open Shaker.xcodeproj
 
 In-repo, see also [`docs/INTEGRATION_GUIDE.md`](docs/INTEGRATION_GUIDE.md) and [`docs/purchasely-best-practices.md`](docs/purchasely-best-practices.md).
 
-### Verified SDK APIs (from actual SDK inspection)
+### Verified SDK APIs (v6, from actual SDK inspection)
 
-**Android SDK 5.7.3:**
-- `userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener)` - first param is boolean
-- `subscriptionStatus?.isExpired()` - isExpired is a function, subscriptionStatus is nullable
-- `setUserAttribute(key: String, value: Any)` / `incrementUserAttribute(key: String)`
-- `setPaywallActionsInterceptor { info, action, parameters, proceed -> }`
-- `fetchPresentation(placementId) { presentation, error -> }` + `presentation.display(activity) { result, plan -> }`
-- No `hasEntitlement()` on PLYPlan
+**Android SDK 6.0.0-beta2 (mavenLocal, from ../Android fix/presentation_builder):**
+- Init DSL: `Purchasely { context(...); apiKey(...); runningMode(...); stores(...); onInitialized { error -> } }`
+- Presentation: `PLYPresentation { placementId("...") }` → `prepared.preload()` (suspend, throws) →
+  `presentation.display(activity)` (non-suspend, returns `PLYPresentationSession`; `session.await()`
+  suspends until dismissal and returns `PLYPresentationOutcome`)
+- Interceptors per action: `Purchasely.interceptAction<PLYPresentationAction.Purchase> { info, purchase -> PLYInterceptResult }`
+  (SUCCESS / FAILED / NOT_HANDLED)
+- `userSubscriptions(invalidateCache: Boolean, listener: SubscriptionsListener)`;
+  `subscriptionData.data.subscriptionStatus?.isExpired()` (nullable + function)
+- `setUserAttribute(key, value)` / `incrementUserAttribute(key)`
 
-**iOS SDK 5.7.3:**
-- `userSubscriptions(success:, failure:)` - separate closures (not a single completion handler)
-- `PLYSubscriptionStatus` is an enum: `.autoRenewing`, `.onHold`, `.inGracePeriod`, `.autoRenewingCanceled`, `.deactivated`, `.revoked`, `.paused`, `.unpaid`, `.unknown`
-- `setUserAttribute(withStringValue:, forKey:)` / `setUserAttribute(withBoolValue:, forKey:)` / `incrementUserAttribute(withKey:)`
-- `setPaywallActionsInterceptor { action, parameters, info, proceed in }`
-- `fetchPresentation(for:, fetchCompletion:, completion:)` + `presentation.display(from: viewController)`
-- `PLYEventDelegate.eventTriggered(_ event: PLYEvent, properties: [String: Any]?)` - properties is OPTIONAL
-- `restoreAllProducts(success:, failure:)` - separate closures
+**iOS SDK v6 (local SPM package → ../.worktrees/ios-develop):**
+- Init builder: `Purchasely.apiKey("...").appUserId(...).runningMode(...).logLevel(...).start { error in }`
+  — ⚠️ v6 default runningMode is `.observer` (was `.full` in v5): always set it explicitly
+- Presentation: `PLYPresentationBuilder.from(placementId:).contentId(...).onClose{}.onDismissed{outcome}`
+  → `.build().preload { presentation, error in }` → `presentation.display(from: viewController?)`
+- `PLYPresentation` is a protocol (`any PLYPresentation`); lifecycle callbacks (`onPresented`,
+  `onClose`, `onDismissed`) are mutable on the loaded presentation
+- Interceptors per action: `Purchasely.interceptAction(.purchase) { info, params in ... return .success }`
+  (async handler variant available; `.success` / `.failed` / `.notHandled`)
+- `userSubscriptions(success:, failure:)` — separate closures; `PLYSubscription.status` enum:
+  `.autoRenewing`, `.onHold`, `.inGracePeriod`, `.autoRenewingCanceled`, `.deactivated`, …
+- `setUserAttribute(withStringValue:, forKey:)` / `incrementUserAttribute(withKey:)`
+- `restoreAllProducts(success:, failure:)`; `synchronize(success:, failure:)`
 - `onChange(of:)` with `{ _, newValue }` requires iOS 17; use `{ newValue }` for iOS 16
 
 ## Architecture
@@ -102,8 +110,10 @@ cocktails.json → CocktailRepository → ViewModel (StateFlow/Published) → Co
 
 ### Key Components
 
-- **PurchaselyWrapper**: Koin singleton wrapping all Purchasely SDK calls. ViewModels use this exclusively — Screens never import `io.purchasely`. See `docs/purchasely-best-practices.md`.
-- **PresentationHandle** (Android): `@JvmInline value class` wrapping `PLYPresentation`. ViewModels hold this handle and emit it via `SharedFlow<PresentationHandle>` — SDK type never leaks to the UI layer.
+- **PurchaselyWrapper**: singleton wrapping all Purchasely SDK calls. ViewModels use this exclusively — on BOTH platforms, only the `purchasely/` package may import the SDK. See `docs/purchasely-best-practices.md`.
+- **PresentationHandle** (both platforms): opaque wrapper around the loaded presentation (`@JvmInline value class` on Android, struct on iOS). ViewModels hold this handle — SDK type never leaks to the UI layer.
+- **SubscriptionInfo / ConsentPurpose / PurchaselySdkMode** (both platforms): SDK-free boundary types mapped inside the wrapper.
+- **CocktailMood** (both platforms): mood-discovery enum (same keys/labels/emojis/tags on Android & iOS) reported as the `preferred_mood` user attribute; "Surprise me" increments `surprise_me_count`.
 - **EmbeddedScreenBanner**: Reusable Composable for inline paywall display. Uses PurchaselyWrapper internally.
 - **PremiumManager** / **PremiumManagerImpl** (Android): Implements `PremiumRepository` interface. Injects `PurchaselyWrapper` (no direct SDK calls). Wired to `onTransactionCompleted` callback in AppModule.
 - **CocktailRepository** / **CocktailRepositoryImpl**: Loads `cocktails.json` from bundled assets. Single source of truth for cocktail data.

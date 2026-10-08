@@ -21,12 +21,12 @@ class PurchaseManager(
     billingClientFactory: (PurchasesUpdatedListener) -> BillingClient,
     purchaseRequests: SharedFlow<PurchaseRequest>,
     restoreRequests: SharedFlow<RestoreRequest>,
-    scope: CoroutineScope
+    private val scope: CoroutineScope
 ) : PurchasesUpdatedListener {
 
     private val billingClient = billingClientFactory(this)
 
-    private val _transactionResult = MutableSharedFlow<TransactionResult>(replay = 1)
+    private val _transactionResult = MutableSharedFlow<TransactionResult>()
     val transactionResult: SharedFlow<TransactionResult> = _transactionResult.asSharedFlow()
 
     init {
@@ -41,6 +41,11 @@ class PurchaseManager(
                 restorePurchases()
             }
         }
+    }
+
+    // Suspending emit: an active collector always receives the result; late collectors get none.
+    private fun publish(result: TransactionResult) {
+        scope.launch { _transactionResult.emit(result) }
     }
 
     private fun connectBillingClient() {
@@ -72,10 +77,11 @@ class PurchaseManager(
             )
             .build()
 
-        billingClient.queryProductDetailsAsync(queryParams) { billingResult, productDetailsList ->
+        billingClient.queryProductDetailsAsync(queryParams) { billingResult, queryResult ->
+            val productDetailsList = queryResult.productDetailsList
             if (billingResult.responseCode != BillingClient.BillingResponseCode.OK || productDetailsList.isEmpty()) {
                 Log.e(TAG, "[Shaker] queryProductDetails failed: ${billingResult.debugMessage}")
-                _transactionResult.tryEmit(TransactionResult.Error(billingResult.debugMessage))
+                publish(TransactionResult.Error(billingResult.debugMessage))
                 return@queryProductDetailsAsync
             }
 
@@ -94,7 +100,7 @@ class PurchaseManager(
             val result = billingClient.launchBillingFlow(activity, flowParams)
             if (result.responseCode != BillingClient.BillingResponseCode.OK) {
                 Log.e(TAG, "[Shaker] Launch billing flow failed: ${result.debugMessage}")
-                _transactionResult.tryEmit(TransactionResult.Error(result.debugMessage))
+                publish(TransactionResult.Error(result.debugMessage))
             }
         }
     }
@@ -111,32 +117,34 @@ class PurchaseManager(
                 }
                 activePurchases.forEach { acknowledgePurchase(it) }
                 Log.d(TAG, "[Shaker] Restored ${activePurchases.size} purchases")
-                _transactionResult.tryEmit(
+                publish(
                     if (activePurchases.isNotEmpty()) TransactionResult.Success
                     else TransactionResult.Cancelled
                 )
             } else {
                 Log.e(TAG, "[Shaker] Restore failed: ${billingResult.debugMessage}")
-                _transactionResult.tryEmit(TransactionResult.Error(billingResult.debugMessage))
+                publish(TransactionResult.Error(billingResult.debugMessage))
             }
         }
     }
 
     override fun onPurchasesUpdated(billingResult: BillingResult, purchases: List<Purchase>?) {
         if (billingResult.responseCode == BillingClient.BillingResponseCode.OK && purchases != null) {
-            purchases.forEach { purchase ->
-                if (purchase.purchaseState == Purchase.PurchaseState.PURCHASED) {
-                    acknowledgePurchase(purchase)
-                }
+            val purchased = purchases.filter { it.purchaseState == Purchase.PurchaseState.PURCHASED }
+            purchased.forEach { acknowledgePurchase(it) }
+            if (purchased.isNotEmpty()) {
+                Log.d(TAG, "[Shaker] Purchase successful")
+                publish(TransactionResult.Success)
+            } else {
+                Log.w(TAG, "[Shaker] Purchase pending, not paid yet")
+                publish(TransactionResult.Error("Purchase pending"))
             }
-            Log.d(TAG, "[Shaker] Purchase successful")
-            _transactionResult.tryEmit(TransactionResult.Success)
         } else if (billingResult.responseCode == BillingClient.BillingResponseCode.USER_CANCELED) {
             Log.d(TAG, "[Shaker] Purchase cancelled by user")
-            _transactionResult.tryEmit(TransactionResult.Cancelled)
+            publish(TransactionResult.Cancelled)
         } else {
             Log.e(TAG, "[Shaker] Purchase error: ${billingResult.debugMessage}")
-            _transactionResult.tryEmit(TransactionResult.Error(billingResult.debugMessage))
+            publish(TransactionResult.Error(billingResult.debugMessage))
         }
     }
 
