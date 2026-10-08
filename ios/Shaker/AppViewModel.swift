@@ -28,6 +28,8 @@ class AppViewModel: ObservableObject {
             verboseLogging: verboseLogging
         ) { [weak self] success, error in
             Task { @MainActor in
+                // PURCHASELY: the SDK keeps consent in memory only, so re-apply it at every start.
+                if success { ConsentPurpose.applyStored(to: PurchaselyWrapper.shared) }
                 self?.isSDKReady = success
                 self?.sdkError = success ? nil : error?.localizedDescription
             }

@@ -89,6 +89,7 @@ class HomeViewModel: ObservableObject {
         // PURCHASELY: count how often the user asks for a surprise. A console campaign can
         // trigger a dedicated screen after N uses (engaged-user segmentation).
         wrapper.incrementUserAttribute(forKey: "surprise_me_count")
+        wrapper.emit("surprise_me", properties: [:])
         return pick.id
     }
 

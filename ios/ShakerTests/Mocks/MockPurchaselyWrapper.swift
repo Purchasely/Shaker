@@ -98,6 +98,12 @@ final class MockPurchaselyWrapper: PurchaselyWrapping {
         revokeConsentCalls.append(purposes)
     }
 
+    var emitCalls: [(name: String, properties: [String: Any])] = []
+
+    func emit(_ name: String, properties: [String: Any]) {
+        emitCalls.append((name, properties))
+    }
+
     func restart() {
         restartCallCount += 1
     }

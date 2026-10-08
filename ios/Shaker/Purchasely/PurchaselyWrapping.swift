@@ -48,6 +48,10 @@ protocol PurchaselyWrapping {
         failure: @escaping (Error) -> Void
     )
 
+    // MARK: - Custom Events
+
+    func emit(_ name: String, properties: [String: Any])
+
     // MARK: - Consent
 
     func revokeDataProcessingConsent(for purposes: Set<ConsentPurpose>)

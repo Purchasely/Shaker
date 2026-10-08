@@ -25,12 +25,20 @@ class DetailViewModel: ObservableObject {
         // Enables targeting users based on engagement depth (e.g., "viewed 5+ recipes")
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         wrapper.incrementUserAttribute(forKey: "cocktails_viewed")
+        if let cocktail {
+            // PURCHASELY: Custom event (6.2). A Console campaign can trigger a paywall on it.
+            wrapper.emit("recipe_viewed", properties: ["recipe_id": cocktail.id, "spirit": cocktail.spirit])
+        }
         if let spirit = cocktail?.spirit {
             // PURCHASELY: Record the spirit of the last-viewed cocktail as a user attribute
             // Allows personalized paywall content based on the user's preferred spirit category
             // Docs: https://docs.purchasely.com/advanced-features/user-attributes
             wrapper.setUserAttribute(spirit, forKey: "favorite_spirit")
         }
+    }
+
+    func trackFavoriteToggled(cocktailId: String, isFavorite: Bool) {
+        if isFavorite { wrapper.emit("favorite_added", properties: ["recipe_id": cocktailId]) }
     }
 
     // MARK: - Prefetch Presentations

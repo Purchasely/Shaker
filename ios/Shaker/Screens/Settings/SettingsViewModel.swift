@@ -178,13 +178,6 @@ class SettingsViewModel: ObservableObject {
     }
 
     private func applyConsentPreferences() {
-        var revoked = Set<ConsentPurpose>()
-        if !analyticsConsent { revoked.insert(.analytics) }
-        if !identifiedAnalyticsConsent { revoked.insert(.identifiedAnalytics) }
-        if !personalizationConsent { revoked.insert(.personalization) }
-        if !campaignsConsent { revoked.insert(.campaigns) }
-        if !thirdPartyConsent { revoked.insert(.thirdPartyIntegrations) }
-        wrapper.revokeDataProcessingConsent(for: revoked)
-        print("[Shaker] Consent updated — revoked: \(revoked)")
+        ConsentPurpose.applyStored(to: wrapper, defaults: defaults)
     }
 }

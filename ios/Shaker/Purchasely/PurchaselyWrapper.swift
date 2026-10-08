@@ -16,7 +16,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     // this signal to chain a "success_payment" placement once the original paywall
     // is dismissed.
     private var pendingSuccessfulPurchase: Bool = false
-    private var presentationFinishers: [String: PresentationDisplayFinisher] = [:]
+    private var presentationFinishers: [ObjectIdentifier: PresentationDisplayFinisher] = [:]
 
     private static let successPaymentPlacement = "success_payment"
 
@@ -83,6 +83,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             .appUserId(appUserId)
             .runningMode(runningMode)
             .storekitSettings(storekitSettings)
+            .webRedemptionDelegate(self)
             .logLevel(logLevel)
             .start { error in
                 if let error {
@@ -115,7 +116,11 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         PresentationCache.shared.invalidateAll()
         closeDisplayedPresentation()
         let storedUserId = UserDefaults.standard.string(forKey: "user_id")
-        initialize(apiKey: apiKey, appUserId: storedUserId, verboseLogging: logLevel == .debug) { _, _ in }
+        initialize(apiKey: apiKey, appUserId: storedUserId, verboseLogging: logLevel == .debug) { success, _ in
+            Task { @MainActor in
+                if success { ConsentPurpose.applyStored(to: PurchaselyWrapper.shared) }
+            }
+        }
     }
 
     @MainActor
@@ -298,7 +303,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             if let contentId {
                 builder.contentId(contentId)
             }
-            builder.onClose {
+            builder.onCloseRequested {
                 finishPresentation(.cancelled)
             }
             builder.onDismissed { outcome in
@@ -313,7 +318,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
                 // SDK v6 exposes lifecycle callbacks on the loaded presentation.
                 // Re-assign them after preload as a defensive measure because the
                 // builder-seeded callbacks are not fired by all develop snapshots.
-                presentation.onClose = {
+                presentation.onCloseRequested = {
                     finishPresentation(.cancelled)
                 }
                 presentation.onDismissed = { outcome in
@@ -333,7 +338,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         // Cache everything except errors (errors should be retried on next call)
         if case .error = result { /* skip */ } else {
             if let handle = result.handle {
-                presentationFinishers[handle.presentation.id] = finisher
+                presentationFinishers[ObjectIdentifier(handle.presentation)] = finisher
             }
             PresentationCache.shared.set(result, placementId: placementId, contentId: contentId)
         }
@@ -351,13 +356,13 @@ final class PurchaselyWrapper: PurchaselyWrapping {
             onResult: onResult,
             finisher: finisher
         )
-        presentation.onClose = {
+        presentation.onCloseRequested = {
             finishPresentation(.cancelled)
         }
         presentation.onDismissed = { outcome in
             finishPresentation(Self.displayResult(from: outcome))
         }
-        presentationFinishers[presentation.id] = finisher
+        presentationFinishers[ObjectIdentifier(presentation)] = finisher
     }
 
     private func makeFinishPresentation(
@@ -408,7 +413,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         }
 
         let builder = PLYPresentationBuilder.from(placementId: PurchaselyWrapper.successPaymentPlacement)
-        builder.onClose {
+        builder.onCloseRequested {
             refreshAfterDismissal()
         }
         builder.onDismissed { _ in
@@ -417,13 +422,13 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         builder.build().preload { [weak self] presentation, error in
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                let presentationId = presentation?.id ?? "nil"
+                let presentationId = presentation.map { "\(ObjectIdentifier($0))" } ?? "nil"
                 let presentationType = presentation.map { "\($0.type)" } ?? "nil"
                 print("[Shaker] success_payment preload — id=\(presentationId) type=\(presentationType) error=\(error?.localizedDescription ?? "none")")
                 if let presentation, presentation.type != .deactivated {
                     // Mirror loadPresentation's defensive reassignment: some v6 develop
                     // snapshots do not propagate builder-seeded callbacks to the loaded object.
-                    presentation.onClose = {
+                    presentation.onCloseRequested = {
                         refreshAfterDismissal()
                     }
                     presentation.onDismissed = { _ in
@@ -474,7 +479,7 @@ final class PurchaselyWrapper: PurchaselyWrapping {
     func display(handle: PresentationHandle, from viewController: UIViewController?) {
         // Cached presentations keep their callback closures; reset the per-display
         // guard before every modal display so future displays still report outcomes.
-        presentationFinishers[handle.presentation.id]?.reset()
+        presentationFinishers[ObjectIdentifier(handle.presentation)]?.reset()
         handle.presentation.display(from: viewController)
     }
 
@@ -512,6 +517,12 @@ final class PurchaselyWrapper: PurchaselyWrapping {
 
     func incrementUserAttribute(forKey key: String) {
         Purchasely.incrementUserAttribute(withKey: key)
+    }
+
+    // MARK: - Custom Events
+
+    func emit(_ name: String, properties: [String: Any] = [:]) {
+        Purchasely.emit(name: name, properties: properties)
     }
 
     // MARK: - Subscriptions
@@ -609,6 +620,17 @@ final class PurchaselyWrapper: PurchaselyWrapping {
         Purchasely.getSDKVersion() ?? ""
     }
 
+}
+
+// MARK: - Web Redemption Delegate
+
+extension PurchaselyWrapper: PLYWebRedemptionDelegate {
+    // PURCHASELY: Web2App (6.1). A successful web redemption activates a subscription,
+    // so refresh premium status.
+    nonisolated func webRedemptionCompleted(result: PLYWebRedemptionResult) {
+        guard result.isSuccess else { return }
+        Task { @MainActor in PremiumManager.shared.refreshPremiumStatus() }
+    }
 }
 
 // MARK: - Event Delegate

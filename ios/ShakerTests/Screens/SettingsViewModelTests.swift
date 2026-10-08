@@ -24,6 +24,25 @@ final class SettingsViewModelTests: XCTestCase {
         SettingsViewModel(wrapper: mockWrapper, defaults: defaults)
     }
 
+    // MARK: - Stored consent (applied at every SDK start)
+
+    func testRevokedConsentReadsStoredFlags() {
+        defaults.set(false, forKey: "consent_analytics")
+        defaults.set(false, forKey: "consent_campaigns")
+        defaults.set(true, forKey: "consent_personalization")
+        XCTAssertEqual(ConsentPurpose.revoked(in: defaults), [.analytics, .campaigns])
+    }
+
+    func testRevokedConsentEmptyByDefault() {
+        XCTAssertTrue(ConsentPurpose.revoked(in: defaults).isEmpty)
+    }
+
+    func testApplyStoredConsentRevokesStoredPurposes() {
+        defaults.set(false, forKey: "consent_third_party")
+        ConsentPurpose.applyStored(to: mockWrapper, defaults: defaults)
+        XCTAssertEqual(mockWrapper.revokeConsentCalls.last, [.thirdPartyIntegrations])
+    }
+
     // MARK: - Initial state
 
     func testInitialUserIdIsNil() {

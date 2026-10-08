@@ -8,9 +8,8 @@ options:
 
 packages:
   Purchasely:
-    # Purchasely-iOS-Sources/develop has no Package.swift at the repository root,
-    # so Shaker uses a tiny local Swift package that symlinks to ../iOS/Purchasely.
-    path: LocalPackages/Purchasely
+    url: https://github.com/Purchasely/Purchasely-iOS
+    exactVersion: 6.2.0
 
 settings:
   base:

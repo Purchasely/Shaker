@@ -63,6 +63,7 @@ struct DetailScreen: View {
                                 tint: favoritesRepository.isFavorite(cocktail.id) ? tokens.danger : .black) {
                         if premiumManager.isPremium {
                             favoritesRepository.toggleFavorite(cocktail.id)
+                            viewModel.trackFavoriteToggled(cocktailId: cocktail.id, isFavorite: favoritesRepository.isFavorite(cocktail.id))
                         } else {
                             viewModel.displayFavoritesPaywall(from: hostViewController)
                         }
@@ -238,6 +239,7 @@ struct DetailScreen: View {
 
             Button {
                 favoritesRepository.toggleFavorite(cocktail.id)
+                viewModel.trackFavoriteToggled(cocktailId: cocktail.id, isFavorite: favoritesRepository.isFavorite(cocktail.id))
             } label: {
                 HStack {
                     Image(systemName: favoritesRepository.isFavorite(cocktail.id) ? "heart.fill" : "heart")
