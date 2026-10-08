@@ -63,4 +63,7 @@ targets:
         # XCTestCase is non-Sendable and predates async/await, so Swift 6 complete
         # strict concurrency flags every `try await super.setUp()`. Keep production
         # code on `complete` and relax tests to `minimal`.
+        # Xcode 16.4 (CI) reports `try await super.setUp()` in @MainActor tests as a
+        # Swift 6 mode error even with minimal checking; Swift 5 mode keeps it a warning.
+        SWIFT_VERSION: "5.0"
         SWIFT_STRICT_CONCURRENCY: minimal
