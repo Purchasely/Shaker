@@ -9,6 +9,7 @@ import android.util.Log
 import android.view.View
 import com.purchasely.shaker.data.PurchaselySdkMode
 import com.purchasely.shaker.data.RunningModeRepository
+import com.purchasely.shaker.data.SettingsRepository
 import com.purchasely.shaker.domain.model.ConsentPurpose
 import com.purchasely.shaker.data.purchase.PurchaseRequest
 import com.purchasely.shaker.data.purchase.RestoreRequest
@@ -21,8 +22,8 @@ import io.purchasely.ext.PLYInterceptorInfo
 import io.purchasely.ext.PLYRunningMode
 import io.purchasely.ext.Purchasely
 import io.purchasely.ext.SubscriptionsListener
-import io.purchasely.ext.interceptAction
 import io.purchasely.models.PLYSubscriptionData
+import io.purchasely.models.PLYWebRedemptionResult
 import io.purchasely.ext.presentation.PLYPresentation
 import io.purchasely.ext.presentation.PLYPresentationAction
 import io.purchasely.ext.presentation.PLYPresentationOutcome
@@ -110,6 +111,10 @@ class PurchaselyWrapper(
             apiKey(apiKey)
             logLevel(logLevel)
             allowDeeplink(true)
+            // PURCHASELY (6.1): the SDK shows its own outcome alert (default); refresh premium on success.
+            webRedemptionListener { result ->
+                if (result is PLYWebRedemptionResult.Success) onTransactionCompleted?.invoke()
+            }
             runningMode(mode)
             stores(listOf(GoogleStore()))
             onInitialized { error ->
@@ -596,6 +601,13 @@ class PurchaselyWrapper(
         Purchasely.revokeDataProcessingConsent(sdkPurposes)
     }
 
+    // MARK: - Custom Events
+
+    // PURCHASELY (6.2): emit an app event; a Console campaign can trigger a paywall on it.
+    fun emit(name: String, properties: Map<String, Any?> = emptyMap()) {
+        Purchasely.emit(name, properties)
+    }
+
     // MARK: - SDK Info
 
     val sdkVersion: String
@@ -606,3 +618,6 @@ class PurchaselyWrapper(
         private const val SUCCESS_PAYMENT_PLACEMENT = "success_payment"
     }
 }
+
+fun PurchaselyWrapper.applyStoredConsent(settings: SettingsRepository) =
+    revokeDataProcessingConsent(settings.revokedConsentPurposes())

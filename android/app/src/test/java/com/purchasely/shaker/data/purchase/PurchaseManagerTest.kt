@@ -95,4 +95,40 @@ class PurchaseManagerTest {
 
         assertTrue(result is TransactionResult.Error)
     }
+
+    @Test
+    fun `pending purchase does not emit Success`() = runTest {
+        val billingResult = mockk<BillingResult> {
+            every { responseCode } returns BillingClient.BillingResponseCode.OK
+            every { debugMessage } returns ""
+        }
+        val purchase = mockk<Purchase> {
+            every { purchaseState } returns Purchase.PurchaseState.PENDING
+            every { isAcknowledged } returns false
+        }
+
+        var result: TransactionResult? = null
+        val job = launch(testDispatcher) {
+            result = purchaseManager.transactionResult.first { it !is TransactionResult.Idle }
+        }
+
+        purchaseManager.onPurchasesUpdated(billingResult, listOf(purchase))
+        job.join()
+
+        assertTrue(result is TransactionResult.Error)
+    }
+
+    @Test
+    fun `a collector that starts after a result does not receive it`() = runTest {
+        val billingResult = mockk<BillingResult> {
+            every { responseCode } returns BillingClient.BillingResponseCode.USER_CANCELED
+        }
+        purchaseManager.onPurchasesUpdated(billingResult, null)
+
+        val received = mutableListOf<TransactionResult>()
+        val job = launch(testDispatcher) { purchaseManager.transactionResult.collect { received.add(it) } }
+
+        assertTrue(received.isEmpty())
+        job.cancel()
+    }
 }

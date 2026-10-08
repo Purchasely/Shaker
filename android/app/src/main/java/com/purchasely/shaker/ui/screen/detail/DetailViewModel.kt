@@ -53,6 +53,8 @@ class DetailViewModel(
         // Useful for triggering presentations after N views or segmenting engaged users
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         purchaselyWrapper.incrementUserAttribute("cocktails_viewed")
+        // PURCHASELY (6.2): custom event; a Console campaign can open a paywall on it.
+        _cocktail.value?.let { purchaselyWrapper.emit("recipe_viewed", mapOf("recipe_id" to it.id, "spirit" to it.spirit)) }
         // PURCHASELY: Track the spirit of the last-viewed cocktail for personalized presentation content
         // Docs: https://docs.purchasely.com/advanced-features/user-attributes
         _cocktail.value?.spirit?.let { spirit ->
@@ -63,7 +65,9 @@ class DetailViewModel(
     fun isFavorite(): Boolean = favoritesRepository.isFavorite(cocktailId)
 
     fun toggleFavorite() {
+        val wasFavorite = isFavorite()
         toggleFavoriteUseCase(cocktailId)
+        if (!wasFavorite) purchaselyWrapper.emit("favorite_added", mapOf("recipe_id" to cocktailId))
     }
 
     fun showRecipePresentation() {

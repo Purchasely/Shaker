@@ -15,6 +15,7 @@ import io.mockk.every
 import io.mockk.mockk
 import io.mockk.slot
 import io.mockk.verify
+import io.mockk.verifyOrder
 import com.purchasely.shaker.domain.model.ConsentPurpose
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -321,5 +322,39 @@ class SettingsViewModelTest {
         settingsRepo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
         val vm = createViewModel()
         assertEquals(PurchaselySdkMode.FULL.storageValue, settingsRepo.sdkModeStorage)
+    }
+
+    @Test
+    fun `login refreshes premium when refresh is false`() {
+        val refreshSlot = slot<(Boolean) -> Unit>()
+        every { wrapper.userLogin(any(), capture(refreshSlot)) } answers {
+            refreshSlot.captured(false)
+        }
+        val vm = createViewModel()
+        vm.login("kevin")
+        verify { premiumRepository.refreshPremiumStatus() }
+    }
+
+    @Test
+    fun `logout refreshes premium status`() {
+        settingsRepo.userId = "kevin"
+        val vm = createViewModel()
+        vm.logout()
+        verifyOrder {
+            wrapper.userLogout()
+            premiumRepository.refreshPremiumStatus()
+        }
+    }
+
+    @Test
+    fun `restart re-applies stored consent`() {
+        settingsRepo.sdkModeStorage = PurchaselySdkMode.FULL.storageValue
+        settingsRepo.campaignsConsent = false
+        val vm = createViewModel()
+        vm.setSdkMode(PurchaselySdkMode.OBSERVER)
+        verifyOrder {
+            wrapper.restart()
+            wrapper.revokeDataProcessingConsent(setOf(ConsentPurpose.CAMPAIGNS))
+        }
     }
 }

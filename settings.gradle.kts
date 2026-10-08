@@ -12,7 +12,6 @@ plugins {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        mavenLocal() // PURCHASELY v6.0.0 — remove once published to Maven Central
         google()
         mavenCentral()
     }

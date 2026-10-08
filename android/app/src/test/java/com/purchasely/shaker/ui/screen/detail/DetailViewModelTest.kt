@@ -160,4 +160,10 @@ class DetailViewModelTest {
         val vm = createViewModel()
         assertTrue(vm.favoriteIds.value.contains("mojito"))
     }
+
+    @Test
+    fun `loading a cocktail emits recipe_viewed with recipe_id`() {
+        createViewModel()
+        verify { wrapper.emit("recipe_viewed", mapOf("recipe_id" to "mojito", "spirit" to "Rum")) }
+    }
 }

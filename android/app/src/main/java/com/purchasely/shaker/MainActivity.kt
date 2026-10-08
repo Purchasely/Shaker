@@ -23,7 +23,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        handleDeepLink(intent)
+        if (savedInstanceState == null) handleDeepLink(intent)
 
         setContent {
             val themeMode by settingsRepository.themeModeFlow.collectAsState()

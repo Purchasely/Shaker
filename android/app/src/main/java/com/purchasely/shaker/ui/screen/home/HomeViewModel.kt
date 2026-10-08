@@ -190,6 +190,7 @@ class HomeViewModel(
         // PURCHASELY: count how often the user asks for a surprise. A console campaign can
         // trigger a dedicated screen after N uses (engaged-user segmentation).
         purchaselyWrapper.incrementUserAttribute("surprise_me_count")
+        purchaselyWrapper.emit("surprise_me")
         return candidates.random().id
     }
 

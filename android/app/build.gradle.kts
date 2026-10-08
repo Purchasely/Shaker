@@ -13,7 +13,7 @@ val localProperties = Properties().apply {
 
 android {
     namespace = "com.purchasely.shaker"
-    compileSdk = 35
+    compileSdk = 36
 
     signingConfigs {
         // Fallback values below are placeholders for the public sample.
@@ -30,7 +30,7 @@ android {
     defaultConfig {
         applicationId = "com.purchasely.shaker"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "1.0.0"
 
